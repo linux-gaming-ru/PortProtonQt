@@ -943,13 +943,13 @@ get_and_set_reg_file () {
     esac
     name_block=${name_block//\\/\\\\\\\\}
     if [[ -n $name_for_new_block ]] ; then
-        find_block=$(grep -n "\[$name_block\]" "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/$name_for_new_block.reg")
+        find_block=$(grep -n "\[$name_block\]" "${WINEPREFIX}/$name_for_new_block.reg")
     else
-        find_block=$(grep -n "\[$name_block\]" "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/"*.reg)
+        find_block=$(grep -n "\[$name_block\]" "${WINEPREFIX}/"*.reg)
     fi
     if [[ -n $find_block ]] ; then
         if [[ -n $name_for_new_block ]] ; then
-            find_file="${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/$name_for_new_block.reg"
+            find_file="${WINEPREFIX}/$name_for_new_block.reg"
             find_line=${find_block//:*/}
         else
             find_file=${find_block//:*/}
@@ -974,8 +974,8 @@ get_and_set_reg_file () {
     if [[ $name_add_or_del == --add ]] ; then
         if [[ -z $find_block ]] ; then
             if [[ -n $name_for_new_block ]] ; then
-                sed -i '$a\\n'\["$name_block"\] "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/$name_for_new_block.reg"
-                find_file="${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/$name_for_new_block.reg"
+                sed -i '$a\\n'\["$name_block"\] "${WINEPREFIX}/$name_for_new_block.reg"
+                find_file="${WINEPREFIX}/$name_for_new_block.reg"
                 find_line=$(wc -l "$find_file" | awk -F" " '{print $1}')
                 find_line=$(( find_line - 1 ))
             else
@@ -1197,6 +1197,23 @@ init_wine_ver () {
     export MEDIACONV_BLANK_AUDIO_FILE="${WINEDIR}/share/media/blank.ptna"
     if  [[ -d "${WINEDIR}"/share/espeak-ng-data ]] ; then
         export ESPEAK_DATA_PATH="${WINEDIR}"/share/
+    fi
+
+    if [[ "${PW_STEAMPLAY:-}" == "1" ]] ; then
+        if [[ -x "${STEAM_COMPAT_TOOL_PATHS%%:*}/proton" ]] ; then
+            PROTON_RUNNER="${STEAM_COMPAT_TOOL_PATHS%%:*}/proton"
+        elif [[ "${PW_WINE_USE:-}" = /* && -x "${PW_WINE_USE}/proton" ]] ; then
+            PROTON_RUNNER="${PW_WINE_USE}/proton"
+        elif [[ -x "${PORT_DATA_PATH}/data/dist/${PW_WINE_USE^^}/proton" ]] ; then
+            PROTON_RUNNER="${PORT_DATA_PATH}/data/dist/${PW_WINE_USE^^}/proton"
+        elif [[ -x "${WINEDIR}/proton" ]] ; then
+            PROTON_RUNNER="${WINEDIR}/proton"
+        elif [[ -x "${WINEDIR%/files}/proton" ]] ; then
+            PROTON_RUNNER="${WINEDIR%/files}/proton"
+        else
+            fatal "$PW_WINE_USE not found!"
+        fi
+        export PROTON_RUNNER
     fi
     return 0
 }
@@ -1838,6 +1855,10 @@ check_dirs_and_files_in_pfx () {
     }
 
 pw_init_db () {
+    if [[ "${PW_STEAMPLAY:-}" == "1" ]] ; then
+        return 0
+    fi
+
     [[ -n "${PW_DEFAULT_WINE_USE:-}" ]] && export PW_WINE_USE="${PW_DEFAULT_WINE_USE}"
     [[ -n "${PW_DEFAULT_PREFIX_NAME:-}" ]] && export PW_PREFIX_NAME="${PW_DEFAULT_PREFIX_NAME}"
     [[ -n "${PW_DEFAULT_VULKAN_USE:-}" ]] && export PW_VULKAN_USE="${PW_DEFAULT_VULKAN_USE}"
@@ -2618,15 +2639,27 @@ pw_enable_gamemode_basic () {
 }
 
 start_portproton () {
-    pw_check_and_download_plugins
-
-    if [[ "${PW_DISABLE_RUNTIME_DOWNLOAD}" == "1" ]] ; then
-        try_remove_dir "${PORT_WINE_TMP_PATH}/libs${PW_LIBS_VER}"
-    else
-        pw_check_and_download_runtime
+    if [[ "${PW_STEAMPLAY:-}" == "1" ]] ; then
+        PATH_TO_GAME="$(dirname "$(realpath "${PW_EXE_FILE}")")"
+        export PATH_TO_GAME
+        export PORTWINE_DB_FILE="${PW_EXE_FILE}.ppdb"
+        [[ -f "${PORTWINE_DB_FILE}" ]] && source "${PORTWINE_DB_FILE}"
+        unset PW_PREFIX_NAME
+        export WINEPREFIX="${STEAM_COMPAT_DATA_PATH}/pfx"
     fi
 
-    pw_check_and_download_dxvk_and_vkd3d
+    pw_check_and_download_plugins
+
+    if [[ "${PW_STEAMPLAY:-}" == "1" ]] ; then
+        export PW_USE_RUNTIME="0"
+        export PW_USE_SUPPLIED_DXVK_VKD3D="1"
+    elif [[ "${PW_DISABLE_RUNTIME_DOWNLOAD}" == "1" ]] ; then
+        try_remove_dir "${PORT_WINE_TMP_PATH}/libs${PW_LIBS_VER}"
+        pw_check_and_download_dxvk_and_vkd3d
+    else
+        pw_check_and_download_runtime
+        pw_check_and_download_dxvk_and_vkd3d
+    fi
 
     pw_skip_get_info
     if [[ "${PW_LOCALE_SELECT}" != "disabled" ]] && [[ -n "${PW_LOCALE_SELECT}" ]] ; then
@@ -2638,7 +2671,9 @@ start_portproton () {
         export PW_LOCALE_SELECT="disabled"
     fi
 
-    WINEPREFIX="$(readlink -f "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}")"
+    if [[ "${PW_STEAMPLAY:-}" != "1" ]] ; then
+        WINEPREFIX="$(readlink -f "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}")"
+    fi
     export WINEPREFIX
 
     pw_get_pfx () {
@@ -2675,7 +2710,7 @@ start_portproton () {
         return 0
     }
 
-    pw_get_pfx
+    [[ "${PW_STEAMPLAY:-}" != "1" ]] && pw_get_pfx
 
     var_winedlloverride_update "${PW_MUST_WINEDLLOVERRIDES}"
     pw_list_install_dll_in_prefix
@@ -2791,52 +2826,54 @@ start_portproton () {
         print_info "The prefix has been updated."
     }
 
-    if [[ ! -d "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}"/drive_c/windows ]] \
-    || [[ ! -f "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}"/userdef.reg ]] \
-    || [[ ! -f "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}"/system.reg ]] \
-    || [[ ! -f "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}"/user.reg ]]
-    then
-        pw_clear_pfx
-        check_dirs_and_files_in_pfx
-        if [[ "${PW_PREFIX_NAME}" == "DEFAULT" ]] ; then
-            unpack "${PW_PLUGINS_PATH}/default_pfx.tar.xz" "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/" silent
-            pw_wineboot -r
-            echo "based_on_default" >> "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/winetricks.log"
-        elif [[ "${PW_CHECK_AUTOINSTALL}" == 1 ]] \
-        && [[ "${DISABLE_CP_DEFPFX}" != 1 ]] ; then
-            unpack "${PW_PLUGINS_PATH}/default_pfx.tar.xz" "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/" silent
-            pw_wineboot -r
-            echo "based_on_default" >> "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/winetricks.log"
-        elif [[ "${PW_CHECK_AUTOINSTALL}" == 1 ]] \
-        && [[ "${DISABLE_CP_DEFPFX}" == 1 ]] ; then
-            pw_wineboot -i
-        elif [[ "${DISABLE_CP_DEFPFX}" == "1" ]]; then
-            pw_wineboot -i
-        else
-            unpack "${PW_PLUGINS_PATH}/default_pfx.tar.xz" "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/" silent
-            pw_wineboot -r
-            echo "based_on_default" >> "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/winetricks.log"
-        fi
-        get_and_set_reg_file --add 'Control Panel\Desktop' 'LogPixels' 'REG_DWORD' "96" "user"
-    else
-        check_dirs_and_files_in_pfx
-        if [[ ! -f "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/.wine_ver" ]] \
-        || [[ ! -f "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/drive_c/windows/system32/shell32.dll" ]] \
-        || ! grep "${PW_WINE_USE}" "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/.wine_ver" &>/dev/null
+    if [[ "${PW_STEAMPLAY:-}" != "1" ]] ; then
+        if [[ ! -d "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}"/drive_c/windows ]] \
+        || [[ ! -f "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}"/userdef.reg ]] \
+        || [[ ! -f "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}"/system.reg ]] \
+        || [[ ! -f "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}"/user.reg ]]
         then
-            pw_wineboot -r
+            pw_clear_pfx
+            check_dirs_and_files_in_pfx
+            if [[ "${PW_PREFIX_NAME}" == "DEFAULT" ]] ; then
+                unpack "${PW_PLUGINS_PATH}/default_pfx.tar.xz" "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/" silent
+                pw_wineboot -r
+                echo "based_on_default" >> "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/winetricks.log"
+            elif [[ "${PW_CHECK_AUTOINSTALL}" == 1 ]] \
+            && [[ "${DISABLE_CP_DEFPFX}" != 1 ]] ; then
+                unpack "${PW_PLUGINS_PATH}/default_pfx.tar.xz" "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/" silent
+                pw_wineboot -r
+                echo "based_on_default" >> "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/winetricks.log"
+            elif [[ "${PW_CHECK_AUTOINSTALL}" == 1 ]] \
+            && [[ "${DISABLE_CP_DEFPFX}" == 1 ]] ; then
+                pw_wineboot -i
+            elif [[ "${DISABLE_CP_DEFPFX}" == "1" ]]; then
+                pw_wineboot -i
+            else
+                unpack "${PW_PLUGINS_PATH}/default_pfx.tar.xz" "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/" silent
+                pw_wineboot -r
+                echo "based_on_default" >> "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/winetricks.log"
+            fi
+            get_and_set_reg_file --add 'Control Panel\Desktop' 'LogPixels' 'REG_DWORD' "96" "user"
+        else
+            check_dirs_and_files_in_pfx
+            if [[ ! -f "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/.wine_ver" ]] \
+            || [[ ! -f "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/drive_c/windows/system32/shell32.dll" ]] \
+            || ! grep "${PW_WINE_USE}" "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/.wine_ver" &>/dev/null
+            then
+                pw_wineboot -r
+            fi
         fi
+
+        if [[ -f "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/winetricks.log" ]] \
+        && grep -q "based_on" "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/winetricks.log"
+        then export PW_BASE_PFX="$(awk -F'based_on_' '$2 != "" {print $2}' "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/winetricks.log")"
+        else export PW_BASE_PFX="none"
+        fi
+
+        rm -f "${PORT_DATA_PATH}"/data/prefixes/*/drive_c/users/*/Desktop/*.lnk
+
+        echo "${PW_WINE_USE}" > "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/.wine_ver"
     fi
-
-    if [[ -f "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/winetricks.log" ]] \
-    && grep -q "based_on" "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/winetricks.log"
-    then export PW_BASE_PFX="$(awk -F'based_on_' '$2 != "" {print $2}' "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/winetricks.log")"
-    else export PW_BASE_PFX="none"
-    fi
-
-    rm -f "${PORT_DATA_PATH}"/data/prefixes/*/drive_c/users/*/Desktop/*.lnk
-
-    echo "${PW_WINE_USE}" > "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/.wine_ver"
 
     pw_set_sync_runtime_vars
 
@@ -2940,8 +2977,13 @@ start_portproton () {
     fi
 
     if [[ "${PW_USE_NVAPI_AND_DLSS}" == "1" ]] ; then
-        export DXVK_ENABLE_NVAPI="1"
-        if echo "$LSPCI_VGA" | grep -i -q 'nvidia' ; then
+        if [[ "${PW_STEAMPLAY:-}" == "1" ]] ; then
+            export PROTON_FORCE_NVAPI="1"
+            export PROTON_HIDE_NVIDIA_GPU="0"
+        else
+            export DXVK_ENABLE_NVAPI="1"
+        fi
+        if [[ "${PW_STEAMPLAY:-}" != "1" ]] && echo "$LSPCI_VGA" | grep -i -q 'nvidia' ; then
             FIND_NVNGX="$(dirname $(find /usr/* -type f -name "nvngx.dll" 2>/dev/null | head -n 1 | awk '{print $1}'))"
             if [[ -n "$FIND_NVNGX" ]] ; then
                 try_copy_file_with_checksums "${FIND_NVNGX}/nvngx.dll" "${WINEPREFIX}/drive_c/windows/system32/nvngx.dll"
@@ -2950,7 +2992,7 @@ start_portproton () {
                 export NVIDIA_WINE_DLL_DIR="${FIND_NVNGX}"
             fi
         fi
-    else
+    elif [[ "${PW_STEAMPLAY:-}" != "1" ]] ; then
         export DXVK_ENABLE_NVAPI="0"
     fi
 
@@ -2964,9 +3006,11 @@ start_portproton () {
     else export WINE_ALLOW_XIM="0"
     fi
 
-    if [[ "${PW_FIX_VIDEO_IN_GAME}" == 1 ]]
-    then export WINE_DO_NOT_CREATE_DXGI_DEVICE_MANAGER="1"
-    else export WINE_DO_NOT_CREATE_DXGI_DEVICE_MANAGER="0"
+    if [[ "${PW_STEAMPLAY:-}" != "1" ]] ; then
+        if [[ "${PW_FIX_VIDEO_IN_GAME}" == 1 ]]
+        then export WINE_DO_NOT_CREATE_DXGI_DEVICE_MANAGER="1"
+        else export WINE_DO_NOT_CREATE_DXGI_DEVICE_MANAGER="0"
+        fi
     fi
 
     if [[ -f "$PATH_TO_GAME/MangoHud.conf" ]] ; then
@@ -3069,16 +3113,17 @@ start_portproton () {
         export PW_USE_US_LAYOUT="0"
     fi
 
+    if [[ "${PW_STEAMPLAY:-}" != "1" ]] ; then
     D3D_EXTRAS_LIBS="d3dcompiler_33 d3dcompiler_34 d3dcompiler_35 d3dcompiler_36 d3dcompiler_37
     d3dcompiler_38 d3dcompiler_39 d3dcompiler_40 d3dcompiler_41 d3dcompiler_42 d3dcompiler_43 d3dcompiler_46
     d3dcompiler_47 d3dx10_33 d3dx10_34 d3dx10_35 d3dx10_36 d3dx10_37 d3dx10_38 d3dx10_39 d3dx10_40 d3dx10_41
     d3dx10_42 d3dx10_43 d3dx10 d3dx11_42 d3dx11_43 d3dx9_24 d3dx9_25 d3dx9_26 d3dx9_27 d3dx9_28 d3dx9_29 d3dx9_30
     d3dx9_31 d3dx9_32 d3dx9_33 d3dx9_34 d3dx9_35 d3dx9_36 d3dx9_37 d3dx9_38 d3dx9_39 d3dx9_40 d3dx9_41 d3dx9_42 d3dx9_43"
     if [[ "${PW_USE_D3D_EXTRAS}" == "1" ]] ; then
-        if [[ ! -f "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/winetricks.log" ]] \
-        || [[ -z "$(grep d3dx9 "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/winetricks.log")" ]]
+        if [[ ! -f "${WINEPREFIX}/winetricks.log" ]] \
+        || [[ -z "$(grep d3dx9 "${WINEPREFIX}/winetricks.log")" ]]
         then
-            echo "d3dx9" >> "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/winetricks.log"
+            echo "d3dx9" >> "${WINEPREFIX}/winetricks.log"
         fi
         # try link d3d extras libs
         PATH_TO_D3DEXTRAS="${PW_PLUGINS_PATH}/d3d_extras"
@@ -3086,8 +3131,8 @@ start_portproton () {
             try_force_link_file "${PATH_TO_D3DEXTRAS}/x64/${d3d_extras_from_plugins}.dll" "${WINEPREFIX}/drive_c/windows/system32/${d3d_extras_from_plugins}.dll"
             try_force_link_file "${PATH_TO_D3DEXTRAS}/x32/${d3d_extras_from_plugins}.dll" "${WINEPREFIX}/drive_c/windows/syswow64/${d3d_extras_from_plugins}.dll"
             var_winedlloverride_update "${d3d_extras_from_plugins}=n"
-            if [[ -z "$(grep "${d3d_extras_from_plugins}" "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/winetricks.log")" ]] ; then
-                echo "${d3d_extras_from_plugins}" >> "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/winetricks.log"
+            if [[ -z "$(grep "${d3d_extras_from_plugins}" "${WINEPREFIX}/winetricks.log")" ]] ; then
+                echo "${d3d_extras_from_plugins}" >> "${WINEPREFIX}/winetricks.log"
             fi
         done
     else
@@ -3580,6 +3625,7 @@ start_portproton () {
     else
         var_winedlloverride_update "wineopenxr,vrclient,vrclient_x64,openvr_api_dxvk="
     fi
+    fi
 
     if [[ "${PW_USE_SHADER_CACHE}" == "1" ]] ; then
         create_new_dir "${PW_VULKAN_DIR}/gl_shader_cache"
@@ -3653,59 +3699,65 @@ start_portproton () {
     fi
     export LSFGVK_EXPERIMENTAL_PRESENT_MODE="$MESA_VK_WSI_PRESENT_MODE"
 
-    #run_winetricks_from_db
-    if [[ -n "${PW_MUST_HAVE_DLL}" ]] ; then
-        PW_DLL_INSTALL="$(echo "${PW_MUST_HAVE_DLL} ${PW_DLL_INSTALL}" | awk '{ for(i=1;i<=NF;i++){a[$i]++} }END{ for(i in a){printf("%s ",i)} }' )"
-        export PW_DLL_INSTALL
-    fi
-
-    if [[ -n "${PW_DLL_INSTALL}" ]] ; then
-        export PW_DLL_NEED_INSTALL=""
-        export USE_WT_FROM_DB=0
-        if [[ ! -f "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/winetricks.log" ]] ; then
-            touch "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/winetricks.log"
+    if [[ "${PW_STEAMPLAY:-}" != "1" ]] ; then
+        #run_winetricks_from_db
+        if [[ -n "${PW_MUST_HAVE_DLL}" ]] ; then
+            PW_DLL_INSTALL="$(echo "${PW_MUST_HAVE_DLL} ${PW_DLL_INSTALL}" | awk '{ for(i=1;i<=NF;i++){a[$i]++} }END{ for(i in a){printf("%s ",i)} }' )"
+            export PW_DLL_INSTALL
         fi
-        for need_install_dll_to_pfx in ${PW_DLL_INSTALL} ; do
-            if [[ "${need_install_dll_to_pfx}" == vcrun201[5-9] ]] \
-            || [[ "${need_install_dll_to_pfx}" == vcrun2022 ]] ; then
-                need_install_dll_to_pfx="vcrun2022"
-                sed -i '/vcrun2015/d' "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/winetricks.log"
-                sed -i '/vcrun2017/d' "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/winetricks.log"
-                sed -i '/vcrun2019/d' "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/winetricks.log"
+
+        if [[ -n "${PW_DLL_INSTALL}" ]] ; then
+            export PW_DLL_NEED_INSTALL=""
+            export USE_WT_FROM_DB=0
+            if [[ ! -f "${WINEPREFIX}/winetricks.log" ]] ; then
+                touch "${WINEPREFIX}/winetricks.log"
             fi
-            grep "${need_install_dll_to_pfx}" "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/winetricks.log" &>/dev/null
-            if [[ "$?" == "1" ]] ; then
-                if [[ -z "${PW_DLL_NEED_INSTALL}" ]]
-                then export PW_DLL_NEED_INSTALL="${need_install_dll_to_pfx}"
-                else export PW_DLL_NEED_INSTALL="${need_install_dll_to_pfx} ${PW_DLL_NEED_INSTALL}"
+            for need_install_dll_to_pfx in ${PW_DLL_INSTALL} ; do
+                if [[ "${need_install_dll_to_pfx}" == vcrun201[5-9] ]] \
+                || [[ "${need_install_dll_to_pfx}" == vcrun2022 ]] ; then
+                    need_install_dll_to_pfx="vcrun2022"
+                    sed -i '/vcrun2015/d' "${WINEPREFIX}/winetricks.log"
+                    sed -i '/vcrun2017/d' "${WINEPREFIX}/winetricks.log"
+                    sed -i '/vcrun2019/d' "${WINEPREFIX}/winetricks.log"
                 fi
-                export USE_WT_FROM_DB=1
+                grep "${need_install_dll_to_pfx}" "${WINEPREFIX}/winetricks.log" &>/dev/null
+                if [[ "$?" == "1" ]] ; then
+                    if [[ -z "${PW_DLL_NEED_INSTALL}" ]]
+                    then export PW_DLL_NEED_INSTALL="${need_install_dll_to_pfx}"
+                    else export PW_DLL_NEED_INSTALL="${need_install_dll_to_pfx} ${PW_DLL_NEED_INSTALL}"
+                    fi
+                    export USE_WT_FROM_DB=1
+                fi
+            done
+            if [[ "${USE_WT_FROM_DB}" == "1" ]] ; then
+                update_winetricks
+                echo "START WINETRICKS..." >> "${PW_TMPFS_PATH}/update_pfx_log"
+                echo "Try to install DLL in prefix: ${PW_DLL_NEED_INSTALL}" >> "${PW_TMPFS_PATH}/update_pfx_log"
+                print_info "Try to install DLL in prefix: ${PW_DLL_NEED_INSTALL}"
+                ${pw_runtime} LD_LIBRARY_PATH="${PW_LD_LIBRARY_PATH}" GST_PLUGIN_SYSTEM_PATH_1_0="" \
+                "${PORT_WINE_TMP_PATH}/winetricks" -q -f ${PW_DLL_NEED_INSTALL} | tee -a "${PW_TMPFS_PATH}/update_pfx_log"
+                wait_wineserver
+                kill_portwine
             fi
-        done
-        if [[ "${USE_WT_FROM_DB}" == "1" ]] ; then
-            update_winetricks
-            echo "START WINETRICKS..." >> "${PW_TMPFS_PATH}/update_pfx_log"
-            echo "Try to install DLL in prefix: ${PW_DLL_NEED_INSTALL}" >> "${PW_TMPFS_PATH}/update_pfx_log"
-            print_info "Try to install DLL in prefix: ${PW_DLL_NEED_INSTALL}"
-            ${pw_runtime} LD_LIBRARY_PATH="${PW_LD_LIBRARY_PATH}" GST_PLUGIN_SYSTEM_PATH_1_0="" \
-            "${PORT_WINE_TMP_PATH}/winetricks" -q -f ${PW_DLL_NEED_INSTALL} | tee -a "${PW_TMPFS_PATH}/update_pfx_log"
-            wait_wineserver
-            kill_portwine
         fi
     fi
 
-    if [[ -f "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/system.reg" ]] \
-    && ! grep -iq "Microsoft Windows $PW_WINDOWS_VER" "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/system.reg"
+    if [[ -f "${WINEPREFIX}/system.reg" ]] \
+    && ! grep -iq "Microsoft Windows $PW_WINDOWS_VER" "${WINEPREFIX}/system.reg"
     then
         if [[ -n $PW_WINDOWS_VER ]] \
         && [[ $(echo "$PW_WINDOWS_VER" | sed 's/.*/\L&/') == "xp" ]]
         then
             export PW_WINDOWS_VER="xp64"
         fi
-        ${pw_runtime} LD_LIBRARY_PATH="${PW_LD_LIBRARY_PATH}:${WINE_LIBRARY_PATH}" GST_PLUGIN_SYSTEM_PATH_1_0="" \
-        "${WINELOADER}" winecfg -v $(echo "win${PW_WINDOWS_VER}" | sed 's/.*/\L&/')
-        wait_wineserver
-        kill_portwine
+        if [[ "${PW_STEAMPLAY:-}" == "1" ]] ; then
+            "${PROTON_RUNNER}" run winecfg -v "$(echo "win${PW_WINDOWS_VER}" | sed 's/.*/\L&/')"
+        else
+            ${pw_runtime} LD_LIBRARY_PATH="${PW_LD_LIBRARY_PATH}:${WINE_LIBRARY_PATH}" GST_PLUGIN_SYSTEM_PATH_1_0="" \
+            "${WINELOADER}" winecfg -v "$(echo "win${PW_WINDOWS_VER}" | sed 's/.*/\L&/')"
+            wait_wineserver
+            kill_portwine
+        fi
         echo "Set to win${PW_WINDOWS_VER}"
     fi
 
@@ -3973,152 +4025,54 @@ pw_launch_wrapper () {
 }
 export -f pw_launch_wrapper
 
-steamplay_launch () {
-    pw_check_and_download_plugins
-
-    if [[ -n "${PW_EXE_FILE:-}" ]]; then
-        local proton_runner
-        local steamplay_ld_library_path
-        cd "$(dirname "${PW_EXE_FILE}")"
-        export PATH_TO_GAME="$(pwd)"
-        export PORTWINE_DB_FILE="${PW_EXE_FILE}.ppdb"
-        [[ -f "${PORTWINE_DB_FILE}" ]] && source "${PORTWINE_DB_FILE}"
-        export PW_USE_SUPPLIED_DXVK_VKD3D="1"
-
-        steamplay_ld_library_path="${LD_LIBRARY_PATH}:${STEAM_RUNTIME_LIBRARY_PATH}:${PW_PLUGINS_PATH}/portable/lib/lib64:${PW_PLUGINS_PATH}/portable/lib/lib32"
-        [[ -d "${HOME}/.local/share/Steam/ubuntu12_32" ]] && steamplay_ld_library_path="${steamplay_ld_library_path}:${HOME}/.local/share/Steam/ubuntu12_32"
-        [[ -d "${HOME}/.local/share/Steam/ubuntu12_64" ]] && steamplay_ld_library_path="${steamplay_ld_library_path}:${HOME}/.local/share/Steam/ubuntu12_64"
-
-        if [[ -f "$PATH_TO_GAME/MangoHud.conf" ]] ; then
-            unset MANGOHUD_CONFIG
-            export MANGOHUD_CONFIGFILE="$PATH_TO_GAME/MangoHud.conf"
-            print_info "Custom MangoHud.conf in use: $MANGOHUD_CONFIGFILE"
-        elif [[ "${PW_MANGOHUD_USER_CONF}" == 1 ]] ; then
-            pw_select_mangohud_user_conf
-        fi
-
-        [[ "${PW_VKBASALT_USER_CONF}" == 1 ]] && pw_select_vkbasalt_user_conf
-
-        pw_optiscaler_sync_files
-        pw_specialk_sync_files
-
-        PORT_WINE_PREFIX="$STEAM_COMPAT_DATA_PATH/pfx"
-
-        pw_prepare_gamescope_launch
-
-        if check_gamescope_session ; then
-            export PW_GAMEMODERUN_SLR=""
-        elif [[ "$PW_USE_GAMEMODE" = "1" ]] \
-        && [[ -n "$DBUS_SESSION_BUS_ADDRESS" ]]
-        then
-            pw_enable_gamemode_basic
-        fi
-
-        pw_enable_idle_inhibit
-
-        pw_set_sync_runtime_vars
-
-        # Mangohud, VkBasalt, LSFG
-        if [[ "$PW_USE_SYSTEM_VK_LAYERS" == "1" ]] ; then
-            unset PW_VK_LAYER_PATH
-        else
-            export PW_VK_LAYER_PATH="${PW_PLUGINS_PATH}/portable/share/vulkan/implicit_layer.d"
-        fi
-
-        pw_mangohud_check
-        pw_vkbasalt_check
-        pw_lsfg_vk_check
-
-        export VK_ADD_IMPLICIT_LAYER_PATH="${PW_VK_LAYER_PATH}"
-        export VK_ADD_LAYER_PATH="${PW_VK_LAYER_PATH}"
-        export VK_INSTANCE_LAYERS="${PW_VK_INSTANCE_LAYERS}"
-
-        [[ $PW_LOG != 1 ]] && debug_timer --start -s "PW_TIME_IN_GAME"
-
-        if [[ "${PW_WINE_USE,,}" != *proton* ]] ; then
-            fatal "Steamplay don\`t work with ${PW_WINE_USE}!"
-        else
-            init_wine_ver
-        fi
-
-        check_proton_runner () {
-            if [[ -x "${STEAM_COMPAT_TOOL_PATHS%%:*}/proton" ]] ; then
-                proton_runner="${STEAM_COMPAT_TOOL_PATHS%%:*}/proton"
-            elif [[ "${PW_WINE_USE:-}" = /* ]] && [[ -x "${PW_WINE_USE}/proton" ]] ; then
-                proton_runner="${PW_WINE_USE}/proton"
-            elif [[ -x "${PORT_DATA_PATH}/data/dist/${PW_WINE_USE^^}/proton" ]] ; then
-                proton_runner="${PORT_DATA_PATH}/data/dist/${PW_WINE_USE^^}/proton"
-                export PW_WINE_USE="${PW_WINE_USE^^}"
-            elif [[ -x "${WINEDIR}/proton" ]] ; then
-                proton_runner="${WINEDIR}/proton"
-            elif [[ -x "${WINEDIR%/files}/proton" ]] ; then
-                proton_runner="${WINEDIR%/files}/proton"
-            else
-                return 1
-            fi
-            return 0
-        }
-
-        if ! check_proton_runner ; then
-            gui_proton_downloader "${PW_WINE_USE}"
-            init_wine_ver
-            if ! check_proton_runner ; then
-                fatal "$PW_WINE_USE not found!"
-            fi
-        fi
-
-        # Winetricks
-        if [[ -n "${PW_DLL_INSTALL:-}" ]] ; then
-            update_winetricks
-            PATH="${PATH}:${PW_PLUGINS_PATH}/portable/bin" LD_LIBRARY_PATH="${steamplay_ld_library_path}" \
-                "${PORT_WINE_TMP_PATH}/winetricks" -q ${PW_DLL_INSTALL}
-        fi
-
-        # Virtual Desktop
-        if [[ "${PW_VIRTUAL_DESKTOP}" == "1" ]] ; then
-            if [[ "${PW_SCREEN_RESOLUTION:-}" != *x* ]] ; then
-                if [[ -f "${PW_TMPFS_PATH}/xrandr.tmp" ]] ; then
-                    PW_SCREEN_RESOLUTION="$(sed -rn 's/^.*primary.* ([0-9]+x[0-9]+).*$/\1/p' "${PW_TMPFS_PATH}/xrandr.tmp")"
-                fi
-                [[ "${PW_SCREEN_RESOLUTION:-}" != *x* ]] && PW_SCREEN_RESOLUTION="1920x1080"
-            fi
-            "${proton_runner}" "run" reg add "HKEY_CURRENT_USER\\Software\\Wine\\Explorer\\Desktops" /v "PortProton" /d "${PW_SCREEN_RESOLUTION}" /f &>/dev/null
-            "${proton_runner}" "run" reg add "HKEY_CURRENT_USER\\Software\\Wine\\Explorer" /v "Desktop" /d "PortProton" /f &>/dev/null
-            print_info "Steam Play virtual desktop enabled in registry: ${PW_SCREEN_RESOLUTION}"
-        else
-            "${proton_runner}" "run" reg delete "HKEY_CURRENT_USER\\Software\\Wine\\Explorer" /v "Desktop" /f &>/dev/null
-            "${proton_runner}" "run" reg delete "HKEY_CURRENT_USER\\Software\\Wine\\Explorer\\Desktops" /v "PortProton" /f &>/dev/null
-            print_info "Steam Play virtual desktop disabled in registry"
-        fi
-
-        print_info "$proton_runner in use."
-        printf '%s\n' 'PORTPROTONQT_GAME_LAUNCH_STARTED'
-        pw_launch_wrapper \
-        ${PW_RUN_GAMESCOPE} \
-        env \
-        LD_LIBRARY_PATH="${steamplay_ld_library_path}" \
-        LD_PRELOAD="${LD_PRELOAD:+$LD_PRELOAD:}${PW_LD_PRELOAD}" \
-        ${PW_ADD_VAR_SLR} \
-        ${PW_GAMEMODERUN_SLR} \
-        ${PW_TASKSET_SLR} \
-        "${proton_runner}" waitforexitandrun "${PW_EXE_FILE}" "$@"
-        if [[ $PW_LOG != 1 ]] && [[ -n $START_PW_TIME_IN_GAME ]] ; then
-            debug_timer --end -s "PW_TIME_IN_GAME"
-            PW_TIME_IN_GAME=$(( PW_TIME_IN_GAME / 1000 ))
-            search_desktop_file
-        fi
-    fi
-}
-
 portwine_launch () {
     start_portproton
     unset PW_VD_TMP
-    if [[ "${PW_VIRTUAL_DESKTOP}" == "1" ]] ; then
+    if [[ "${PW_STEAMPLAY:-}" == "1" ]] ; then
+        if [[ "${PW_VIRTUAL_DESKTOP}" == "1" ]] ; then
+            [[ "${PW_SCREEN_RESOLUTION:-}" != *x* ]] && PW_SCREEN_RESOLUTION="1920x1080"
+            get_and_set_reg_file --add 'Software\Wine\Explorer\Desktops' 'PortProton' 'REG_SZ' "${PW_SCREEN_RESOLUTION}" "user"
+            get_and_set_reg_file --add 'Software\Wine\Explorer' 'Desktop' 'REG_SZ' "PortProton" "user"
+        else
+            get_and_set_reg_file --delete 'Software\Wine\Explorer' 'Desktop' '' '' "user"
+            get_and_set_reg_file --delete 'Software\Wine\Explorer\Desktops' 'PortProton' '' '' "user"
+        fi
+    elif [[ "${PW_VIRTUAL_DESKTOP}" == "1" ]] ; then
         PW_VD_TMP=(explorer "/desktop=PortProton,${PW_SCREEN_RESOLUTION}")
     fi
 
     [[ $PW_LOG != 1 ]] && debug_timer --start -s "PW_TIME_IN_GAME"
     printf '%s\n' 'PORTPROTONQT_GAME_LAUNCH_STARTED'
+    if [[ "${PW_STEAMPLAY:-}" == "1" ]] \
+    && [[ -n "${PW_RUN_AFTER_EXE:-}" ]] \
+    && [[ -f "${PW_RUN_AFTER_EXE}" ]] \
+    && [[ "${PW_RUN_AFTER_EXE,,}" =~ \.exe$ ]] \
+    && [[ "${PW_RUN_AFTER_EXE}" != "${PW_EXE_FILE}" ]]
+    then
+        printf -v PROTON_REMOTE_DEBUG_CMD '%q' "${PW_RUN_AFTER_EXE}"
+        export PROTON_REMOTE_DEBUG_CMD
+        export PRESSURE_VESSEL_FILESYSTEMS_RW="${PRESSURE_VESSEL_FILESYSTEMS_RW:+$PRESSURE_VESSEL_FILESYSTEMS_RW:}$(dirname "${PW_RUN_AFTER_EXE}")"
+    fi
+
+    if [[ "${PW_STEAMPLAY:-}" == "1" ]] ; then
+        local steamplay_ld_library_path
+        cd "${PATH_TO_GAME}" || fatal "${PATH_TO_GAME} not found"
+        steamplay_ld_library_path="${LD_LIBRARY_PATH}:${STEAM_RUNTIME_LIBRARY_PATH}:${PW_PLUGINS_PATH}/portable/lib/lib64:${PW_PLUGINS_PATH}/portable/lib/lib32"
+        ${PW_RUN_GAMESCOPE} \
+        env \
+        LD_LIBRARY_PATH="${steamplay_ld_library_path}" \
+        LD_PRELOAD="${LD_PRELOAD:+$LD_PRELOAD:}${PW_LD_PRELOAD}" \
+        VK_ADD_IMPLICIT_LAYER_PATH="${PW_VK_LAYER_PATH}" \
+        VK_ADD_LAYER_PATH="${PW_VK_LAYER_PATH}" \
+        VK_INSTANCE_LAYERS="${PW_VK_INSTANCE_LAYERS}" \
+        ${PW_ADD_VAR_SLR} \
+        ${PW_GAMEMODERUN_SLR} \
+        ${PW_INHIBIT_SLR} \
+        ${PW_TASKSET_SLR} \
+        "${PROTON_RUNNER}" waitforexitandrun "${PW_EXE_FILE}" "$@"
+        return $?
+    fi
+
     if [[ -n "${LAUNCH_URI}" ]] ; then
         export WINEFSYNC="1"
         pw_run start /high /b "${LAUNCH_URI}" &

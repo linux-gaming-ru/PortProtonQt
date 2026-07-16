@@ -276,6 +276,13 @@ def main():
 
             # Launch game via PortProton without GUI
             env_vars = os.environ.copy()
+            from portprotonqt.steam_api import get_steam_runtime_library_paths
+            steam_runtime_paths = get_steam_runtime_library_paths()
+            if steam_runtime_paths:
+                runtime_path = env_vars.get("STEAM_RUNTIME_LIBRARY_PATH", "")
+                env_vars["STEAM_RUNTIME_LIBRARY_PATH"] = os.pathsep.join(
+                    path for path in [runtime_path, *steam_runtime_paths] if path
+                )
             cmd = start_sh + [exe_path] + parsed_args.launch_args
             try:
                 subprocess.run(cmd, env=env_vars)

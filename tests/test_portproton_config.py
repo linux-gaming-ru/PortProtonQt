@@ -209,7 +209,7 @@ def test_game_launch_marker_is_emitted_for_wine_and_proton() -> None:
     )
 
     marker = "printf '%s\\n' 'PORTPROTONQT_GAME_LAUNCH_STARTED'"
-    assert helper.count(marker) == 2
+    assert helper.count(marker) == 1
 
 
 def test_vk_gpu_info_uses_build_aux_binary() -> None:
@@ -219,3 +219,54 @@ def test_vk_gpu_info_uses_build_aux_binary() -> None:
 
     assert '/../../../bin/vk_gpu_info"' in helper
     assert "dev-scripts/vk_gpu_info" not in helper
+
+
+def test_steam_uses_common_portwine_launch() -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text(
+        encoding="utf-8",
+    )
+    start = Path("build-aux/share/portproton/scripts/start.sh").read_text(
+        encoding="utf-8",
+    )
+
+    assert "steamplay_launch ()" not in helper
+    assert 'export PW_STEAMPLAY="1"' in start
+    assert '"${PROTON_RUNNER}" waitforexitandrun "${PW_EXE_FILE}" "$@"' in helper
+
+
+def test_steam_skips_database_initialization() -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text(
+        encoding="utf-8",
+    )
+    start = Path("build-aux/share/portproton/scripts/start.sh").read_text(
+        encoding="utf-8",
+    )
+    db_init = helper.index("pw_init_db ()")
+    steam_db_return = helper.index("return 0", db_init)
+    normal_db = helper.index('[[ -n "${PW_DEFAULT_WINE_USE:-}" ]]', steam_db_return)
+    portproton_start = helper.index("start_portproton ()")
+    steam_db = helper.index(
+        'export PORTWINE_DB_FILE="${PW_EXE_FILE}.ppdb"',
+        portproton_start,
+    )
+    steam_block_end = helper.index("\n    fi\n\n    pw_check_and_download_plugins", steam_db)
+    steam_block = helper[steam_db:steam_block_end]
+    prefix_guard = helper.index('if [[ "${PW_STEAMPLAY:-}" != "1" ]] ; then')
+    normal_prefix = helper.index(
+        'data/prefixes/${PW_PREFIX_NAME}"/drive_c/windows',
+        prefix_guard,
+    )
+    api_guard = helper.index('if [[ "${PW_STEAMPLAY:-}" != "1" ]] ; then', normal_prefix)
+    api_symlink = helper.index('print_info "Try create symlink DXVK files..."', api_guard)
+    winetricks_guard = helper.index('if [[ "${PW_STEAMPLAY:-}" != "1" ]] ; then', api_symlink)
+    winetricks_update = helper.index("update_winetricks", winetricks_guard)
+
+    assert steam_db_return < normal_db
+    assert portproton_start < steam_db
+    assert "unset PW_PREFIX_NAME" in steam_block
+    assert 'export WINEPREFIX="${STEAM_COMPAT_DATA_PATH}/pfx"' in steam_block
+    assert "PW_PREFIX_NAME=" not in steam_block
+    assert prefix_guard < normal_prefix
+    assert api_guard < api_symlink
+    assert winetricks_guard < winetricks_update
+    assert "pw_init_db" in start

@@ -525,6 +525,11 @@ class ExeSettingsDialog(
                 "PW_USE_GALLIUM_NINE",
                 "PW_USE_SUPPLIED_DXVK_VKD3D",
                 "PW_USE_INHIBIT_SLEEP",
+                "PW_FIX_VIDEO_IN_GAME",
+                "PW_USE_D7VK",
+                "PW_USE_WINE_DXGI",
+                "PW_USE_WINED3D_VULKAN",
+                "PW_USE_GALLIUM_ZINK",
             })
         if exit_code != 0 or exit_status != QProcess.ExitStatus.NormalExit:
             for key in self.toggle_settings:
