@@ -159,7 +159,7 @@ def test_game_launch_marker_is_emitted_for_wine_and_proton() -> None:
     )
 
     marker = "printf '%s\\n' 'PORTPROTONQT_GAME_LAUNCH_STARTED'"
-    assert helper.count(marker) == 2
+    assert helper.count(marker) == 1
 
 
 def test_user_conf_get_without_name_lists_active_values(tmp_path: Path) -> None:

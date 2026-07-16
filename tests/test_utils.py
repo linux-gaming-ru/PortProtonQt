@@ -18,6 +18,7 @@ from portprotonqt.steam_api.utils import (
     convert_steam_id,
     decode_text,
     get_steam_launch_commands,
+    get_steam_runtime_library_paths,
     get_steam_compatibilitytools_dir,
     get_steam_compat_tool,
     get_last_steam_user,
@@ -579,6 +580,19 @@ class TestIterExistingSteamDataDirs:
         with patch("portprotonqt.steam_api.utils.STEAM_DATA_DIRS", (str(steam_dir),)):
             result = _iter_existing_steam_data_dirs()
             assert len(result) == 1
+
+    def test_runtime_paths_from_all_installations(self, tmp_path: Path):
+        native_steam = tmp_path / "native"
+        snap_steam = tmp_path / "snap"
+        (native_steam / "ubuntu12_32").mkdir(parents=True)
+        (snap_steam / "ubuntu12_64").mkdir(parents=True)
+        steam_dirs = (str(native_steam), str(snap_steam))
+
+        with patch("portprotonqt.steam_api.utils.STEAM_DATA_DIRS", steam_dirs):
+            assert get_steam_runtime_library_paths() == [
+                str(native_steam / "ubuntu12_32"),
+                str(snap_steam / "ubuntu12_64"),
+            ]
 
     def test_skips_nonexistent(self):
         with patch("portprotonqt.steam_api.utils.STEAM_DATA_DIRS", ("/nonexistent/path",)):
