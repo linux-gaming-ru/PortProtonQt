@@ -89,6 +89,17 @@ def get_steam_home() -> Path | None:
     return None
 
 
+def get_steam_runtime_library_paths() -> list[str]:
+    """Return runtime library directories from all Steam installations."""
+    runtime_paths = []
+    for steam_path in _iter_existing_steam_data_dirs():
+        for runtime_dir in ("ubuntu12_32", "ubuntu12_64"):
+            library_path = steam_path / runtime_dir
+            if library_path.is_dir():
+                runtime_paths.append(str(library_path))
+    return runtime_paths
+
+
 def get_steam_launch_commands(appid: str) -> list[list[str]]:
     """Return Steam launch commands based on detected Steam data dir."""
     steam_home = get_steam_home()

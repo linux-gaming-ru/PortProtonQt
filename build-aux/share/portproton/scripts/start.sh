@@ -198,10 +198,11 @@ try_remove_file "${PW_TMPFS_PATH}/update_pfx_log"
 [[ ! -f "$PORT_WINE_TMP_PATH/statistics" ]] && touch "$PORT_WINE_TMP_PATH/statistics"
 
 if [[ -n "${STEAM_COMPAT_DATA_PATH:-}" ]]; then
-    steamplay_launch "${@:2}"
-    exit
+    export PW_STEAMPLAY="1"
+    export WINEPREFIX="${STEAM_COMPAT_DATA_PATH}/pfx"
+else
+    unset WINEPREFIX
 fi
-unset WINEPREFIX
 
 # choose mirror
 if [[ -z "$MIRROR" ]] \
@@ -580,7 +581,11 @@ Usage examples:
         exit 0
         ;;
     --launch)
-        portwine_launch
+        if [[ "${PW_STEAMPLAY:-}" == "1" ]] ; then
+            portwine_launch "${@:3}"
+        else
+            portwine_launch
+        fi
         stop_portproton
         ;;
     --stop)
@@ -594,7 +599,11 @@ Usage examples:
         ;;
     *)
         if [[ -f "$PW_EXE_FILE" ]] ; then
-            portwine_launch
+            if [[ "${PW_STEAMPLAY:-}" == "1" ]] ; then
+                portwine_launch "${@:2}"
+            else
+                portwine_launch
+            fi
             stop_portproton
         else
             fatal "File not found: $PW_EXE_FILE"
