@@ -1031,3 +1031,38 @@ def test_run_after_removing_only_entry_clears_field(tmp_path: Path) -> None:
     assert target.text() == ""
     assert owner.advanced_table.rowCount() == 2
     owner.advanced_table.deleteLater()
+
+
+@pytest.mark.parametrize("cleared_index", [0, 1])
+def test_executable_lists_clear_independently(cleared_index: int) -> None:
+    from portprotonqt.dialogs.settings_dialog import ExeSettingsDialog
+
+    owner = cast(Any, QWidget())
+    owner.advanced_table = QTableWidget(2, 3)
+    owner.theme = SimpleNamespace(ACTION_BUTTON_STYLE="", LINE_EDIT_STYLE="")
+    owner._toggle_run_after_entries = lambda target: ExeSettingsDialog._toggle_run_after_entries(
+        cast(ExeSettingsDialog, owner), target
+    )
+    targets = []
+    for row, key in enumerate(("PW_RUN_AFTER_EXE", "PW_NETWORK_BLOCKLIST")):
+        container = QWidget()
+        target = QLineEdit(container)
+        target.setObjectName(key)
+        target.setText("Game.exe,Trainer.exe")
+        owner.advanced_table.setCellWidget(row, 1, container)
+        targets.append(target)
+    for target in targets:
+        owner._toggle_run_after_entries(target)
+    assert owner.advanced_table.rowCount() == 6
+
+    ExeSettingsDialog._clear_run_after_entries(cast(ExeSettingsDialog, owner), targets[cleared_index])
+
+    assert targets[cleared_index].text() == ""
+    assert not targets[cleared_index].property("ppqt_run_after_expanded")
+    remaining = targets[1 - cleared_index]
+    assert remaining.text() == "Game.exe,Trainer.exe"
+    assert remaining.property("ppqt_run_after_expanded")
+    assert owner.advanced_table.rowCount() == 4
+    owner._toggle_run_after_entries(remaining)
+    assert owner.advanced_table.rowCount() == 2
+    owner.advanced_table.deleteLater()

@@ -321,6 +321,14 @@ def get_advanced_settings(disabled_text, logical_core_options=None, locale_optio
         'default': ''
     })
 
+    advanced_settings.append({
+        'key': 'PW_NETWORK_BLOCKLIST',
+        'name': _("Blocked Network Destinations"),
+        'description': _("Comma-separated IP addresses, domains, wildcard patterns, or absolute paths to hosts files. Example: 192.0.2.1,example.com,*.ru,/home/user/hosts"),
+        'type': 'text',
+        'default': ''
+    })
+
     # 8. CPU cores limit
     advanced_settings.append({
         'key': 'PW_WINE_CPU_TOPOLOGY',
@@ -405,6 +413,7 @@ ADVANCED_SETTING_KEYS = [
     'WINEDLLOVERRIDES',
     'LAUNCH_PARAMETERS',
     'PW_RUN_AFTER_EXE',
+    'PW_NETWORK_BLOCKLIST',
     'PW_WINE_CPU_TOPOLOGY',
     'PW_MESA_GL_VERSION_OVERRIDE',
     'PW_VKD3D_FEATURE_LEVEL',

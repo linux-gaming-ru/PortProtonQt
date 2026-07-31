@@ -363,12 +363,8 @@ class ExeSettingsDialog(
         target.setFocus(Qt.FocusReason.OtherFocusReason)
 
     def _clear_run_after_entries(self, target: QLineEdit) -> None:
-        table = self.advanced_table
-        for row in reversed(range(table.rowCount())):
-            item = table.item(row, 0)
-            if item and item.data(Qt.ItemDataRole.UserRole) == "run_after_entry":
-                table.removeRow(row)
-        target.setProperty("ppqt_run_after_expanded", False)
+        if target.property("ppqt_run_after_expanded"):
+            self._toggle_run_after_entries(target)
         target.clear()
         if target.isVisible():
             target.setFocus(Qt.FocusReason.OtherFocusReason)
@@ -1059,7 +1055,7 @@ class ExeSettingsDialog(
                     line_edit.setEnabled(False)
                     line_edit.setStyleSheet(self.theme.SETTINGS_DISABLED_INPUT_STYLE)
 
-                if setting['key'] == 'PW_RUN_AFTER_EXE':
+                if setting['key'] in ('PW_RUN_AFTER_EXE', 'PW_NETWORK_BLOCKLIST'):
                     text_container = QWidget()
                     text_container.setProperty("ppqt_run_after_exe_widget", True)
                     container_layout = QVBoxLayout(text_container)
@@ -1076,7 +1072,7 @@ class ExeSettingsDialog(
                     if is_blocked:
                         browse_button.setEnabled(False)
 
-                    def open_run_after_exe_selector(
+                    def open_setting_file_selector(
                         _checked: bool = False,
                         target_line_edit=line_edit,
                         file_filter=lambda path: path.lower().endswith(".exe") or os.access(path, os.X_OK),
@@ -1098,7 +1094,7 @@ class ExeSettingsDialog(
                         )
                         file_explorer.exec()
 
-                    browse_button.clicked.connect(open_run_after_exe_selector)
+                    browse_button.clicked.connect(open_setting_file_selector)
                     expand_button = AutoSizeButton("≡")
                     expand_button.setStyleSheet(self.theme.ACTION_BUTTON_STYLE)
                     expand_button.clicked.connect(
