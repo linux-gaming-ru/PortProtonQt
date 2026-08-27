@@ -1842,11 +1842,6 @@ pw_init_db () {
     [[ -n "${PW_DEFAULT_PREFIX_NAME:-}" ]] && export PW_PREFIX_NAME="${PW_DEFAULT_PREFIX_NAME}"
     [[ -n "${PW_DEFAULT_VULKAN_USE:-}" ]] && export PW_VULKAN_USE="${PW_DEFAULT_VULKAN_USE}"
 
-    if echo "$LSPCI_VGA" | grep -i -q 'nvidia.*rtx' ; then
-        export PW_USE_NVAPI_AND_DLSS="1"
-        export PW_USE_RAY_TRACING="1"
-    fi
-
     if [[ -f "${PW_EXE_FILE}" ]] ; then
         PORTWINE_DB="$(basename "${PW_EXE_FILE%.[Ee][Xx][Ee]}")"
         export PORTWINE_DB
@@ -2629,6 +2624,10 @@ start_portproton () {
     pw_check_and_download_dxvk_and_vkd3d
 
     pw_skip_get_info
+    if echo "$LSPCI_VGA" | grep -i -q 'nvidia.*rtx' ; then
+        [[ -z "${PW_USE_NVAPI_AND_DLSS:-}" ]] && export PW_USE_NVAPI_AND_DLSS="1"
+        [[ -z "${PW_USE_RAY_TRACING:-}" ]] && export PW_USE_RAY_TRACING="1"
+    fi
     if [[ "${PW_LOCALE_SELECT}" != "disabled" ]] && [[ -n "${PW_LOCALE_SELECT}" ]] ; then
         export LC_ALL="${PW_LOCALE_SELECT}"
         if [[ "${PW_USE_RUNTIME}" == "1" ]] && [[ "${HOST_LC_ALL}" != "${LC_ALL}" ]] ; then
@@ -2898,7 +2897,9 @@ start_portproton () {
 
                 # export WINE_HIDE_AMD_GPU="1"
                 export DXVK_NVAPI_DRIVER_VERSION="99999"
-                export DXVK_NVAPI_ALLOW_OTHER_DRIVERS="1"
+                if [[ $(check_vendor_gpu) != "nvidia" ]] ; then
+                    export DXVK_NVAPI_ALLOW_OTHER_DRIVERS="1"
+                fi
                 export PW_USE_NVAPI_AND_DLSS="1"
                 export PW_USE_RAY_TRACING="1"
                 ;;
