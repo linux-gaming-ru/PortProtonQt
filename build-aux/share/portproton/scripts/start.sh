@@ -73,6 +73,9 @@ fi
 
 export PW_START_PID="$$"
 
+# shellcheck source=/dev/null
+source "${PORT_SCRIPTS_PATH}/var"
+
 read -r -a pw_full_command_line <<< "$0 $*"
 export pw_full_command_line
 export orig_IFS="$IFS"
@@ -119,6 +122,9 @@ elif [[ "$1" =~ ^--(debug|launch|edit-db)$ && "${2,,}" =~ \.(exe|bat|cmd|msi|reg
     elif [[ -f "$OLDPWD/$2" ]] ; then
         PW_EXE_FILE="$(realpath -s "$OLDPWD/$2")"
     fi
+elif [[ "$1" == "--epic-wrapper" && "${2,,}" =~ \.exe$ ]] ; then
+    prepare_epic_wrapper || fatal "Failed to prepare Epic launcher wrapper"
+    PW_EXE_FILE="$(realpath -s "$2")"
 fi
 export PW_EXE_FILE
 
@@ -164,9 +170,6 @@ export PW_VULKAN_DIR="${PORT_WINE_TMP_PATH}/VULKAN"
 create_new_dir "${PW_VULKAN_DIR}"
 
 cd "${PORT_SCRIPTS_PATH}" || fatal "Scripts directory not found: ${PORT_SCRIPTS_PATH}"
-
-# shellcheck source=/dev/null
-source "${PORT_SCRIPTS_PATH}/var"
 # HACK: Avoid inheriting a system scripts cwd in pressure-vessel.
 cd "${XDG_DATA_HOME:-$HOME}" || fatal "Data directory not found: ${XDG_DATA_HOME:-$HOME}"
 
@@ -574,6 +577,10 @@ Usage examples:
         ;;
     --launch)
         portwine_launch
+        stop_portproton
+        ;;
+    --epic-wrapper)
+        portwine_launch "${@:3}"
         stop_portproton
         ;;
     --stop)

@@ -533,6 +533,21 @@ try_download () {
     return 0
 }
 
+prepare_epic_wrapper () {
+    local expected_hash="1feb21e21e19cbb34e881791c8f2557769f59231e46850915d49a6d0c1ce4583"
+    export PW_EPIC_WRAPPER_EXE="${PORT_WINE_TMP_PATH}/plugins${PW_PLUGINS_VER}/epic/EpicGamesLauncher.exe"
+    if [[ ! -f "$PW_EPIC_WRAPPER_EXE" ]] ; then
+        create_new_dir "$(dirname "$PW_EPIC_WRAPPER_EXE")"
+        try_download \
+            "https://github.com/BananaWorks07/heroic-epic-integration/releases/download/v${PW_EPIC_WRAPPER_VER}/EpicGamesLauncher.exe" \
+            "$PW_EPIC_WRAPPER_EXE" no_mirror || return 1
+    fi
+    if [[ "$(sha256sum "$PW_EPIC_WRAPPER_EXE" | awk '{print $1}')" != "$expected_hash" ]] ; then
+        try_remove_file "$PW_EPIC_WRAPPER_EXE"
+        fatal "Epic launcher wrapper checksum verification failed"
+    fi
+}
+
 var_winedlloverride_update () {
     export WINEDLLOVERRIDES="${1}${WINEDLLOVERRIDES:+;$WINEDLLOVERRIDES}"
 }
@@ -4155,7 +4170,12 @@ EOF
         else
             case "${PW_EXE_FILE,,}" in
                 *.exe)
-                    pw_run "${PW_VD_TMP[@]}" ${WINE_WIN_START} "${PW_EXE_FILE}"
+                    if [[ -n "${PW_EPIC_WRAPPER_EXE:-}" ]] ; then
+                        pw_run "${PW_VD_TMP[@]}" "${PW_EPIC_WRAPPER_EXE}" \
+                            "${PW_EXE_FILE}" "$@"
+                    else
+                        pw_run "${PW_VD_TMP[@]}" ${WINE_WIN_START} "${PW_EXE_FILE}"
+                    fi
                 ;;
                 *.bat|*.cmd)
                     PW_USE_TERMINAL=1

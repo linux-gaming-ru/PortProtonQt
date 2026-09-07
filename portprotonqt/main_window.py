@@ -148,6 +148,7 @@ if [ -n "$LIST" ]; then
 fi
 """
 
+
 class MainWindow(
     MainWindowControlHintsMixin,
     MainWindowAutoInstallTabMixin,
@@ -2754,8 +2755,9 @@ class MainWindow(
             )
             return
         try:
+            wrapper = shlex.join([self.start_sh[0], "--epic-wrapper"])
             command = self.egs_api.build_command([
-                "launch", app_id, "--json", "--wrapper", self.start_sh[0],
+                "launch", app_id, "--json", "--wrapper", wrapper,
                 "--no-wine", "--skip-version-check",
             ])
             process = subprocess.Popen(
