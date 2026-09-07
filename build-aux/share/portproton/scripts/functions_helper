@@ -2994,7 +2994,7 @@ start_portproton () {
     elif [[ "$PW_USE_GAMEMODE" = "1" ]] \
     && [[ -n "$DBUS_SESSION_BUS_ADDRESS" ]]
     then
-        if pw_is_process_active ananicy ananicy-cpp scx scx_loader falcond sherrydmn ; then
+        if pw_is_process_active ananicy ananicy-cpp scx scx_loader falcond sherrydmn minazuki ; then
             export GAMEMODERUN=0
             export PW_GAMEMODERUN_SLR=""
             local current_power_profile
