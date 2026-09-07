@@ -9,7 +9,7 @@ msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: support@linux-gaming.ru\n"
 "POT-Creation-Date: 2026-03-22 13:50+0500\n"
-"PO-Revision-Date: 2026-08-31 03:26+0000\n"
+"PO-Revision-Date: 2026-09-05 17:10+0000\n"
 "Last-Translator: adem4ik <adem4ik@noreply.codeberg.org>\n"
 "Language-Team: Russian <https://translate.codeberg.org/projects/portprotonqt/"
 "portprotonqt/ru/>\n"
@@ -178,13 +178,11 @@ msgstr "Импорт"
 msgid "Update"
 msgstr "Обновить"
 
-#, fuzzy
 msgid "Disable EOS Overlay"
-msgstr "Включить наложение mangoapp"
+msgstr "Отключить наложение EOS"
 
-#, fuzzy
 msgid "Enable EOS Overlay"
-msgstr "Включить наложение mangoapp"
+msgstr "Включить наложение EOS"
 
 msgid "Open Game Folder"
 msgstr "Открыть папку с игрой"
@@ -454,17 +452,14 @@ msgstr "Установить зависимости"
 msgid "32-bit dependencies are missing. Install them now?"
 msgstr "Отсутствуют 32-битные зависимости. Установить их сейчас?"
 
-#, fuzzy
 msgid "Select Epic game folder"
-msgstr "Выберите папку игры GOG"
+msgstr "Выберите папку игры Epic"
 
-#, fuzzy
 msgid "Another Epic operation is running"
-msgstr "Другая операция GOG уже выполняется"
+msgstr "Другая операция Epic уже выполняется"
 
-#, fuzzy
 msgid "Wine prefix not found"
-msgstr "Префикс не найден"
+msgstr "Префикс Wine не найден"
 
 msgid "Game not found."
 msgstr "Игра не найдена."
@@ -2105,43 +2100,38 @@ msgstr "Обновление библиотеки GOG… {0}/{1}"
 msgid "Failed to refresh GOG library: {0}"
 msgstr "Не удалось обновить библиотеку GOG: {0}"
 
-#, fuzzy
 msgid "Failed to log out of Epic account"
-msgstr "Не удалось выйти из аккаунта GOG"
+msgstr "Не удалось выйти из учётной записи Epic"
 
-#, fuzzy
 msgid "Copy the authorization code to clipboard"
-msgstr "Скопировать ссылку в буфер обмена"
+msgstr "Скопировать код авторизации в буфер обмена"
 
 msgid "Epic authorization…"
-msgstr ""
+msgstr "Авторизация Epic…"
 
-#, fuzzy, python-brace-format
+#, python-brace-format
 msgid "Epic login failed: {0}"
-msgstr "Ошибка входа в GOG: {0}"
+msgstr "Ошибка входа в Epic: {0}"
 
-#, fuzzy
 msgid "Epic account connected"
-msgstr "Аккаунт GOG подключён"
+msgstr "Учётная запись Epic подключена"
 
-#, fuzzy
 msgid "Epic account not connected"
-msgstr "Аккаунт GOG не подключён"
+msgstr "Учётная запись Epic не подключена"
 
-#, fuzzy, python-brace-format
+#, python-brace-format
 msgid "Refreshing Epic library… {0}/{1}"
-msgstr "Обновление библиотеки GOG… {0}/{1}"
+msgstr "Обновление библиотеки Epic… {0}/{1}"
 
-#, fuzzy, python-brace-format
+#, python-brace-format
 msgid "Failed to refresh Epic library: {0}"
-msgstr "Не удалось обновить библиотеку GOG: {0}"
+msgstr "Не удалось обновить библиотеку Epic: {0}"
 
 msgid "Select installation folder"
 msgstr "Выберите папку установки"
 
-#, fuzzy
 msgid "Another download is running"
-msgstr "Сейчас загружается"
+msgstr "Другая загрузка уже выполняется"
 
 msgid "Another GOG operation is already running"
 msgstr "Другая операция GOG уже выполняется"
@@ -2277,7 +2267,7 @@ msgid "Hide Control Hints"
 msgstr "Скрывать подсказки управления"
 
 msgid "Force English language"
-msgstr ""
+msgstr "Принудительно использовать английский язык"
 
 msgid "Enable UI Sounds"
 msgstr "Включить звуки интерфейса"
@@ -2445,9 +2435,8 @@ msgstr "Устройства воспроизведения"
 msgid "Output"
 msgstr "Вывод"
 
-#, fuzzy
 msgid "Return to desktop"
-msgstr "Добавить на рабочий стол"
+msgstr "Вернуться на рабочий стол"
 
 msgid "Logout"
 msgstr "Выйти"
