@@ -592,6 +592,20 @@ check_wayland_session () {
 }
 export -f check_wayland_session
 
+check_arm () {
+    if [[ -n "$ARM_IN_USE" ]]
+    then [[ "$ARM_IN_USE" == 1 ]] && return 0 || return 1
+    fi
+    if [[ "$(uname -m)" =~ ^(aarch64|arm64)$ ]] ; then
+        export ARM_IN_USE=1
+        return 0
+    else
+        export ARM_IN_USE=0
+        return 1
+    fi
+}
+export -f check_arm
+
 check_flatpak () {
     if [[ -n "$FLATPAK_IN_USE" ]]
     then [[ "$FLATPAK_IN_USE" == 1 ]] && return 0 || return 1
@@ -1116,7 +1130,12 @@ init_wine_ver () {
             export WINEDIR="${WINEDIR}/files"
         fi
 
-        if [[ "$PW_USE_WOW64" == "1" ]] \
+        if [[ -d "${WINEDIR}/bin-arm64" ]]
+        then
+            export WINE="${WINEDIR}/bin-arm64/wine"
+            export WINELOADER="${WINEDIR}/bin-arm64/wine"
+            export WINESERVER="${WINEDIR}/bin-arm64/wineserver"
+        elif [[ "$PW_USE_WOW64" == "1" ]] \
         && [[ -d "${WINEDIR}/bin-wow64" ]]
         then
             print_warning "wine wow64 mode in use!"
@@ -1162,7 +1181,9 @@ init_wine_ver () {
 
     if ! check_flatpak ; then
         WINE_LIBRARY_PATH="${WINEDIR}/lib"
-        if [[ -d "${WINEDIR}/lib64/gstreamer-1.0" ]]
+        if [[ -d "${WINEDIR}/lib/aarch64-linux-gnu" ]]
+        then WINE_LIBRARY_PATH+=":${WINEDIR}/lib/aarch64-linux-gnu:${WINEDIR}/lib/x86_64-linux-gnu:${WINEDIR}/lib/i386-linux-gnu"
+        elif [[ -d "${WINEDIR}/lib64/gstreamer-1.0" ]]
         then WINE_LIBRARY_PATH+=":${WINEDIR}/lib64"
         elif [[ -d "${WINEDIR}/lib/x86_64-linux-gnu" ]]
         then WINE_LIBRARY_PATH+=":${WINEDIR}/lib/x86_64-linux-gnu:${WINEDIR}/lib/i386-linux-gnu"
@@ -1175,10 +1196,19 @@ init_wine_ver () {
     if  [[ -d "${WINEDIR}"/share/espeak-ng-data ]] ; then
         export ESPEAK_DATA_PATH="${WINEDIR}"/share/
     fi
+    if [[ -f "${WINEDIR}/share/fex-emu/Config.json" ]] \
+    && [[ -f "${WINEDIR}/lib/wine/aarch64-unix/libwow64fex.so" ]]
+    then
+        export FEX_APP_CONFIG="${FEX_APP_CONFIG:-${WINEDIR}/share/fex-emu/Config.json}"
+        export FEX_APP_CONFIG_LOCATION="${FEX_APP_CONFIG_LOCATION:-${WINEDIR}/share/fex-emu}"
+    fi
     return 0
 }
 
 pw_init_runtime () {
+    if check_arm ; then
+        export PW_USE_RUNTIME="0"
+    fi
     if [[ ! -f "${PW_WINELIB}/runtime/files/bin/vkcube" ]] \
     || [[ ! -f "${PW_WINELIB}/pressure-vessel/bin/pressure-vessel-wrap" ]]
     then
@@ -1187,7 +1217,11 @@ pw_init_runtime () {
     if [[ "$PW_USE_RUNTIME" != "1" ]] \
     || [[ "$PW_WINE_USE" == "USE_SYSTEM_WINE" ]]
     then
-        export PW_LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${PW_PLUGINS_PATH}/portable/lib/lib64:${PW_PLUGINS_PATH}/portable/lib/lib32"
+        if check_arm ; then
+            export PW_LD_LIBRARY_PATH="${LD_LIBRARY_PATH}"
+        else
+            export PW_LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${PW_PLUGINS_PATH}/portable/lib/lib64:${PW_PLUGINS_PATH}/portable/lib/lib32"
+        fi
         export PW_VK_LAYER_PATH="${PW_PLUGINS_PATH}/portable/share/vulkan/implicit_layer.d"
         if [[ -z "$PW_TERM" ]] ; then
             export PW_TERM="env LD_LIBRARY_PATH=\"${PW_LD_LIBRARY_PATH}\" python3 -m portprotonqt.scripts_utils.easyterm -e"
@@ -1220,7 +1254,13 @@ ${nvidia_lib32_path}"
     PW_PV_OVERRIDES="/usr/lib/pressure-vessel/overrides/lib"
 
     if ! check_flatpak; then
-      export PW_LD_LIBRARY_PATH="\
+        if check_arm ; then
+            export PW_LD_LIBRARY_PATH="\
+${PW_PV_OVERRIDES}/aarch64-linux-gnu/aliases:\
+/overrides/lib/aarch64-linux-gnu:\
+/lib/aarch64-linux-gnu"
+        else
+            export PW_LD_LIBRARY_PATH="\
 ${PW_PLUGINS_PATH}/portable/lib/lib64:\
 ${PW_PLUGINS_PATH}/portable/lib/lib32:\
 ${PW_PV_OVERRIDES}/x86_64-linux-gnu/aliases:\
@@ -1229,6 +1269,7 @@ ${PW_PV_OVERRIDES}/i386-linux-gnu/aliases:\
 /overrides/lib/i386-linux-gnu:\
 /lib/x86_64-linux-gnu:\
 /lib/i386-linux-gnu"
+        fi
     fi
 
     export PW_PATH="${PW_PLUGINS_PATH}/portable/bin${PATH:+:$PATH}"
@@ -1271,7 +1312,11 @@ ${PW_PV_OVERRIDES}/i386-linux-gnu/aliases:\
     export PRESSURE_VESSEL_RUNTIME_BASE="${PW_WINELIB}"
     export PRESSURE_VESSEL_VARIABLE_DIR="${PW_WINELIB}/var"
     export PRESSURE_VESSEL_PREFIX="${PW_WINELIB}/pressure-vessel"
-    export PRESSURE_VESSEL_ARCHITECTURES="x86_64-linux-gnu:i386-linux-gnu"
+    if check_arm ; then
+        export PRESSURE_VESSEL_ARCHITECTURES="aarch64-linux-gnu"
+    else
+        export PRESSURE_VESSEL_ARCHITECTURES="x86_64-linux-gnu:i386-linux-gnu"
+    fi
     export FONTCONFIG_PATH=''
 
     unset PRESSURE_VESSEL_FILESYSTEMS_RO PRESSURE_VESSEL_FILESYSTEMS_RW
@@ -1616,6 +1661,12 @@ pw_check_and_download_runtime () {
 }
 
 pw_check_and_download_dxvk_and_vkd3d () {
+    if check_arm ; then
+        # ARM64 Wine runners provide compatible DXVK and VKD3D builds.
+        # Build ARM64 dxvk using cross-compiler
+        export PW_USE_SUPPLIED_DXVK_VKD3D="1"
+        return 0
+    fi
     # Download DXVK
     for DXVK_VAR_VER in "${DXVK_SAREK_VER}" "${DXVK_OLD_VER}" "${DXVK_NEW_VER}" ; do
         if [[ ! -d "${PW_VULKAN_DIR}/dxvk-${DXVK_VAR_VER}" ]] ; then
@@ -1704,6 +1755,10 @@ pw_check_and_download_dxvk_and_vkd3d () {
 }
 
 pw_check_and_download_plugins () {
+    if check_arm ; then
+        # ARM64 plugins archive needs an architecture-specific rebuild.
+        return 0
+    fi
     if [[ ! -f "${PW_PLUGINS_PATH}/portable/lib/lib64/libvkbasalt.so" ]] ; then
         print_info "Download and install plugins${PW_PLUGINS_VER}..."
         if try_download "github.com/Castro-Fidel/wine_builds/releases/download/plugins${PW_PLUGINS_VER}/plugins${PW_PLUGINS_VER}.tar.xz" "${PORT_WINE_TMP_PATH}/plugins${PW_PLUGINS_VER}.tar.xz" ; then
@@ -2597,7 +2652,10 @@ pw_enable_gamemode_basic () {
 start_portproton () {
     pw_check_and_download_plugins
 
-    if [[ "${PW_DISABLE_RUNTIME_DOWNLOAD}" == "1" ]] ; then
+    if check_arm ; then
+        export PW_USE_RUNTIME="0"
+        try_remove_dir "${PORT_WINE_TMP_PATH}/libs${PW_LIBS_VER}"
+    elif [[ "${PW_DISABLE_RUNTIME_DOWNLOAD}" == "1" ]] ; then
         try_remove_dir "${PORT_WINE_TMP_PATH}/libs${PW_LIBS_VER}"
     else
         pw_check_and_download_runtime
@@ -2733,15 +2791,19 @@ start_portproton () {
     var_winedlloverride_update "winebth.sys=d"
 
     pw_wineboot () {
+        local wine_pe64_path="${WINEDIR}/lib64/wine/x86_64-windows"
+        if [[ -d "${WINEDIR}/lib/wine/aarch64-windows" ]]
+        then wine_pe64_path="${WINEDIR}/lib/wine/aarch64-windows"
+        fi
         LIST_NATIVE_WINE_DLL_LINKS="winevulkan ir50_32 amd_ags_x64 wined3d vulkan-1"
         for dll in $LIST_NATIVE_WINE_DLL_LINKS ; do
-            try_force_link_file "${WINEDIR}/lib64/wine/x86_64-windows/${dll}.dll" "${WINEPREFIX}/drive_c/windows/system32/${dll}.dll"
+            try_force_link_file "${wine_pe64_path}/${dll}.dll" "${WINEPREFIX}/drive_c/windows/system32/${dll}.dll"
             try_force_link_file "${WINEDIR}/lib/wine/i386-windows/${dll}.dll" "${WINEPREFIX}/drive_c/windows/syswow64/${dll}.dll"
         done
 
         LIST_NATIVE_WINE_DLL_COPY="atl100 ntdll shell32"
         for dll in $LIST_NATIVE_WINE_DLL_COPY ; do
-            try_copy_file "${WINEDIR}/lib64/wine/x86_64-windows/${dll}.dll" "${WINEPREFIX}/drive_c/windows/system32/${dll}.dll"
+            try_copy_file "${wine_pe64_path}/${dll}.dll" "${WINEPREFIX}/drive_c/windows/system32/${dll}.dll"
             try_copy_file "${WINEDIR}/lib/wine/i386-windows/${dll}.dll" "${WINEPREFIX}/drive_c/windows/syswow64/${dll}.dll"
         done
 
@@ -2753,7 +2815,7 @@ start_portproton () {
                 try_force_link_file "${WINEDIR}/lib64/icu/${dll}.dll" "${WINEPREFIX}/drive_c/windows/system32/${dll}.dll"
             elif [[ -f "${WINEDIR}/lib/wine/icu/i386-windows/${dll}.dll" ]] ; then
                 try_force_link_file "${WINEDIR}/lib/wine/icu/i386-windows/${dll}.dll" "${WINEPREFIX}/drive_c/windows/syswow64/${dll}.dll"
-                try_force_link_file "${WINEDIR}/lib/wine/icu/x86_64-windows/${dll}.dll" "${WINEPREFIX}/drive_c/windows/system32/${dll}.dll"
+                try_force_link_file "${WINEDIR}/lib/wine/icu/${wine_pe64_path##*/}/${dll}.dll" "${WINEPREFIX}/drive_c/windows/system32/${dll}.dll"
             else
                 try_remove_file "${WINEPREFIX}/drive_c/windows/syswow64/${dll}.dll"
                 try_remove_file "${WINEPREFIX}/drive_c/windows/system32/${dll}.dll"
@@ -2775,7 +2837,9 @@ start_portproton () {
     then
         pw_clear_pfx
         check_dirs_and_files_in_pfx
-        if [[ "${PW_PREFIX_NAME}" == "DEFAULT" ]] ; then
+        if check_arm ; then
+            pw_wineboot -i
+        elif [[ "${PW_PREFIX_NAME}" == "DEFAULT" ]] ; then
             unpack "${PW_PLUGINS_PATH}/default_pfx.tar.xz" "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/" silent
             pw_wineboot -r
             echo "based_on_default" >> "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/winetricks.log"
@@ -3169,9 +3233,18 @@ start_portproton () {
     export __GL_YIELD="NOTHING"
     export mesa_glthread="true"
 
+    PW_SUPPLIED_PE64_ARCH="x86_64-windows"
+    PW_WINE_PE64_PATH="${WINEDIR}/lib64/wine/x86_64-windows"
+    if [[ -d "${WINEDIR}/lib/wine/aarch64-windows" ]]
+    then
+        PW_SUPPLIED_PE64_ARCH="aarch64-windows"
+        PW_WINE_PE64_PATH="${WINEDIR}/lib/wine/aarch64-windows"
+        export DXVK_ENABLE_NVAPI="0"
+    fi
+
     if [[ $PW_USE_SUPPLIED_DXVK_VKD3D == "1" ]] \
     && [[ ! $PW_WINE_USE =~ (PROTON_LG|WINE_LG) ]] \
-    && [[ -f "${WINEDIR}/lib64/wine/dxvk/d3d9.dll" || -f "${WINEDIR}/lib/wine/dxvk/x86_64-windows/d3d9.dll" ]] ; then
+    && [[ -f "${WINEDIR}/lib64/wine/dxvk/d3d9.dll" || -f "${WINEDIR}/lib/wine/dxvk/${PW_SUPPLIED_PE64_ARCH}/d3d9.dll" ]] ; then
         if [[ -f "${WINEDIR}/lib64/wine/dxvk/d3d10.dll" && -f "${WINEDIR}/lib64/wine/dxvk/d3d10_1.dll" ]] ; then
             CP_DXVK_FILES="d3d11 d3d10core d3d10_1 d3d10 d3d9 dxgi"
             CP_WINE_FILES=""
@@ -3184,13 +3257,13 @@ start_portproton () {
                 try_force_link_file "${WINEDIR}/lib/wine/d8vk/d3d8.dll" "${WINEPREFIX}/drive_c/windows/syswow64/d3d8.dll"
                 try_force_link_file "${WINEDIR}/lib64/wine/d8vk/d3d8.dll" "${WINEPREFIX}/drive_c/windows/system32/d3d8.dll"
                 var_winedlloverride_update "d3d8=n"
-            elif [[ -f "${WINEDIR}/lib64/wine/dxvk/d3d8.dll" || -f "${WINEDIR}/lib/wine/dxvk/x86_64-windows/d3d8.dll" ]]
+            elif [[ -f "${WINEDIR}/lib64/wine/dxvk/d3d8.dll" || -f "${WINEDIR}/lib/wine/dxvk/${PW_SUPPLIED_PE64_ARCH}/d3d8.dll" ]]
             then add_to_var CP_DXVK_FILES "d3d8"
             else add_to_var CP_WINE_FILES "d3d8"
             fi
         fi
         if [[ -f "${WINEDIR}/lib64/wine/vkd3d-proton/d3d12core.dll" ]] \
-        || [[ -f "${WINEDIR}/lib/wine/vkd3d-proton/x86_64-windows/d3d12core.dll" ]] ; then
+        || [[ -f "${WINEDIR}/lib/wine/vkd3d-proton/${PW_SUPPLIED_PE64_ARCH}/d3d12core.dll" ]] ; then
             CP_VKD3D_FILES="d3d12 d3d12core"
         elif [[ -f "${WINEDIR}/lib64/wine/vkd3d-proton/d3d12.dll" ]] ; then
             CP_VKD3D_FILES="d3d12"
@@ -3198,7 +3271,7 @@ start_portproton () {
         else
             add_to_var CP_WINE_FILES "d3d12 d3d12core"
         fi
-        [[ -f "${WINEDIR}/lib/wine/dxvk/x86_64-windows/d3d9.dll" ]] && PW_USE_SUPPLIED_DXVK_VKD3D="2"
+        [[ -f "${WINEDIR}/lib/wine/dxvk/${PW_SUPPLIED_PE64_ARCH}/d3d9.dll" ]] && PW_USE_SUPPLIED_DXVK_VKD3D="2"
     else
         PW_USE_SUPPLIED_DXVK_VKD3D="0"
     fi
@@ -3436,7 +3509,7 @@ start_portproton () {
 
     print_info "Try create symlink WINE files..."
     for copy_wine_dll in $CP_WINE_FILES ; do
-        try_force_link_file "${WINEDIR}/lib64/wine/x86_64-windows/${copy_wine_dll}.dll" "${WINEPREFIX}/drive_c/windows/system32/${copy_wine_dll}.dll"
+        try_force_link_file "${PW_WINE_PE64_PATH}/${copy_wine_dll}.dll" "${WINEPREFIX}/drive_c/windows/system32/${copy_wine_dll}.dll"
         try_force_link_file "${WINEDIR}/lib/wine/i386-windows/${copy_wine_dll}.dll" "${WINEPREFIX}/drive_c/windows/syswow64/${copy_wine_dll}.dll"
     done
 
@@ -3458,7 +3531,7 @@ start_portproton () {
             case "$PW_USE_SUPPLIED_DXVK_VKD3D" in
                 2)
                     try_force_link_file "${WINEDIR}/lib/wine/dxvk/i386-windows/${wine_dxvk_dll}.dll" "${WINEPREFIX}/drive_c/windows/syswow64/${wine_dxvk_dll}.dll"
-                    try_force_link_file "${WINEDIR}/lib/wine/dxvk/x86_64-windows/${wine_dxvk_dll}.dll" "${WINEPREFIX}/drive_c/windows/system32/${wine_dxvk_dll}.dll" ;;
+                    try_force_link_file "${WINEDIR}/lib/wine/dxvk/${PW_SUPPLIED_PE64_ARCH}/${wine_dxvk_dll}.dll" "${WINEPREFIX}/drive_c/windows/system32/${wine_dxvk_dll}.dll" ;;
                 1)
                     try_force_link_file "${WINEDIR}/lib/wine/dxvk/${wine_dxvk_dll}.dll" "${WINEPREFIX}/drive_c/windows/syswow64/${wine_dxvk_dll}.dll"
                     try_force_link_file "${WINEDIR}/lib64/wine/dxvk/${wine_dxvk_dll}.dll" "${WINEPREFIX}/drive_c/windows/system32/${wine_dxvk_dll}.dll" ;;
@@ -3505,7 +3578,7 @@ start_portproton () {
                 2)
                     if [[ $wine_vkd3d_dll =~ d3d12 ]] ; then
                         try_force_link_file "${WINEDIR}/lib/wine/vkd3d-proton/i386-windows/${wine_vkd3d_dll}.dll" "${WINEPREFIX}/drive_c/windows/syswow64/${wine_vkd3d_dll}.dll"
-                        try_force_link_file "${WINEDIR}/lib/wine/vkd3d-proton/x86_64-windows/${wine_vkd3d_dll}.dll" "${WINEPREFIX}/drive_c/windows/system32/${wine_vkd3d_dll}.dll"
+                        try_force_link_file "${WINEDIR}/lib/wine/vkd3d-proton/${PW_SUPPLIED_PE64_ARCH}/${wine_vkd3d_dll}.dll" "${WINEPREFIX}/drive_c/windows/system32/${wine_vkd3d_dll}.dll"
                     fi ;;
                 1)
                     if [[ $wine_vkd3d_dll =~ d3d12 ]] ; then
@@ -4266,7 +4339,8 @@ gui_edit_db () {
         DISABLE_EDIT_DB_LIST+=" PW_USE_SUPPLIED_DXVK_VKD3D"
     fi
 
-    if [[ ! -f "${PW_WINELIB}/runtime/files/bin/vkcube" ]] \
+    if check_arm \
+    || [[ ! -f "${PW_WINELIB}/runtime/files/bin/vkcube" ]] \
     || [[ ! -f "${PW_WINELIB}/pressure-vessel/bin/pressure-vessel-wrap" ]]
     then
         DISABLE_EDIT_DB_LIST+=" PW_USE_RUNTIME"
