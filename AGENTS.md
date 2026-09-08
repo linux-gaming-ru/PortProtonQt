@@ -415,6 +415,7 @@ tests/
 ├── test_input_manager.py    # Gamepad input navigation and focus regressions
 ├── test_sound_manager.py    # UI sound playback, widget events, gamepad connection, theme sound files
 ├── test_main_window.py      # Main window data processing and callback regressions
+├── test_store_games.py      # GOG and EGS library, launch, install, and stop regressions
 ├── test_portproton_config.py # exec_line parsing, launcher tail, extensions
 ├── test_portproton_api.py   # PPDB API helpers, autoinstall localization fallback
 ├── test_autoinstall_status.py # Autoinstall installed-status matching regressions

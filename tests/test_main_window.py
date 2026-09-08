@@ -1,9 +1,7 @@
 """Tests for main window library data processing."""
 
 import shlex
-from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta
 from pathlib import Path
 from queue import Queue
 import threading
@@ -30,11 +28,8 @@ from portprotonqt.animations.library_controls import _animation_duration
 from portprotonqt.animations.game_card import GameCardAnimations
 from portprotonqt.config import game_config
 from portprotonqt.detail_pages import DetailPageManager
-from portprotonqt.egs_api import EGSAPI
-from portprotonqt.tabs.download_tab import MainWindowDownloadTabMixin
 from portprotonqt.game_card import GameCard, SourceCorner
 from portprotonqt.game_library_manager import FullLibraryTile, GameLibraryManager
-from portprotonqt.gog_api import GOGAPI
 from portprotonqt.main_window import MainWindow
 from portprotonqt.tray_manager import TrayManager
 from portprotonqt.themes.standart.styles.constants import GAME_CARD_ANIMATION
@@ -45,7 +40,6 @@ import portprotonqt.tabs.library_tab as library_tab_module
 import portprotonqt.tabs.system_tab as system_tab_module
 import portprotonqt.steam_api.api as steam_api_module
 import portprotonqt.main_window as main_window_module
-
 
 from portprotonqt.tabs import (
     MainWindowAutoInstallTabMixin,
@@ -65,7 +59,6 @@ from portprotonqt.tabs.theme_tab import (
 )
 from portprotonqt.tabs.wine_tab import MainWindowWineTabMixin as WineMixin
 
-
 def _tile_theme() -> Any:
     return SimpleNamespace(
         fullLibraryTileSize=(180, 180),
@@ -75,7 +68,6 @@ def _tile_theme() -> Any:
         GAME_CARD_HORIZONTAL={},
         GAME_CARD_ANIMATION=GAME_CARD_ANIMATION,
     )
-
 
 def test_minimal_tray_contains_only_stop_action() -> None:
     _application = QApplication.instance() or QApplication([])
@@ -90,7 +82,6 @@ def test_minimal_tray_contains_only_stop_action() -> None:
     assert manager.tray_menu.actions() == [manager.stop_game_action]
     manager.update_stop_game_action.assert_called_once_with()
 
-
 def test_minimal_tray_exits_after_stopping_game(monkeypatch: MonkeyPatch) -> None:
     manager = TrayManager.__new__(TrayManager)
     manager.main_window = SimpleNamespace(stop_running_game=lambda: True)
@@ -104,7 +95,6 @@ def test_minimal_tray_exits_after_stopping_game(monkeypatch: MonkeyPatch) -> Non
 
     manager.tray_icon.hide.assert_called_once_with()
     quit_app.assert_called_once_with()
-
 
 @mark.parametrize(("vertical_layout", "ribbon_visible"), [(False, True), (True, False)])
 def test_source_ribbon_visibility(
@@ -132,7 +122,6 @@ def test_source_ribbon_visibility(
     card.protondbLabel.setVisible.assert_called_with(False)
     card.anticheatLabel.setVisible.assert_called_with(False)
 
-
 def test_cached_metadata_index_is_reused(tmp_path: Path) -> None:
     cache_file = tmp_path / "games.json"
     cache_file.write_text('[{"normalized_name": "game"}]', encoding="utf-8")
@@ -144,7 +133,6 @@ def test_cached_metadata_index_is_reused(tmp_path: Path) -> None:
 
     assert first == second
     build_index.assert_called_once_with([{"normalized_name": "game"}])
-
 
 def test_cached_metadata_index_is_built_once_concurrently(tmp_path: Path) -> None:
     cache_file = tmp_path / "games.json"
@@ -174,7 +162,6 @@ def test_cached_metadata_index_is_built_once_concurrently(tmp_path: Path) -> Non
 
     assert all(result == results[0] for result in results)
     build_index_mock.assert_called_once_with([{"normalized_name": "game"}])
-
 
 TAB_METHODS = {
     AutoInstallMixin: (
@@ -282,7 +269,6 @@ THEME_STORE_METHODS = (
     "_download_current_store_theme",
 )
 
-
 def test_main_window_inherits_all_tab_mixins() -> None:
     expected_mixins = (
         MainWindowAutoInstallTabMixin,
@@ -294,7 +280,6 @@ def test_main_window_inherits_all_tab_mixins() -> None:
 
     for mixin in expected_mixins:
         assert issubclass(MainWindow, mixin)
-
 
 def test_settings_retranslate_existing_interface(monkeypatch: MonkeyPatch) -> None:
     QApplication.instance() or QApplication([])
@@ -348,7 +333,6 @@ def test_settings_retranslate_existing_interface(monkeypatch: MonkeyPatch) -> No
         "(third-party themes may be unsafe)"
     )
 
-
 def test_live_theme_style_replacement_does_not_rewrite_new_paths() -> None:
     mixin = MainWindowThemeTabMixin()
     style = "url(/themes/standart/images/check.svg)"
@@ -361,7 +345,6 @@ def test_live_theme_style_replacement_does_not_rewrite_new_paths() -> None:
 
     assert result == "url(/themes/standart-light/images/check.svg)"
 
-
 def test_live_theme_style_replacement_handles_exact_styles() -> None:
     mixin = MainWindowThemeTabMixin()
     style = "QWidget { color: #ffffff; }"
@@ -371,7 +354,6 @@ def test_live_theme_style_replacement_handles_exact_styles() -> None:
 
     assert result == "QWidget { color: #000000; }"
 
-
 def test_live_theme_style_replacements_skip_ambiguous_values() -> None:
     mixin = MainWindowThemeTabMixin()
     old_theme = SimpleNamespace(FIRST_STYLE="same", SECOND_STYLE="same")
@@ -380,7 +362,6 @@ def test_live_theme_style_replacements_skip_ambiguous_values() -> None:
     replacements = mixin._theme_style_replacements(old_theme, new_theme)
 
     assert replacements == []
-
 
 def test_live_theme_joins_named_composite_styles() -> None:
     mixin = MainWindowThemeTabMixin()
@@ -400,7 +381,6 @@ def test_live_theme_joins_named_composite_styles() -> None:
 
     assert style == "pagefocus"
 
-
 def test_live_theme_rebuilds_library_when_layout_mode_changes() -> None:
     mixin = cast(Any, MainWindowThemeTabMixin())
     layout = object()
@@ -417,7 +397,6 @@ def test_live_theme_rebuilds_library_when_layout_mode_changes() -> None:
     )
 
     manager.rebuild_library_layout.assert_called_once_with("grid")
-
 
 def test_vertical_library_uses_column_layout() -> None:
     QApplication.instance() or QApplication([])
@@ -450,7 +429,6 @@ def test_vertical_library_uses_column_layout() -> None:
     assert manager.gamesListLayout.contentsMargins().left() == 1
     assert manager.gamesListLayout.spacing() == 5
 
-
 def test_full_library_tile_accepts_async_cover_result() -> None:
     QApplication.instance() or QApplication([])
     manager: Any = GameLibraryManager.__new__(GameLibraryManager)
@@ -466,7 +444,6 @@ def test_full_library_tile_accepts_async_cover_result() -> None:
 
     assert not tile.tile_pixmap.isNull()
 
-
 def test_full_library_tile_uses_card_scale() -> None:
     QApplication.instance() or QApplication([])
     theme = _tile_theme()
@@ -476,7 +453,6 @@ def test_full_library_tile_uses_card_scale() -> None:
 
     assert tile.size().toTuple() == (198, 198)
 
-
 def test_close_full_library_restores_top_layout() -> None:
     manager: Any = GameLibraryManager.__new__(GameLibraryManager)
     manager.full_library_open = True
@@ -484,7 +460,6 @@ def test_close_full_library_restores_top_layout() -> None:
 
     assert manager.close_full_library()
     manager.rebuild_library_layout.assert_called_once_with("horizontal_top")
-
 
 def test_live_theme_reopens_visible_detail_page() -> None:
     mixin = cast(Any, MainWindowThemeTabMixin())
@@ -497,7 +472,6 @@ def test_live_theme_reopens_visible_detail_page() -> None:
     mixin._refresh_open_detail_page()
 
     manager._reopen_current_detail_page.assert_called_once_with()
-
 
 def test_qt_color_scheme_change_applies_confirmed_system_theme(
     monkeypatch: MonkeyPatch,
@@ -517,7 +491,6 @@ def test_qt_color_scheme_change_applies_confirmed_system_theme(
     assert mixin.system_theme_watcher._last_light is True
     mixin._on_system_theme_detected.assert_called_once_with(True)
 
-
 def test_qt_color_scheme_change_ignores_theme_repolish(
     monkeypatch: MonkeyPatch,
 ) -> None:
@@ -531,7 +504,6 @@ def test_qt_color_scheme_change_ignores_theme_repolish(
     mixin._on_qt_color_scheme_changed(Qt.ColorScheme.Light)
 
     mixin._on_system_theme_detected.assert_not_called()
-
 
 def test_deferred_theme_update_applies_current_generation(
     monkeypatch: MonkeyPatch,
@@ -551,7 +523,6 @@ def test_deferred_theme_update_applies_current_generation(
     refresh_theme.assert_called_once_with(theme)
     widget.setStyleSheet.assert_called_once_with("new")
 
-
 def test_deferred_theme_update_ignores_old_generation() -> None:
     mixin = cast(Any, MainWindowThemeTabMixin())
     mixin._theme_update_generation = 2
@@ -560,7 +531,6 @@ def test_deferred_theme_update_ignores_old_generation() -> None:
     mixin._apply_deferred_theme_updates([(widget, "new", None)], object(), 1)
 
     widget.setStyleSheet.assert_not_called()
-
 
 def test_deferred_theme_update_skips_deleted_widget(
     monkeypatch: MonkeyPatch,
@@ -577,7 +547,6 @@ def test_deferred_theme_update_skips_deleted_widget(
 
     refresh_theme.assert_not_called()
     widget.setStyleSheet.assert_not_called()
-
 
 def test_game_card_animation_refresh_supports_all_modes() -> None:
     config = {
@@ -613,7 +582,6 @@ def test_game_card_animation_refresh_supports_all_modes() -> None:
 
     animations.cleanup()
 
-
 def test_game_card_animation_type_uses_layout_override() -> None:
     card = SimpleNamespace(
         card_layout_cfg={
@@ -640,7 +608,6 @@ def test_game_card_animation_type_uses_layout_override() -> None:
     assert animations._config_value("hover_border_width") == 6
     assert animations._optional_config_value("fill_alpha", 0) == 40
     assert animations._config_value("focus_scale") == 1.05
-
 
 def test_game_card_click_uses_select_callback() -> None:
     select_callback = MagicMock()
@@ -669,7 +636,6 @@ def test_game_card_click_uses_select_callback() -> None:
 
     select_callback.assert_called_once()
     assert select_callback.call_args.args[0]["name"] == "Game"
-
 
 def test_game_card_theme_refresh_updates_hidden_badge_styles() -> None:
     card = MagicMock()
@@ -716,11 +682,9 @@ def test_game_card_theme_refresh_updates_hidden_badge_styles() -> None:
     card.animations.refresh_theme.assert_not_called()
     card.update_scale.assert_not_called()
 
-
 def test_source_corner_does_not_shadow_generic_theme_refresh() -> None:
     assert hasattr(SourceCorner, "refresh_source_theme")
     assert not hasattr(SourceCorner, "refresh_theme")
-
 
 def test_source_corner_refresh_updates_ribbon_colors() -> None:
     _application = QApplication.instance() or QApplication([])
@@ -734,40 +698,6 @@ def test_source_corner_refresh_updates_ribbon_colors() -> None:
 
     assert corner._color.name() == "#eeeeee"
     assert corner._fold_color.name() == "#dddddd"
-
-
-def test_installed_filter_reuses_loaded_store_games(monkeypatch: MonkeyPatch) -> None:
-    installed = ("Installed", "", "", "1", "", "egs://launch/1")
-    uninstalled = ("Uninstalled", "", "", "2", "", "egs://install/2")
-    manager = SimpleNamespace(
-        games=[], filtered_games=[], _build_search_indices=MagicMock(),
-        update_game_grid=MagicMock(),
-    )
-    window = cast(Any, SimpleNamespace(
-        searchEdit=SimpleNamespace(clear=MagicMock()),
-        games=[installed, uninstalled],
-        game_library_manager=manager,
-        _loaded_library_cache={"egs": [installed, uninstalled]},
-        loadGames=MagicMock(),
-    ))
-    monkeypatch.setattr(game_config, "set_only_installed", lambda _checked: None)
-    monkeypatch.setattr(game_config, "get_display_filter", lambda: "egs")
-
-    LibraryMixin._on_only_installed_changed(window, True)
-
-    assert manager.games == [installed]
-    assert manager.filtered_games == [installed]
-    manager._build_search_indices.assert_called_once_with([installed])
-    manager.update_game_grid.assert_called_once_with(
-        is_filter=True, focus_first_card=False
-    )
-
-    LibraryMixin._on_only_installed_changed(window, False)
-
-    assert manager.games == [installed, uninstalled]
-    assert manager.filtered_games == [installed, uninstalled]
-    window.loadGames.assert_not_called()
-
 
 def test_library_source_filter_stays_top_aligned_without_checkbox(
     monkeypatch: MonkeyPatch,
@@ -810,543 +740,6 @@ def test_library_source_filter_stays_top_aligned_without_checkbox(
 
     assert controls_widget.height() < expanded_height
 
-
-def test_gog_account_state_detects_saved_auth(
-    tmp_path: Path, monkeypatch: MonkeyPatch
-) -> None:
-    class Control:
-        def __init__(self) -> None:
-            self.text = ""
-            self.enabled = False
-
-        def setText(self, text: str) -> None:
-            self.text = text
-
-        def setEnabled(self, enabled: bool) -> None:
-            self.enabled = enabled
-
-    auth_path = tmp_path / "auth.json"
-    auth_path.write_text("{}")
-    window = SimpleNamespace(
-        gog_api=SimpleNamespace(
-            auth_path=auth_path,
-            get_account_name=lambda: "gog-user",
-        ),
-        gogAccountStatus=Control(),
-        gogLoginButton=Control(),
-    )
-    monkeypatch.setattr(download_tab_module, "_", lambda text: text)
-
-    GOGMixin._update_gog_account_state(cast(Any, window))
-
-    assert window.gogAccountStatus.text == "gog-user"
-    assert window.gogLoginButton.text == "Log out"
-
-
-def test_gog_account_action_logs_out_and_reloads_library(
-    tmp_path: Path, monkeypatch: MonkeyPatch
-) -> None:
-    auth_path = tmp_path / "auth.json"
-    auth_path.write_text("{}")
-    calls = []
-
-    def logout() -> bool:
-        calls.append("logout")
-        auth_path.unlink()
-        return True
-
-    window = SimpleNamespace(
-        gog_api=SimpleNamespace(
-            auth_path=auth_path,
-            get_account_name=lambda: "",
-            logout=logout,
-        ),
-        gogAccountStatus=SimpleNamespace(setText=lambda text: calls.append(text)),
-        gogLoginButton=SimpleNamespace(
-            setEnabled=lambda enabled: calls.append(("enabled", enabled)),
-            setText=lambda text: calls.append(("button", text)),
-        ),
-        loadGames=lambda **kwargs: calls.append(("load", kwargs)),
-    )
-    window._update_gog_account_state = lambda: GOGMixin._update_gog_account_state(
-        cast(Any, window)
-    )
-    monkeypatch.setattr(download_tab_module, "_", lambda text: text)
-
-    GOGMixin._handle_gog_account_action(cast(Any, window))
-
-    assert "logout" in calls
-    assert ("button", "Open login page") in calls
-    assert ("load", {"force_load": True}) in calls
-
-
-def test_gog_logout_removes_credentials_and_library_cache(
-    tmp_path: Path, monkeypatch: MonkeyPatch
-) -> None:
-    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
-    api = GOGAPI()
-    api.data_dir.mkdir(parents=True)
-    api.auth_path.write_text("{}")
-    api.account_path.write_text('{"username": "gog-user"}')
-    api.library_path.write_text("[]")
-
-    assert api.get_account_name() == "gog-user"
-    assert api.logout() is True
-    assert not api.auth_path.exists()
-    assert not api.account_path.exists()
-    assert not api.library_path.exists()
-
-
-def test_gog_account_name_callback_updates_status() -> None:
-    values = []
-    window = SimpleNamespace(
-        gogAccountStatus=SimpleNamespace(setText=values.append),
-    )
-
-    GOGMixin._on_gog_account_name_loaded(cast(Any, window), "gog-user")
-
-    assert values == ["gog-user"]
-
-
-def test_gog_library_refresh_restores_account_status() -> None:
-    calls = []
-    window = SimpleNamespace(
-        _update_gog_account_state=lambda: calls.append("account"),
-        loadGames=lambda **kwargs: calls.append(("load", kwargs)),
-    )
-
-    GOGMixin._on_gog_library_loaded(cast(Any, window), [])
-
-    assert calls == ["account", ("load", {"force_load": True})]
-
-
-def test_library_refresh_updates_connected_gog_library(
-    tmp_path: Path,
-    monkeypatch: MonkeyPatch,
-) -> None:
-    auth_path = tmp_path / "auth.json"
-    auth_path.touch()
-    monkeypatch.setattr(game_config, "get_display_filter", lambda: "gog")
-    monkeypatch.setattr(
-        library_tab_module.QTimer,
-        "singleShot",
-        lambda _delay, callback: callback(),
-    )
-    calls = []
-    refresh_button = MagicMock()
-    refresh_button.setEnabled.side_effect = lambda enabled: calls.append(enabled)
-    window = SimpleNamespace(
-        _refresh_in_progress=False,
-        searchEdit=SimpleNamespace(clear=lambda: calls.append("clear")),
-        refreshButton=refresh_button,
-        _gamepad_tooltip_map={},
-        game_library_manager=None,
-        gog_api=SimpleNamespace(auth_path=auth_path),
-        gog_library_worker=None,
-        _load_gog_games_async=lambda callback: callback([]),
-        _refresh_gog_library=lambda: calls.append("gog"),
-        loadGames=lambda **kwargs: calls.append(("load", kwargs)),
-    )
-
-    LibraryMixin.refreshGames(cast(Any, window))
-
-    assert calls == [
-        "clear",
-        False,
-        "gog",
-        ("load", {"force_load": True}),
-    ]
-
-
-def test_library_refresh_updates_connected_stores_for_all_filter(
-    tmp_path: Path,
-    monkeypatch: MonkeyPatch,
-) -> None:
-    gog_auth_path = tmp_path / "gog_auth.json"
-    egs_user_path = tmp_path / "egs_user.json"
-    gog_auth_path.touch()
-    egs_user_path.touch()
-    monkeypatch.setattr(game_config, "get_display_filter", lambda: "all")
-    monkeypatch.setattr(
-        library_tab_module.QTimer,
-        "singleShot",
-        lambda _delay, callback: callback(),
-    )
-    calls = []
-    window = SimpleNamespace(
-        _refresh_in_progress=False,
-        searchEdit=SimpleNamespace(clear=lambda: None),
-        refreshButton=MagicMock(),
-        _gamepad_tooltip_map={},
-        game_library_manager=None,
-        gog_api=SimpleNamespace(auth_path=gog_auth_path),
-        egs_api=SimpleNamespace(user_path=egs_user_path),
-        _refresh_gog_library=lambda: calls.append("gog"),
-        _refresh_egs_library=lambda: calls.append("egs"),
-        loadGames=lambda **kwargs: calls.append(("load", kwargs)),
-    )
-
-    LibraryMixin.refreshGames(cast(Any, window))
-
-    assert calls == [
-        "gog",
-        "egs",
-        ("load", {"force_load": True}),
-    ]
-
-
-def test_library_refresh_skips_gog_for_portproton_filter(
-    tmp_path: Path,
-    monkeypatch: MonkeyPatch,
-) -> None:
-    auth_path = tmp_path / "auth.json"
-    auth_path.touch()
-    calls = []
-    monkeypatch.setattr(game_config, "get_display_filter", lambda: "portproton")
-    monkeypatch.setattr(
-        library_tab_module.QTimer,
-        "singleShot",
-        lambda _delay, callback: callback(),
-    )
-    window = SimpleNamespace(
-        _refresh_in_progress=False,
-        searchEdit=SimpleNamespace(clear=lambda: None),
-        refreshButton=MagicMock(),
-        _gamepad_tooltip_map={},
-        game_library_manager=None,
-        gog_api=SimpleNamespace(auth_path=auth_path),
-        gog_library_worker=None,
-        _load_portproton_games_async=lambda callback: callback([]),
-        _refresh_gog_library=lambda: calls.append("gog"),
-        loadGames=lambda **kwargs: calls.append(("load", kwargs)),
-    )
-
-    LibraryMixin.refreshGames(cast(Any, window))
-
-    assert calls == [("load", {"force_load": True})]
-
-
-def test_library_refresh_uses_selected_source_refresh(
-    tmp_path: Path,
-    monkeypatch: MonkeyPatch,
-) -> None:
-    auth_path = tmp_path / "auth.json"
-    auth_path.touch()
-    calls = []
-    monkeypatch.setattr(game_config, "get_display_filter", lambda: "custom")
-    window = SimpleNamespace(
-        _refresh_in_progress=False,
-        searchEdit=SimpleNamespace(clear=lambda: None),
-        refreshButton=MagicMock(),
-        _gamepad_tooltip_map={},
-        game_library_manager=None,
-        gog_api=SimpleNamespace(auth_path=auth_path),
-        gog_library_worker=None,
-        _load_custom_games_async=lambda callback: callback([]),
-        _refresh_custom_library=lambda: calls.append("custom"),
-        _refresh_gog_library=lambda: calls.append("gog"),
-    )
-
-    LibraryMixin.refreshGames(cast(Any, window))
-
-    assert calls == ["custom"]
-
-
-def test_gog_library_refresh_failure_reloads_cached_games(
-    monkeypatch: MonkeyPatch,
-) -> None:
-    calls = []
-    window = SimpleNamespace(
-        gogAccountStatus=SimpleNamespace(setText=lambda text: calls.append(text)),
-        loadGames=lambda **kwargs: calls.append(kwargs),
-    )
-    monkeypatch.setattr(download_tab_module, "_", lambda text: text)
-
-    GOGMixin._on_gog_library_failed(cast(Any, window), "network error")
-
-    assert calls == [
-        "Failed to refresh GOG library: network error",
-        {"force_load": True},
-    ]
-
-
-def test_gog_login_shows_cached_games_before_refresh(monkeypatch: MonkeyPatch) -> None:
-    calls = []
-    window = SimpleNamespace(
-        gog_api=SimpleNamespace(get_account_name=lambda: "gog-user"),
-        gogAccountStatus=SimpleNamespace(setText=lambda text: calls.append(text)),
-        loadGames=lambda **kwargs: calls.append(("load", kwargs)),
-        _refresh_gog_library=lambda: calls.append("refresh"),
-    )
-    monkeypatch.setattr(download_tab_module, "_", lambda text: text)
-
-    GOGMixin._on_gog_authenticated(cast(Any, window), True, "")
-
-    assert calls == [
-        "gog-user",
-        ("load", {"force_load": True}),
-        "refresh",
-    ]
-
-
-def test_egs_library_progress_shows_game_count(monkeypatch: MonkeyPatch) -> None:
-    values = []
-    window = SimpleNamespace(
-        egsAccountStatus=SimpleNamespace(setText=values.append),
-    )
-    monkeypatch.setattr(download_tab_module, "_", lambda text: text)
-
-    GOGMixin._on_egs_library_progress(cast(Any, window), 7, 12)
-
-    assert values == ["Refreshing Epic library… 7/12"]
-
-
-def test_gog_support_removes_finished_process_before_launching_game() -> None:
-    process = SimpleNamespace(poll=lambda: 0)
-    launches = []
-    timer = MagicMock()
-    window = SimpleNamespace(
-        game_processes=[process],
-        checkProcessTimer=timer,
-        _launch_gog_game=lambda app_id, button, play_sound: launches.append(
-            (app_id, button, play_sound)
-        ),
-    )
-
-    GOGMixin._launch_after_gog_support(cast(Any, window), "123", "button")
-
-    assert window.game_processes == []
-    assert launches == [("123", "button", False)]
-    timer.stop.assert_called_once_with()
-    timer.deleteLater.assert_called_once_with()
-    assert window.checkProcessTimer is None
-
-
-def test_gog_support_uses_regular_launch_output_monitor(
-    monkeypatch: MonkeyPatch,
-) -> None:
-    process = SimpleNamespace()
-    readers = []
-    input_manager = FakeInputManager()
-    window = SimpleNamespace(
-        gog_api=SimpleNamespace(get_launch_target=lambda _app_id: "/game/Game.exe"),
-        game_processes=[],
-        current_running_button=None,
-        input_manager=input_manager,
-        _start_launch_output_reader=readers.append,
-        _set_running_button_stop=lambda: None,
-        checkTargetExe=lambda: None,
-    )
-    monkeypatch.setattr(download_tab_module, "QTimer", FakeTimer)
-
-    GOGMixin._track_gog_support_process(
-        cast(Any, window), "123", cast(Any, process)
-    )
-
-    assert readers == [process]
-    assert window.checkProcessTimer.interval == 500
-    assert input_manager.suspended
-
-
-def test_gog_launch_starts_playtime_tracking(
-    monkeypatch: MonkeyPatch,
-) -> None:
-    target = "/games/Bio Menace/game.exe"
-    saved = []
-    window: Any = MainWindow.__new__(MainWindow)
-    window.gog_api = SimpleNamespace(
-        ensure_launch_parameters=lambda _app_id: None,
-        get_installed_path=lambda _app_id: Path("/games/Bio Menace"),
-        get_launch_target=lambda _app_id: target,
-        needs_support_setup=lambda _app_id: False,
-        build_command=lambda arguments: arguments,
-        get_environment=lambda: {},
-    )
-    window.start_sh = ["start.sh"]
-    window.game_processes = []
-    window.input_manager = FakeInputManager()
-    window._start_launch_output_reader = lambda _process: None
-    window._update_last_launch_after_start = lambda *_args: None
-    monkeypatch.setattr(
-        "portprotonqt.main_window.subprocess.Popen",
-        lambda *_args, **_kwargs: object(),
-    )
-    monkeypatch.setattr("portprotonqt.main_window.QTimer", FakeTimer)
-    monkeypatch.setattr(
-        "portprotonqt.main_window.save_last_launch",
-        lambda *args: saved.append(args),
-    )
-
-    window._launch_gog_game("123", play_sound=False)
-
-    assert window.game_start_exe == target
-    assert window.game_start_time is not None
-    assert window.game_start_exact_path is True
-    assert saved == [("gog-123", window.game_start_time)]
-
-
-def test_gog_playtime_updates_live_by_launch_target() -> None:
-    target = "/games/Bio Menace/game.exe"
-    game = ("Bio Menace", "", "", "123", "", "gog://launch/123",
-            "Never", "0 sec.", "", "", 0, 0, "gog")
-    window: Any = MainWindow.__new__(MainWindow)
-    window.gog_api = SimpleNamespace(get_launch_target=lambda _app_id: target)
-
-    games, changed = window._update_game_list_playtime([game], target, 120)
-
-    assert changed
-    assert games[0][11] == 120
-
-
-def test_repair_gog_game_uses_repair_command(tmp_path: Path) -> None:
-    install_path = tmp_path / "Game"
-    started: list[tuple] = []
-    api = SimpleNamespace(
-        config_dir=tmp_path / "gogdl",
-        get_installed_path=lambda _app_id: install_path,
-        build_command=lambda arguments: ["gogdl", *arguments],
-    )
-    window = SimpleNamespace(
-        gog_process=None,
-        gog_api=api,
-        gogAccountStatus=SimpleNamespace(setText=lambda _text: None),
-        _start_gog_download=lambda *arguments: started.append(arguments),
-    )
-
-    GOGMixin._repair_gog_game(cast(Any, window), {"app_id": "123", "title": "Game"})
-
-    assert started[0][2] == [
-        "gogdl", "repair", "123", "--path", str(install_path),
-        "--support", str(tmp_path / "gogdl/heroic_gogdl/gog-support/123"),
-        "--platform", "windows",
-    ]
-
-
-def test_install_gog_game_uses_support_path(
-    tmp_path: Path, monkeypatch: MonkeyPatch
-) -> None:
-    selected_path = tmp_path / "Games"
-    started: list[tuple] = []
-    explorer = MagicMock()
-    explorer.file_signal.file_selected.connect.side_effect = (
-        lambda callback: callback(str(selected_path))
-    )
-    monkeypatch.setattr(download_tab_module, "FileExplorer", lambda *_args, **_kwargs: explorer)
-    api = SimpleNamespace(
-        config_dir=tmp_path / "gogdl",
-        get_install_path=lambda _app_id, _title: selected_path,
-        is_game_installed=lambda _app_id: False,
-        build_command=lambda arguments: ["gogdl", *arguments],
-    )
-    window = SimpleNamespace(
-        gog_process=None, gog_download_queue=[], theme=object(), gog_api=api,
-        _start_gog_download=lambda *arguments: started.append(arguments),
-    )
-
-    GOGMixin._install_gog_game(cast(Any, window), {"app_id": "123", "title": "Game"})
-
-    assert started[0][2] == [
-        "gogdl", "download", "123", "--path", str(selected_path),
-        "--support", str(tmp_path / "gogdl/heroic_gogdl/gog-support/123"),
-        "--platform", "windows",
-    ]
-
-
-def test_install_egs_game_selects_path_and_opens_download(
-    tmp_path: Path, monkeypatch: MonkeyPatch
-) -> None:
-    selected_path = tmp_path / "Epic"
-    started: list[tuple] = []
-    explorer = MagicMock()
-    explorer.file_signal.file_selected.connect.side_effect = (
-        lambda callback: callback(str(selected_path))
-    )
-    monkeypatch.setattr(download_tab_module, "FileExplorer", lambda *_args, **_kwargs: explorer)
-    game = {"app_id": "doom64", "title": "DOOM 64", "cover": "cover"}
-    api = SimpleNamespace(
-        games_dir=tmp_path / "Games", load_library=lambda: [game],
-        build_command=lambda arguments: ["legendary", *arguments],
-    )
-    window = SimpleNamespace(
-        gog_process=None, egs_process=None, theme=object(), egs_api=api,
-        _start_egs_download=lambda *arguments: started.append(arguments),
-        egsAccountStatus=SimpleNamespace(setText=MagicMock()),
-    )
-
-    GOGMixin._install_egs_download(cast(Any, window), "doom64")
-
-    assert started[0] == (
-        game, selected_path,
-        [
-            "legendary", "install", "doom64", "--base-path", str(selected_path),
-            "--platform", "Windows", "--skip-sdl", "--skip-dlcs", "-y",
-        ],
-    )
-
-
-def test_cancel_gog_download_terminates_then_kills(monkeypatch: MonkeyPatch) -> None:
-    process = SimpleNamespace(
-        terminate=MagicMock(),
-        kill=MagicMock(),
-        state=lambda: download_tab_module.QProcess.ProcessState.Running,
-    )
-    window = SimpleNamespace(
-        gog_process=process,
-        downloadCancelButton=SimpleNamespace(setEnabled=MagicMock()),
-        downloadActiveDetails=SimpleNamespace(setText=MagicMock()),
-        _kill_gog_process=lambda active: GOGMixin._kill_gog_process(
-            cast(Any, window), active
-        ),
-    )
-    monkeypatch.setattr(download_tab_module.QTimer, "singleShot", lambda _delay, callback: callback())
-
-    GOGMixin._cancel_gog_download(cast(Any, window))
-
-    process.terminate.assert_called_once()
-    process.kill.assert_called_once()
-
-
-def test_import_gog_game_saves_selected_installation(
-    tmp_path: Path, monkeypatch: MonkeyPatch
-) -> None:
-    selected_path = tmp_path / "Selected"
-    game_path = selected_path / "Game"
-    saved: list[tuple] = []
-
-    class Explorer:
-        def __init__(self, *_args, **_kwargs) -> None:
-            self.callback: Callable[[str], None] = lambda _path: None
-            self.file_signal = SimpleNamespace(
-                file_selected=SimpleNamespace(connect=self._connect)
-            )
-
-        def _connect(self, callback: Callable[[str], None]) -> None:
-            self.callback = callback
-
-        def setWindowTitle(self, _title: str) -> None:
-            return
-
-        def exec(self) -> None:
-            self.callback(str(selected_path))
-
-    api = SimpleNamespace(
-        find_install_path=lambda _app_id, _path: game_path,
-        save_installed_game=lambda *arguments: saved.append(arguments),
-        ensure_launch_parameters=lambda _app_id: None,
-    )
-    window = SimpleNamespace(
-        theme=object(),
-        gog_api=api,
-        gogAccountStatus=SimpleNamespace(setText=lambda _text: None),
-        loadGames=lambda **_kwargs: None,
-    )
-    monkeypatch.setattr(download_tab_module, "FileExplorer", Explorer)
-
-    GOGMixin._import_gog_game(cast(Any, window), {"app_id": "123", "title": "Game"})
-
-    assert saved == [("123", {"install_path": str(game_path), "title": "Game"})]
-
-
 def test_downloads_tab_is_hidden_without_downloads() -> None:
     tab_button = SimpleNamespace(setVisible=MagicMock())
     window = SimpleNamespace(
@@ -1361,7 +754,6 @@ def test_downloads_tab_is_hidden_without_downloads() -> None:
     GOGMixin._update_downloads_tab_visibility(cast(Any, window))
 
     tab_button.setVisible.assert_called_once_with(False)
-
 
 def test_downloads_tab_is_visible_with_completed_download() -> None:
     tab_button = SimpleNamespace(setVisible=MagicMock())
@@ -1378,12 +770,10 @@ def test_downloads_tab_is_visible_with_completed_download() -> None:
 
     tab_button.setVisible.assert_called_once_with(True)
 
-
 def test_library_controls_animation_ignores_game_card_scale_duration() -> None:
     theme = SimpleNamespace(GAME_CARD_ANIMATION={"scale_anim_duration": 10})
 
     assert _animation_duration(theme, 150) == 150
-
 
 def test_library_controls_animation_uses_own_duration() -> None:
     theme = SimpleNamespace(
@@ -1394,7 +784,6 @@ def test_library_controls_animation_uses_own_duration() -> None:
     )
 
     assert _animation_duration(theme, 150) == 220
-
 
 def test_switch_tab_closes_library_controls_when_leaving_library() -> None:
     class Button:
@@ -1434,7 +823,6 @@ def test_switch_tab_closes_library_controls_when_leaving_library() -> None:
 
     assert window.library_controls_closed is True
 
-
 def test_library_search_keeps_expanded_for_active_virtual_keyboard(monkeypatch: MonkeyPatch) -> None:
     class Window(LibraryMixin):
         pass
@@ -1459,7 +847,6 @@ def test_library_search_keeps_expanded_for_active_virtual_keyboard(monkeypatch: 
 
     assert animation.collapsed is False
 
-
 def test_autoinstall_search_keeps_expanded_for_active_virtual_keyboard(monkeypatch: MonkeyPatch) -> None:
     class Window(AutoInstallMixin):
         pass
@@ -1483,7 +870,6 @@ def test_autoinstall_search_keeps_expanded_for_active_virtual_keyboard(monkeypat
     handler(object())
 
     assert animation.collapsed is False
-
 
 def test_autoinstall_search_uses_card_names() -> None:
     class Window(AutoInstallMixin):
@@ -1519,13 +905,11 @@ def test_autoinstall_search_uses_card_names() -> None:
     assert target_card.visible is True
     assert other_card.visible is False
 
-
 def test_tab_methods_resolve_from_expected_modules() -> None:
     for mixin, method_names in TAB_METHODS.items():
         for method_name in method_names:
             assert getattr(MainWindow, method_name) is getattr(mixin, method_name)
             assert method_name not in MainWindow.__dict__
-
 
 def test_theme_store_methods_resolve_from_store_mixin() -> None:
     assert issubclass(ThemeMixin, ThemeStoreMixin)
@@ -1533,13 +917,11 @@ def test_theme_store_methods_resolve_from_store_mixin() -> None:
         assert getattr(MainWindow, method_name) is getattr(ThemeStoreMixin, method_name)
         assert method_name not in ThemeMixin.__dict__
 
-
 def test_tabs_package_exports_tab_mixins() -> None:
     import portprotonqt.tabs as tabs
 
     for mixin in TAB_METHODS:
         assert getattr(tabs, mixin.__name__) is mixin
-
 
 def test_autoinstall_script_name_supports_spaced_paths(tmp_path: Path) -> None:
     script_path = tmp_path / "Game Installer.ppai"
@@ -1549,7 +931,6 @@ def test_autoinstall_script_name_supports_spaced_paths(tmp_path: Path) -> None:
     script_name = manager._extract_script_name(f"autoinstall:{shlex.quote(str(script_path))}")
 
     assert script_name == str(script_path)
-
 
 def test_open_local_autoinstall_card_uses_autoinstall_page(tmp_path: Path) -> None:
     script_path = tmp_path / "Game Installer.ppai"
@@ -1580,7 +961,6 @@ def test_open_local_autoinstall_card_uses_autoinstall_page(tmp_path: Path) -> No
     assert game_data["name"] == "Game"
     assert game_data["exec_line"] == f"autoinstall:{shlex.quote(str(script_path))}"
     assert return_tab_index == 0
-
 
 def test_open_game_detail_starts_pending_log(tmp_path: Path) -> None:
     exe_path = tmp_path / "Game.exe"
@@ -1614,7 +994,6 @@ def test_open_game_detail_starts_pending_log(tmp_path: Path) -> None:
     assert started == [(str(exe_path), window.detail_page_manager._debug_log_button)]
     assert window._pending_log_exe is None
 
-
 def test_launch_exe_skips_library_load_for_ppai() -> None:
     window: Any = MainWindow.__new__(MainWindow)
     window._loading_games = False
@@ -1623,7 +1002,6 @@ def test_launch_exe_skips_library_load_for_ppai() -> None:
     window.loadGames()
 
     assert window._loading_games is False
-
 
 def test_meson_installs_tab_modules() -> None:
     meson_build = Path("portprotonqt/meson.build").read_text(encoding="utf-8")
@@ -1639,7 +1017,6 @@ def test_meson_installs_tab_modules() -> None:
 
     for file_name in expected_files:
         assert file_name in meson_build
-
 
 class FakeComboBox:
     def __init__(self, items: list[tuple[str, object]], current_index: int = 0) -> None:
@@ -1664,7 +1041,6 @@ class FakeComboBox:
     def removeItem(self, index: int) -> None:
         self.items.pop(index)
 
-
 class FakeInputManager:
     def __init__(self) -> None:
         self.suspended = False
@@ -1674,7 +1050,6 @@ class FakeInputManager:
 
     def resume_gamepad_polling(self) -> None:
         self.suspended = False
-
 
 class FakeButton:
     def __init__(self) -> None:
@@ -1687,11 +1062,9 @@ class FakeButton:
     def setIcon(self, icon: object) -> None:
         self.icon = icon
 
-
 class FakeThemeManager:
     def get_icon(self, _name: str, as_path: bool = False) -> str:
         return "icon.svg"
-
 
 class FakeTimer:
     def __init__(self, _parent: object) -> None:
@@ -1707,7 +1080,6 @@ class FakeTimer:
     def start(self, interval: int) -> None:
         self.interval = interval
 
-
 class FakeSignal:
     def __init__(self) -> None:
         self._callbacks: list[Any] = []
@@ -1719,11 +1091,9 @@ class FakeSignal:
         for callback in self._callbacks:
             callback()
 
-
 class FakeWorker:
     def __init__(self) -> None:
         self.finished = FakeSignal()
-
 
 class FakeDetailPageManager:
     def __init__(self) -> None:
@@ -1731,7 +1101,6 @@ class FakeDetailPageManager:
 
     def openAutoInstallDetailPage(self, game_data: dict) -> None:
         self.opened_data = dict(game_data)
-
 
 def test_stop_running_game_analyzes_before_stop_command_failure(
     monkeypatch: MonkeyPatch,
@@ -1753,7 +1122,6 @@ def test_stop_running_game_analyzes_before_stop_command_failure(
     assert events == ["analyze", "terminate", "portproton-stop", "reset"]
     assert window.game_processes == []
 
-
 def test_terminate_game_processes_kills_launcher(monkeypatch: MonkeyPatch) -> None:
     process = MagicMock(pid=1234)
     process.poll.return_value = None
@@ -1767,7 +1135,6 @@ def test_terminate_game_processes_kills_launcher(monkeypatch: MonkeyPatch) -> No
 
     kill_group.assert_called_once_with(4321, main_window_module.signal.SIGTERM)
     process.kill.assert_called_once_with()
-
 
 def test_dxvk_incompatibility_reports_after_manual_stop(
     monkeypatch: MonkeyPatch,
@@ -1790,7 +1157,6 @@ def test_dxvk_incompatibility_reports_after_manual_stop(
 
     assert reports == ["forced report"]
 
-
 def test_disabled_crash_reports_skip_launch_analysis(
     monkeypatch: MonkeyPatch,
 ) -> None:
@@ -1809,7 +1175,6 @@ def test_disabled_crash_reports_skip_launch_analysis(
 
     assert started == []
 
-
 def test_launch_marker_starts_crash_timer(monkeypatch: MonkeyPatch) -> None:
     window: Any = MainWindow.__new__(MainWindow)
     window.launch_output_queue = Queue()
@@ -1825,14 +1190,12 @@ def test_launch_marker_starts_crash_timer(monkeypatch: MonkeyPatch) -> None:
     assert window.game_launch_monotonic == 90.0
     assert window.game_launch_started is True
 
-
 def test_update_prefix_log_does_not_mark_wine_launch_start() -> None:
     window: Any = MainWindow.__new__(MainWindow)
 
     state = window._parse_process_status_line("[INFO] Info: Update prefix log:")
 
     assert state is None
-
 
 def test_show_compatibility_report_uses_report_dialog(monkeypatch: MonkeyPatch) -> None:
     calls = []
@@ -1852,7 +1215,6 @@ def test_show_compatibility_report_uses_report_dialog(monkeypatch: MonkeyPatch) 
 
     assert calls == [(window, window.theme, "report text"), "exec"]
 
-
 def test_refresh_theme_store_visibility_adds_store(monkeypatch: Any) -> None:
     window: Any = MainWindow.__new__(MainWindow)
     window.themesCombo = FakeComboBox([("Standard", None)])
@@ -1864,7 +1226,6 @@ def test_refresh_theme_store_visibility_adds_store(monkeypatch: Any) -> None:
     window._refresh_theme_store_visibility()
 
     assert window.themesCombo.findData(THEME_STORE_ITEM) == 1
-
 
 def test_refresh_theme_store_visibility_removes_selected_store(monkeypatch: Any) -> None:
     window: Any = MainWindow.__new__(MainWindow)
@@ -1881,7 +1242,6 @@ def test_refresh_theme_store_visibility_removes_selected_store(monkeypatch: Any)
 
     assert window.themesCombo.findData(THEME_STORE_ITEM) == -1
     assert window.themesCombo.currentIndex() == 0
-
 
 def test_autoinstall_script_thread_reference_clears_after_thread_finished() -> None:
     class FakePortProtonAPI:
@@ -1929,7 +1289,6 @@ def test_autoinstall_script_thread_reference_clears_after_thread_finished() -> N
     assert window.autoInstallScriptLoadThread is None
     assert window.autoInstallCustomDataThread is None
 
-
 def test_launch_autoinstall_checks_alt_i586_dependencies() -> None:
     window: Any = MainWindow.__new__(MainWindow)
     window.installing = False
@@ -1938,7 +1297,6 @@ def test_launch_autoinstall_checks_alt_i586_dependencies() -> None:
     window.launch_autoinstall("/tmp/game.ppai")
 
     assert window.installing is False
-
 
 def test_alt_package_query_keeps_ui_responsive(monkeypatch: MonkeyPatch) -> None:
     process_events = MagicMock()
@@ -1956,7 +1314,6 @@ def test_alt_package_query_keeps_ui_responsive(monkeypatch: MonkeyPatch) -> None
 
     assert window._get_installed_alt_package_names() == ["glibc-nss"]
     process_events.assert_called()
-
 
 def test_initial_library_card_focus_does_not_use_navigation_reason() -> None:
     focus_reasons: list[Qt.FocusReason] = []
@@ -1977,7 +1334,6 @@ def test_initial_library_card_focus_does_not_use_navigation_reason() -> None:
 
     assert focus_reasons == [Qt.FocusReason.ActiveWindowFocusReason]
 
-
 def test_launch_dependency_percent_updates_button_before_status() -> None:
     window: Any = MainWindow.__new__(MainWindow)
     button = FakeButton()
@@ -1994,7 +1350,6 @@ def test_launch_dependency_percent_updates_button_before_status() -> None:
     window._set_running_button_progress()
 
     assert button.text == "Downloading Wine… 0.1%"
-
 
 def test_reset_play_button_refreshes_new_portproton_shortcuts() -> None:
     window: Any = MainWindow.__new__(MainWindow)
@@ -2019,7 +1374,6 @@ def test_reset_play_button_refreshes_new_portproton_shortcuts() -> None:
     assert reloads == []
     assert shortcut_refreshes == [True]
     assert window.target_exe is None
-
 
 def test_toggle_game_replaces_invalid_launch_output_bytes(
     tmp_path: Path,
@@ -2076,7 +1430,6 @@ def test_toggle_game_replaces_invalid_launch_output_bytes(
     assert launch_button_states == [button.text]
     assert launch_events == ["game_launch", "dependencies", "popen"]
 
-
 def test_steam_launch_plays_game_launch_sound(monkeypatch: MonkeyPatch) -> None:
     launch_events: list[str] = []
     window: Any = MainWindow.__new__(MainWindow)
@@ -2096,7 +1449,6 @@ def test_steam_launch_plays_game_launch_sound(monkeypatch: MonkeyPatch) -> None:
     window._launch_steam_game("steam://rungameid/1")
 
     assert launch_events == ["popen", "game_launch"]
-
 
 def test_process_portproton_desktop_calls_callback_without_asset_download(
     tmp_config_dir: Path,
@@ -2143,444 +1495,6 @@ def test_process_portproton_desktop_calls_callback_without_asset_download(
     custom_data_path = tmp_config_dir.parent / "data" / "PortProtonQt" / "custom_data"
     assert not custom_data_path.exists()
 
-
-def test_load_gog_games_includes_compatibility_metadata(monkeypatch: MonkeyPatch) -> None:
-    window = MainWindow.__new__(MainWindow)
-    test_window = cast(Any, window)
-    test_window.gog_api = SimpleNamespace(
-        load_installed=lambda: {},
-        load_library=lambda: [
-            {"app_id": "gog-1", "title": "Game", "steam_appid": "123"}
-        ],
-        is_game_installed=lambda _app_id, _installed: True,
-        get_launch_target=lambda _app_id: "/games/Game/game.exe",
-    )
-    steam_info = {
-        "appid": 123,
-        "controller_support": "full",
-        "protondb_tier": "gold",
-        "anticheat_status": "Supported",
-        "anticheat_slug": "game",
-        "ppdb_id": "456",
-        "ppdb_rating": "good",
-    }
-    get_steam_info = MagicMock(
-        side_effect=lambda _appid, callback, fallback_name: callback(steam_info)
-    )
-    monkeypatch.setattr(
-        "portprotonqt.main_window.get_full_steam_game_info_async", get_steam_info
-    )
-    monkeypatch.setattr(game_config, "get_only_installed", lambda: False)
-    results = []
-
-    MainWindow._load_gog_games_async(window, results.append)
-
-    assert len(results) == 1
-    game = results[0][0]
-    assert game[3] == "gog-1"
-    assert game[4] == "full"
-    assert game[8:10] == ("gold", "Supported")
-    assert game[13:17] == ("game", "456", "good", 123)
-    assert get_steam_info.call_args.args[0] == 123
-    assert get_steam_info.call_args.kwargs == {"fallback_name": "Game"}
-
-
-def test_legacy_gog_library_refreshes_metadata(
-    monkeypatch: MonkeyPatch, tmp_path: Path
-) -> None:
-    window = MainWindow.__new__(MainWindow)
-    test_window = cast(Any, window)
-    test_window._load_gog_games_async = MagicMock()
-    auth_path = tmp_path / "auth.json"
-    auth_path.write_text("{}", encoding="utf-8")
-    worker = SimpleNamespace(
-        loaded=MagicMock(), failed=MagicMock(), finished=MagicMock(), start=MagicMock()
-    )
-    monkeypatch.setattr(
-        "portprotonqt.main_window.GOGLibraryWorker", lambda _api: worker
-    )
-    callback = MagicMock()
-
-    started = MainWindow._upgrade_legacy_gog_library(
-        window, cast(Any, SimpleNamespace(auth_path=auth_path)),
-        [{"app_id": "1"}], callback
-    )
-
-    assert started is True
-    worker.start.assert_called_once_with()
-    worker.loaded.connect.call_args.args[0]([])
-    test_window._load_gog_games_async.assert_called_once_with(callback)
-
-
-def test_installed_filter_excludes_uninstalled_gog_games(
-    monkeypatch: MonkeyPatch,
-) -> None:
-    window = MainWindow.__new__(MainWindow)
-    test_window = cast(Any, window)
-    test_window.gog_api = SimpleNamespace(
-        load_installed=lambda: {"installed": {}},
-        load_library=lambda: [
-            {"app_id": "installed", "title": "Installed", "steam_appid": ""},
-            {"app_id": "uninstalled", "title": "Uninstalled", "steam_appid": ""},
-        ],
-        is_game_installed=lambda app_id, _installed: app_id == "installed",
-        get_launch_target=lambda app_id: f"/games/{app_id}/game.exe",
-    )
-    monkeypatch.setattr(game_config, "get_only_installed", lambda: True)
-    monkeypatch.setattr(
-        "portprotonqt.main_window.get_steam_game_info_async",
-        lambda _name, _uri, callback: callback({}),
-    )
-    results = []
-
-    MainWindow._load_gog_games_async(window, results.append)
-
-    assert [game[3] for game in results[0]] == ["installed"]
-    assert results[0][0][5] == "gog://launch/installed"
-
-
-def test_installed_filter_disabled_includes_uninstalled_gog_games(
-    monkeypatch: MonkeyPatch,
-) -> None:
-    window = MainWindow.__new__(MainWindow)
-    test_window = cast(Any, window)
-    test_window.gog_api = SimpleNamespace(
-        load_installed=lambda: {},
-        load_library=lambda: [
-            {"app_id": "uninstalled", "title": "Uninstalled", "steam_appid": ""},
-        ],
-        is_game_installed=lambda _app_id, _installed: False,
-    )
-    monkeypatch.setattr(game_config, "get_only_installed", lambda: False)
-    monkeypatch.setattr(
-        "portprotonqt.main_window.get_steam_game_info_async",
-        lambda _name, _uri, callback: callback({}),
-    )
-    results = []
-
-    MainWindow._load_gog_games_async(window, results.append)
-
-    assert [game[3] for game in results[0]] == ["uninstalled"]
-    assert results[0][0][5] == "gog://install/uninstalled"
-
-
-@mark.parametrize(
-    ("game_name", "launch_uri"),
-    (
-        ("Unknown GOG Game", "gog://launch/123"),
-        ("Unknown Epic Game", "egs://launch/Fortnite"),
-    ),
-)
-def test_store_metadata_search_ignores_uri_components(
-    monkeypatch: MonkeyPatch, game_name: str, launch_uri: str
-) -> None:
-    from portprotonqt.steam_api import get_steam_game_info_async
-
-    searched_candidates = []
-    monkeypatch.setattr(
-        "portprotonqt.steam_api.api.ui_config.get_economy_mode", lambda: False
-    )
-    monkeypatch.setattr(
-        "portprotonqt.steam_api.api.get_steam_apps_and_index_async",
-        lambda callback: callback(([{"appid": 1}], {"game": [{"appid": 1}]})),
-    )
-    monkeypatch.setattr(
-        "portprotonqt.steam_api.api.search_app",
-        lambda candidate, _index: searched_candidates.append(candidate),
-    )
-    fetch_sgdb_cover = MagicMock()
-    monkeypatch.setattr(
-        "portprotonqt.steam_api.api.fetch_sgdb_cover_async", fetch_sgdb_cover
-    )
-    monkeypatch.setattr(
-        "portprotonqt.steam_api.api.get_weanticheatyet_info_async",
-        lambda _name, callback: callback({}),
-    )
-    monkeypatch.setattr(
-        "portprotonqt.steam_api.api._add_ppdb_info",
-        lambda result, _name, callback: callback(result),
-    )
-    results = []
-
-    get_steam_game_info_async(game_name, launch_uri, results.append)
-
-    assert searched_candidates == [game_name]
-    assert len(results) == 1
-    fetch_sgdb_cover.assert_not_called()
-
-
-def test_egs_refresh_reopens_current_detail_with_new_description() -> None:
-    source_data = {
-        "appid": "AmongUs",
-        "game_source": "egs",
-        "description": "Old description",
-        "cover_path": "old.jpg",
-    }
-    manager = SimpleNamespace(
-        _current_detail_source=("game", source_data),
-        _detail_page_active=True,
-        _reopen_current_detail_page=MagicMock(),
-    )
-    window = cast(MainWindowDownloadTabMixin, SimpleNamespace(
-        detail_page_manager=manager,
-        _update_egs_account_state=MagicMock(),
-        loadGames=MagicMock(),
-    ))
-
-    MainWindowDownloadTabMixin._on_egs_library_loaded(window, [{
-        "app_id": "AmongUs",
-        "description": "Новое описание",
-        "cover": "new.jpg",
-    }])
-
-    assert source_data["description"] == "Новое описание"
-    assert source_data["cover_path"] == "new.jpg"
-    manager._reopen_current_detail_page.assert_called_once_with()
-    window.loadGames.assert_called_once_with(force_load=True)
-
-
-def test_egs_library_uses_steam_description_when_epic_has_title_only(
-    monkeypatch: MonkeyPatch,
-) -> None:
-    game = {"app_id": "WitchIt", "title": "Witch It", "description": "Witch It"}
-    api = SimpleNamespace(
-        load_library=lambda: [game],
-        is_game_installed=lambda _app_id: False,
-    )
-    results = []
-    window = cast(MainWindow, SimpleNamespace(
-        egs_api=api, games=[],
-    ))
-    monkeypatch.setattr(game_config, "get_only_installed", lambda: False)
-    monkeypatch.setattr(
-        "portprotonqt.main_window.get_steam_game_info_async",
-        lambda _name, _uri, callback: callback({
-            "description": "Witch It — игра в прятки по сети.",
-        }),
-    )
-
-    MainWindow._load_egs_games_async(window, results.append)
-
-    assert results[0][0][1] == "Witch It — игра в прятки по сети."
-
-
-def test_egs_maintenance_uses_legendary_commands() -> None:
-    start_operation = MagicMock()
-    window = cast(MainWindow, SimpleNamespace(_start_egs_operation=start_operation))
-
-    MainWindow._repair_egs_game(window, "Game")
-    MainWindow._update_egs_game(window, "Game")
-    MainWindow._delete_egs_game(window, "Game")
-
-    calls = start_operation.call_args_list
-    assert calls[0].args[1] == ["repair", "Game", "--skip-sdl", "-y"]
-    assert calls[1].args[1] == [
-        "update", "Game", "--platform", "Windows", "--skip-sdl", "-y",
-    ]
-    assert calls[2].args[1] == ["uninstall", "Game", "-y"]
-
-
-def test_egs_operation_is_sent_to_visible_downloads() -> None:
-    game = {"app_id": "Game", "title": "Epic Game", "cover": "cover"}
-    visible_operation = MagicMock()
-    api = SimpleNamespace(
-        build_command=lambda arguments: ["legendary", *arguments],
-        load_library=lambda: [game],
-    )
-    window = cast(MainWindow, SimpleNamespace(
-        egs_process=None, egs_api=api,
-        _start_egs_visible_operation=visible_operation,
-    ))
-
-    MainWindow._start_egs_operation(window, "Game", ["repair", "Game"], "Repair")
-
-    visible_operation.assert_called_once_with(
-        game, ["legendary", "repair", "Game"], "Repair"
-    )
-
-
-def test_detached_store_game_keeps_running_state(monkeypatch: MonkeyPatch) -> None:
-    dead_launcher = SimpleNamespace(poll=lambda: 0)
-    game_process = SimpleNamespace(info={"name": "DOOM64_x64.exe"})
-    monkeypatch.setattr(
-        main_window_module.psutil, "process_iter", lambda attrs: [game_process]
-    )
-    window = cast(MainWindow, SimpleNamespace(
-        game_processes=[dead_launcher], target_exe="DOOM64_x64.exe",
-        game_start_time=datetime.now() - timedelta(minutes=1),
-    ))
-
-    assert MainWindow._has_running_game_process(window)
-
-
-def test_store_launch_grace_prevents_early_button_reset(
-    monkeypatch: MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(main_window_module.psutil, "process_iter", lambda attrs: [])
-    window = cast(MainWindow, SimpleNamespace(
-        game_processes=[], target_exe="DOOM64_x64.exe",
-        game_start_time=datetime.now(),
-    ))
-
-    assert MainWindow._has_running_game_process(window)
-
-
-def test_store_launch_grace_starts_after_slow_legendary_login(
-    monkeypatch: MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(main_window_module.psutil, "process_iter", lambda attrs: [])
-    monkeypatch.setattr(main_window_module.time, "monotonic", lambda: 105.0)
-    window = cast(MainWindow, SimpleNamespace(
-        game_processes=[], target_exe="DOOM64_x64.exe",
-        game_start_time=datetime.now() - timedelta(minutes=1),
-        game_launch_monotonic=100.0,
-    ))
-
-    assert MainWindow._has_running_game_process(window)
-
-
-def test_cancelled_egs_resolution_does_not_start_portproton(
-    monkeypatch: MonkeyPatch,
-) -> None:
-    launch_data = '{"launch_command": ["start.sh"]}\n'
-    process: Any = SimpleNamespace(
-        stdout=[launch_data], wait=lambda: None, returncode=0,
-    )
-    window = cast(MainWindow, SimpleNamespace(egs_launch_cancelled=True))
-    popen = MagicMock()
-    monkeypatch.setattr(main_window_module.subprocess, "Popen", popen)
-
-    MainWindow._read_egs_launch_output(window, process)
-
-    popen.assert_not_called()
-
-
-def test_egs_update_progress_shows_downloaded_and_total() -> None:
-    details = []
-    progress = MagicMock()
-    output = b"Download size: 500 MiB\nDownloaded: 125 MiB\n"
-    process = SimpleNamespace(
-        readAllStandardOutput=lambda: SimpleNamespace(data=lambda: output),
-    )
-    window = cast(MainWindowDownloadTabMixin, SimpleNamespace(
-        egs_process=process, egs_download_output="", egs_download_total=0.0,
-        downloadOverallProgress=progress, downloadSpeedLabel=MagicMock(),
-        diskSpeedLabel=MagicMock(), downloadActiveDetails=MagicMock(),
-        _update_active_download_details=details.append,
-    ))
-
-    MainWindowDownloadTabMixin._read_egs_download_output(window)
-
-    assert details == [["125.0 MiB / 500.0 MiB"]]
-    progress.setValue.assert_called_with(25)
-
-
-def test_store_launch_grace_preserves_early_crash_duration(
-    monkeypatch: MonkeyPatch,
-) -> None:
-    monotonic = iter((101.0, 111.0))
-    launches = []
-    monkeypatch.setattr(main_window_module.psutil, "process_iter", lambda attrs: [])
-    monkeypatch.setattr(main_window_module.time, "monotonic", lambda: next(monotonic))
-    monkeypatch.setattr(
-        main_window_module.ui_config, "get_crash_reports_enabled", lambda: True,
-    )
-    monkeypatch.setattr(
-        main_window_module, "Thread",
-        lambda **kwargs: SimpleNamespace(
-            start=lambda: launches.append(kwargs["args"][0])
-        ),
-    )
-    exited_installer = SimpleNamespace(poll=lambda: 0)
-    window = cast(MainWindow, SimpleNamespace(
-        game_processes=[exited_installer], target_exe="DOOM64_x64.exe",
-        game_start_exe="game.exe",
-        game_start_time=datetime.now() - timedelta(minutes=1),
-        game_launch_monotonic=100.0, game_stopped_by_user=False,
-        _build_compatibility_report=lambda *_args: None,
-    ))
-
-    assert MainWindow._has_running_game_process(window)
-    assert not MainWindow._has_running_game_process(window)
-    MainWindow._analyze_short_launch(window)
-
-    assert launches[0].duration == 1.0
-    assert launches[0].exit_code == 0
-
-
-def test_egs_verification_uses_total_progress_format() -> None:
-    import re
-
-    output = "Verification progress: 37/142 (26.4%) [132.7 MiB/s]"
-    match = re.findall(
-        r"Verification progress:\s*\d+/\d+\s+\(([\d.]+)%\)"
-        r"(?:\s+\[([\d.]+)\s+MiB/s\])?",
-        output,
-    )
-
-    assert match == [("26.4", "132.7")]
-
-
-def test_egs_overlay_enable_uses_game_prefix(tmp_path: Path) -> None:
-    prefix_path = tmp_path / "data/prefixes/DEFAULT"
-    prefix_path.mkdir(parents=True)
-    (prefix_path / "user.reg").touch()
-    config_dir = tmp_path / "legendary"
-    config_dir.mkdir()
-    (config_dir / "overlay_install.json").touch()
-    api = SimpleNamespace(
-        config_dir=config_dir,
-        data_dir=tmp_path / "egs",
-        get_launch_target=MagicMock(return_value="/games/Game.exe"),
-        is_eos_overlay_enabled=EGSAPI.is_eos_overlay_enabled,
-    )
-    start_operation = MagicMock()
-    window = cast(MainWindow, SimpleNamespace(
-        egs_api=api,
-        portproton_location=str(tmp_path),
-        _start_egs_operation=start_operation,
-    ))
-
-    MainWindow._enable_egs_overlay(window, "Game")
-
-    arguments = start_operation.call_args.args[1]
-    assert arguments == [
-        "eos-overlay", "enable", "--prefix", str(prefix_path),
-    ]
-
-
-def test_egs_overlay_disable_uses_game_prefix(tmp_path: Path) -> None:
-    prefix_path = tmp_path / "data/prefixes/DEFAULT"
-    prefix_path.mkdir(parents=True)
-    (prefix_path / "user.reg").write_text(
-        '[Software\\\\Epic Games\\\\EOS]\n\n'
-        '[SOFTWARE\\\\Epic Games\\\\EOS]\n"OverlayPath"="Z:/overlay"\n',
-        encoding="utf-8",
-    )
-    config_dir = tmp_path / "legendary"
-    config_dir.mkdir()
-    (config_dir / "overlay_install.json").touch()
-    api = SimpleNamespace(
-        config_dir=config_dir,
-        data_dir=tmp_path / "egs",
-        get_launch_target=MagicMock(return_value="/games/Game.exe"),
-        is_eos_overlay_enabled=EGSAPI.is_eos_overlay_enabled,
-    )
-    start_operation = MagicMock()
-    window = cast(MainWindow, SimpleNamespace(
-        egs_api=api,
-        portproton_location=str(tmp_path),
-        _start_egs_operation=start_operation,
-    ))
-
-    MainWindow._enable_egs_overlay(window, "Game")
-
-    arguments = start_operation.call_args.args[1]
-    assert arguments == [
-        "eos-overlay", "disable", "--prefix", str(prefix_path),
-    ]
-
-
 def test_remove_empty_custom_data_dirs_keeps_non_empty_dirs(tmp_config_dir: Path) -> None:
     custom_data_path = tmp_config_dir.parent / "data" / "PortProtonQt" / "custom_data"
     (custom_data_path / "praest").mkdir(parents=True)
@@ -2594,7 +1508,6 @@ def test_remove_empty_custom_data_dirs_keeps_non_empty_dirs(tmp_config_dir: Path
     assert not (custom_data_path / "praest").exists()
     assert not (custom_data_path / "Akalabeth - World of Doom").exists()
     assert kept_dir.exists()
-
 
 def test_get_games_without_exe_only_includes_portproton(tmp_path: Path) -> None:
     exe_path = tmp_path / "Game.exe"
@@ -2627,7 +1540,6 @@ def test_get_games_without_exe_only_includes_portproton(tmp_path: Path) -> None:
     missing_games = MainWindowLibraryTabMixin._get_games_without_exe(window)
 
     assert [game[0] for game in missing_games] == ["Missing"]
-
 
 def test_update_delete_missing_exe_button_visibility(tmp_path: Path) -> None:
     exe_path = tmp_path / "Game.exe"
@@ -2668,7 +1580,6 @@ def test_update_delete_missing_exe_button_visibility(tmp_path: Path) -> None:
 
     assert button.visible is True
 
-
 def test_system_action_uses_systemctl_with_systemd(monkeypatch: MonkeyPatch) -> None:
     calls: list[tuple[str, list[str]]] = []
     process = SimpleNamespace(startDetached=lambda *args: calls.append(args) or True)
@@ -2680,7 +1591,6 @@ def test_system_action_uses_systemctl_with_systemd(monkeypatch: MonkeyPatch) -> 
 
     assert calls == [("systemctl", ["reboot"])]
 
-
 def test_system_action_uses_loginctl_with_elogind(monkeypatch: MonkeyPatch) -> None:
     calls: list[tuple[str, list[str]]] = []
     process = SimpleNamespace(startDetached=lambda *args: calls.append(args) or True)
@@ -2691,7 +1601,6 @@ def test_system_action_uses_loginctl_with_elogind(monkeypatch: MonkeyPatch) -> N
     MainWindowSystemTabMixin._runSystemAction(window, "suspend")
 
     assert calls == [("loginctl", ["suspend"])]
-
 
 @mark.parametrize(
     ("command", "expected"),
@@ -2725,7 +1634,6 @@ def test_return_to_desktop_runs_configured_command(
 
     assert calls == [expected]
 
-
 def test_return_to_desktop_rejects_invalid_command(monkeypatch: MonkeyPatch) -> None:
     process = SimpleNamespace(startDetached=MagicMock())
     window = cast(MainWindowSystemTabMixin, SimpleNamespace())
@@ -2735,7 +1643,6 @@ def test_return_to_desktop_rejects_invalid_command(monkeypatch: MonkeyPatch) -> 
     MainWindowSystemTabMixin.returnToDesktop(window)
 
     process.startDetached.assert_not_called()
-
 
 def test_logout_uses_current_session_id(monkeypatch: MonkeyPatch) -> None:
     calls: list[tuple[str, list[str]]] = []
@@ -2748,7 +1655,6 @@ def test_logout_uses_current_session_id(monkeypatch: MonkeyPatch) -> None:
 
     assert calls == [("loginctl", ["terminate-session", "session-1"])]
 
-
 def test_logout_skips_without_session_id(monkeypatch: MonkeyPatch) -> None:
     calls: list[tuple[str, list[str]]] = []
     process = SimpleNamespace(startDetached=lambda *args: calls.append(args) or True)
@@ -2759,7 +1665,6 @@ def test_logout_skips_without_session_id(monkeypatch: MonkeyPatch) -> None:
     MainWindowSystemTabMixin.logoutSystem(window)
 
     assert calls == []
-
 
 def test_delayed_system_adapters_appear_on_retry() -> None:
     QApplication.instance() or QApplication([])
@@ -2804,7 +1709,6 @@ def test_delayed_system_adapters_appear_on_retry() -> None:
     assert not network_timer.isActive()
     assert not bluetooth_timer.isActive()
 
-
 def test_missing_system_adapters_stop_after_retries() -> None:
     QApplication.instance() or QApplication([])
     network_timer = QTimer()
@@ -2842,3 +1746,298 @@ def test_missing_system_adapters_stop_after_retries() -> None:
     assert window.bluetoothRetryCount == system_tab_module.SYSTEM_DEVICE_RETRY_LIMIT
     assert not network_timer.isActive()
     assert not bluetooth_timer.isActive()
+
+
+def test_installed_filter_reuses_loaded_store_games(monkeypatch: MonkeyPatch) -> None:
+    installed = ("Installed", "", "", "1", "", "egs://launch/1")
+    uninstalled = ("Uninstalled", "", "", "2", "", "egs://install/2")
+    manager = SimpleNamespace(
+        games=[], filtered_games=[], _build_search_indices=MagicMock(),
+        update_game_grid=MagicMock(),
+    )
+    window = cast(Any, SimpleNamespace(
+        searchEdit=SimpleNamespace(clear=MagicMock()),
+        games=[installed, uninstalled],
+        game_library_manager=manager,
+        _loaded_library_cache={"egs": [installed, uninstalled]},
+        loadGames=MagicMock(),
+    ))
+    monkeypatch.setattr(game_config, "set_only_installed", lambda _checked: None)
+    monkeypatch.setattr(game_config, "get_display_filter", lambda: "egs")
+
+    LibraryMixin._on_only_installed_changed(window, True)
+
+    assert manager.games == [installed]
+    assert manager.filtered_games == [installed]
+    manager._build_search_indices.assert_called_once_with([installed])
+    manager.update_game_grid.assert_called_once_with(
+        is_filter=True, focus_first_card=False
+    )
+
+    LibraryMixin._on_only_installed_changed(window, False)
+
+    assert manager.games == [installed, uninstalled]
+    assert manager.filtered_games == [installed, uninstalled]
+    window.loadGames.assert_not_called()
+
+def test_gog_account_state_detects_saved_auth(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    class Control:
+        def __init__(self) -> None:
+            self.text = ""
+            self.enabled = False
+
+        def setText(self, text: str) -> None:
+            self.text = text
+
+        def setEnabled(self, enabled: bool) -> None:
+            self.enabled = enabled
+
+    auth_path = tmp_path / "auth.json"
+    auth_path.write_text("{}")
+    window = SimpleNamespace(
+        gog_api=SimpleNamespace(
+            auth_path=auth_path,
+            get_account_name=lambda: "gog-user",
+        ),
+        gogAccountStatus=Control(),
+        gogLoginButton=Control(),
+    )
+    monkeypatch.setattr(download_tab_module, "_", lambda text: text)
+
+    GOGMixin._update_gog_account_state(cast(Any, window))
+
+    assert window.gogAccountStatus.text == "gog-user"
+    assert window.gogLoginButton.text == "Log out"
+
+def test_gog_account_action_logs_out_and_reloads_library(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    auth_path = tmp_path / "auth.json"
+    auth_path.write_text("{}")
+    calls = []
+
+    def logout() -> bool:
+        calls.append("logout")
+        auth_path.unlink()
+        return True
+
+    window = SimpleNamespace(
+        gog_api=SimpleNamespace(
+            auth_path=auth_path,
+            get_account_name=lambda: "",
+            logout=logout,
+        ),
+        gogAccountStatus=SimpleNamespace(setText=lambda text: calls.append(text)),
+        gogLoginButton=SimpleNamespace(
+            setEnabled=lambda enabled: calls.append(("enabled", enabled)),
+            setText=lambda text: calls.append(("button", text)),
+        ),
+        loadGames=lambda **kwargs: calls.append(("load", kwargs)),
+    )
+    window._update_gog_account_state = lambda: GOGMixin._update_gog_account_state(
+        cast(Any, window)
+    )
+    monkeypatch.setattr(download_tab_module, "_", lambda text: text)
+
+    GOGMixin._handle_gog_account_action(cast(Any, window))
+
+    assert "logout" in calls
+    assert ("button", "Open login page") in calls
+    assert ("load", {"force_load": True}) in calls
+
+def test_gog_account_name_callback_updates_status() -> None:
+    values = []
+    window = SimpleNamespace(
+        gogAccountStatus=SimpleNamespace(setText=values.append),
+    )
+
+    GOGMixin._on_gog_account_name_loaded(cast(Any, window), "gog-user")
+
+    assert values == ["gog-user"]
+
+def test_gog_library_refresh_restores_account_status() -> None:
+    calls = []
+    window = SimpleNamespace(
+        _update_gog_account_state=lambda: calls.append("account"),
+        loadGames=lambda **kwargs: calls.append(("load", kwargs)),
+    )
+
+    GOGMixin._on_gog_library_loaded(cast(Any, window), [])
+
+    assert calls == ["account", ("load", {"force_load": True})]
+
+def test_library_refresh_updates_connected_gog_library(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    auth_path = tmp_path / "auth.json"
+    auth_path.touch()
+    monkeypatch.setattr(game_config, "get_display_filter", lambda: "gog")
+    monkeypatch.setattr(
+        library_tab_module.QTimer,
+        "singleShot",
+        lambda _delay, callback: callback(),
+    )
+    calls = []
+    refresh_button = MagicMock()
+    refresh_button.setEnabled.side_effect = lambda enabled: calls.append(enabled)
+    window = SimpleNamespace(
+        _refresh_in_progress=False,
+        searchEdit=SimpleNamespace(clear=lambda: calls.append("clear")),
+        refreshButton=refresh_button,
+        _gamepad_tooltip_map={},
+        game_library_manager=None,
+        gog_api=SimpleNamespace(auth_path=auth_path),
+        gog_library_worker=None,
+        _load_gog_games_async=lambda callback: callback([]),
+        _refresh_gog_library=lambda: calls.append("gog"),
+        loadGames=lambda **kwargs: calls.append(("load", kwargs)),
+    )
+
+    LibraryMixin.refreshGames(cast(Any, window))
+
+    assert calls == [
+        "clear",
+        False,
+        "gog",
+        ("load", {"force_load": True}),
+    ]
+
+def test_library_refresh_updates_connected_stores_for_all_filter(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    gog_auth_path = tmp_path / "gog_auth.json"
+    egs_user_path = tmp_path / "egs_user.json"
+    gog_auth_path.touch()
+    egs_user_path.touch()
+    monkeypatch.setattr(game_config, "get_display_filter", lambda: "all")
+    monkeypatch.setattr(
+        library_tab_module.QTimer,
+        "singleShot",
+        lambda _delay, callback: callback(),
+    )
+    calls = []
+    window = SimpleNamespace(
+        _refresh_in_progress=False,
+        searchEdit=SimpleNamespace(clear=lambda: None),
+        refreshButton=MagicMock(),
+        _gamepad_tooltip_map={},
+        game_library_manager=None,
+        gog_api=SimpleNamespace(auth_path=gog_auth_path),
+        egs_api=SimpleNamespace(user_path=egs_user_path),
+        _refresh_gog_library=lambda: calls.append("gog"),
+        _refresh_egs_library=lambda: calls.append("egs"),
+        loadGames=lambda **kwargs: calls.append(("load", kwargs)),
+    )
+
+    LibraryMixin.refreshGames(cast(Any, window))
+
+    assert calls == [
+        "gog",
+        "egs",
+        ("load", {"force_load": True}),
+    ]
+
+def test_library_refresh_skips_gog_for_portproton_filter(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    auth_path = tmp_path / "auth.json"
+    auth_path.touch()
+    calls = []
+    monkeypatch.setattr(game_config, "get_display_filter", lambda: "portproton")
+    monkeypatch.setattr(
+        library_tab_module.QTimer,
+        "singleShot",
+        lambda _delay, callback: callback(),
+    )
+    window = SimpleNamespace(
+        _refresh_in_progress=False,
+        searchEdit=SimpleNamespace(clear=lambda: None),
+        refreshButton=MagicMock(),
+        _gamepad_tooltip_map={},
+        game_library_manager=None,
+        gog_api=SimpleNamespace(auth_path=auth_path),
+        gog_library_worker=None,
+        _load_portproton_games_async=lambda callback: callback([]),
+        _refresh_gog_library=lambda: calls.append("gog"),
+        loadGames=lambda **kwargs: calls.append(("load", kwargs)),
+    )
+
+    LibraryMixin.refreshGames(cast(Any, window))
+
+    assert calls == [("load", {"force_load": True})]
+
+def test_library_refresh_uses_selected_source_refresh(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    auth_path = tmp_path / "auth.json"
+    auth_path.touch()
+    calls = []
+    monkeypatch.setattr(game_config, "get_display_filter", lambda: "custom")
+    window = SimpleNamespace(
+        _refresh_in_progress=False,
+        searchEdit=SimpleNamespace(clear=lambda: None),
+        refreshButton=MagicMock(),
+        _gamepad_tooltip_map={},
+        game_library_manager=None,
+        gog_api=SimpleNamespace(auth_path=auth_path),
+        gog_library_worker=None,
+        _load_custom_games_async=lambda callback: callback([]),
+        _refresh_custom_library=lambda: calls.append("custom"),
+        _refresh_gog_library=lambda: calls.append("gog"),
+    )
+
+    LibraryMixin.refreshGames(cast(Any, window))
+
+    assert calls == ["custom"]
+
+def test_gog_library_refresh_failure_reloads_cached_games(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    calls = []
+    window = SimpleNamespace(
+        gogAccountStatus=SimpleNamespace(setText=lambda text: calls.append(text)),
+        loadGames=lambda **kwargs: calls.append(kwargs),
+    )
+    monkeypatch.setattr(download_tab_module, "_", lambda text: text)
+
+    GOGMixin._on_gog_library_failed(cast(Any, window), "network error")
+
+    assert calls == [
+        "Failed to refresh GOG library: network error",
+        {"force_load": True},
+    ]
+
+def test_gog_login_shows_cached_games_before_refresh(monkeypatch: MonkeyPatch) -> None:
+    calls = []
+    window = SimpleNamespace(
+        gog_api=SimpleNamespace(get_account_name=lambda: "gog-user"),
+        gogAccountStatus=SimpleNamespace(setText=lambda text: calls.append(text)),
+        loadGames=lambda **kwargs: calls.append(("load", kwargs)),
+        _refresh_gog_library=lambda: calls.append("refresh"),
+    )
+    monkeypatch.setattr(download_tab_module, "_", lambda text: text)
+
+    GOGMixin._on_gog_authenticated(cast(Any, window), True, "")
+
+    assert calls == [
+        "gog-user",
+        ("load", {"force_load": True}),
+        "refresh",
+    ]
+
+def test_egs_library_progress_shows_game_count(monkeypatch: MonkeyPatch) -> None:
+    values = []
+    window = SimpleNamespace(
+        egsAccountStatus=SimpleNamespace(setText=values.append),
+    )
+    monkeypatch.setattr(download_tab_module, "_", lambda text: text)
+
+    GOGMixin._on_egs_library_progress(cast(Any, window), 7, 12)
+
+    assert values == ["Refreshing Epic library… 7/12"]

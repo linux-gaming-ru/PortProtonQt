@@ -2236,19 +2236,27 @@ class MainWindow(
         process_alive = any(proc.poll() is None for proc in self.game_processes)
         if process_alive and not (
             getattr(self, "launcher_process_only", False)
-            and self.game_launch_started
+            and (
+                self.game_launch_started
+                or getattr(self, "game_stopped_by_user", False)
+            )
         ):
             self.game_process_exit_monotonic = None
             return True
         target = str(self.target_exe or "").lower()
         if target:
-            for process in psutil.process_iter(attrs=["name"]):
+            for process in psutil.process_iter(attrs=["name", "status"]):
                 try:
-                    if str(process.info.get("name") or "").lower() == target:
+                    if (
+                        str(process.info.get("name") or "").lower() == target
+                        and process.info.get("status") != psutil.STATUS_ZOMBIE
+                    ):
                         self.game_process_exit_monotonic = None
                         return True
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue
+        if getattr(self, "game_stopped_by_user", False):
+            return False
         launch_started = getattr(self, "game_launch_monotonic", None)
         if launch_started is not None:
             now = time.monotonic()
@@ -2397,6 +2405,10 @@ class MainWindow(
             self.current_running_button = button
         self.game_stopped_by_user = True
         self.egs_launch_cancelled = True
+        if getattr(self, "launcher_process_only", False):
+            if self._run_portproton_stop_command():
+                return True
+
         self._analyze_short_launch()
 
         self._terminate_game_processes()
