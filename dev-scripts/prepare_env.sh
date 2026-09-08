@@ -17,13 +17,13 @@ if ! command -v uv &> /dev/null; then
     exit 1
 fi
 
-# 2. Check if Python 3.10 is already installed via uv
-# We look for cpython-3.10 and ensure it doesn't say "<download available>"
-if uv python list | grep "cpython-3.10" | grep -qv "<download available>"; then
-    echo "✅ Python 3.10 is already available."
+# 2. Check if Python 3.11 is already installed via uv
+# We look for cpython-3.11 and ensure it doesn't say "<download available>"
+if uv python list | grep "cpython-3.11" | grep -qv "<download available>"; then
+    echo "✅ Python 3.11 is already available."
 else
-    echo "🐍 Installing Python 3.10..."
-    uv python install 3.10
+    echo "🐍 Installing Python 3.11..."
+    uv python install 3.11
 fi
 
 # 3. Sync dependencies

@@ -1,7 +1,7 @@
 # PortProtonQt — AI Agent Guidelines
 
-**Project:** PortProtonQt — GUI for PortProton, Steam, Epic Games Store
-**Language:** Python 3.10+
+**Project:** PortProtonQt — Game library manager and launcher for Linux
+**Language:** Python 3.11+
 **Platform:** Linux (POSIX)
 **License:** GPL-3.0
 **Build:** Meson + uv
@@ -329,7 +329,7 @@ Do not assume conventions. Never invent behavior.
 
 ```bash
 # Setup
-uv python install 3.10
+uv python install 3.11
 uv sync
 source .venv/bin/activate
 pre-commit install --install-hooks

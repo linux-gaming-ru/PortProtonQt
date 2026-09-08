@@ -12,7 +12,7 @@
 ### Установка (devel)
 
 ```sh
-uv python install 3.10
+uv python install 3.11
 uv sync
 source .venv/bin/activate  # For bash/zsh
 # or
@@ -29,7 +29,7 @@ source .venv/bin/activate.fish  # For fish
 
 ### Разработка
 
-Для автоматической подготовки окружения (установка Python 3.10, зависимостей, pre-commit хуков и генерация переводов) выполните скрипт:
+Для автоматической подготовки окружения (установка Python 3.11, зависимостей, pre-commit хуков и генерация переводов) выполните скрипт:
 
 ```sh
 ./dev-scripts/prepare_env.sh
