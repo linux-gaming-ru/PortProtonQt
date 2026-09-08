@@ -6,17 +6,24 @@ export url_git="https://git.linux-gaming.ru/CastroFidel/PortWINE"
 ########################################################################
 $PW_DEBUG
 
+if [[ "$(realpath "$0")" == "/usr/share/portproton/scripts/start.sh" ]] ; then
+    PORT_SCRIPTS_PATH="/usr/share/portproton/scripts/"
+else
+    PORT_SCRIPTS_PATH="$(dirname "$(realpath "$0")")"
+fi
+
+if [[ "${1:-}" == "cli" ]] \
+&& [[ "${2:-}" == "--alt-i586-dependencies" ]] ; then
+    source "$PORT_SCRIPTS_PATH/functions_helper"
+    pw_alt_i586_dependencies "${3:-}"
+    exit $?
+fi
+
 if [[ $(id -u) = 0 ]] \
 && [[ ! -e "/userdata/system/batocera.conf" ]]
 then
     echo "Do not run this script as root!"
     exit 1
-fi
-
-if [[ "$(realpath "$0")" == "/usr/share/portproton/scripts/start.sh" ]] ; then
-    PORT_SCRIPTS_PATH="/usr/share/portproton/scripts/"
-else
-    PORT_SCRIPTS_PATH="$(dirname "$(realpath "$0")")"
 fi
 
 PORT_CONF_PATH="$(dirname "$PORT_SCRIPTS_PATH")/conf"

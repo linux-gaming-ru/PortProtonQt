@@ -23,6 +23,29 @@ python_module () {
     python3 -m portprotonqt.scripts_utils.$python3_module "$@"
 }
 
+pw_alt_i586_dependencies () {
+    local action="${1:-check}" installed list package
+    installed="$(rpm -qa --qf '%{NAME}\n')" || return 2
+    list=""
+
+    for package in glibc-nss glibc-gconv-modules libnm libvulkan1 libfreetype \
+        $(grep '^libnss-' <<< "$installed" | grep -v '^libnss-fallback$') \
+        $(grep '^xorg-dri-' <<< "$installed"); do
+        if grep -Fqx "$package" <<< "$installed" \
+        && ! grep -Fqx "i586-$package" <<< "$installed" ; then
+            list+=" i586-$package"
+        fi
+    done
+
+    if [[ "$action" == "check" ]] ; then
+        [[ -z "$list" ]]
+        return $?
+    fi
+
+    [[ -z "$list" ]] && return 0
+    apt-get update && apt-get install -y $list
+}
+
 python_term () {
     print_info "Running: easyterm $@"
     python_module easyterm -e "$@"

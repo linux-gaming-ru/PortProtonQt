@@ -97,6 +97,7 @@ def test_gog_launch_starts_playtime_tracking(
     window.start_sh = ["start.sh"]
     window.game_processes = []
     window.input_manager = MagicMock()
+    window._check_alt_i586_dependencies_before_launch = lambda: True
     window._start_launch_output_reader = lambda _process: None
     window._update_last_launch_after_start = lambda *_args: None
     timer = MagicMock()
@@ -116,6 +117,40 @@ def test_gog_launch_starts_playtime_tracking(
     assert window.game_start_time is not None
     assert window.game_start_exact_path is True
     assert saved == [("gog-123", window.game_start_time)]
+
+
+def test_gog_launch_checks_alt_i586_dependencies() -> None:
+    window: Any = MainWindow.__new__(MainWindow)
+    window.gog_api = SimpleNamespace(
+        ensure_launch_parameters=lambda _app_id: None,
+        get_installed_path=lambda _app_id: Path("/games/game"),
+        get_launch_target=lambda _app_id: "/games/game/game.exe",
+        needs_support_setup=lambda _app_id: False,
+    )
+    window.start_sh = ["start.sh"]
+    window.game_processes = []
+    window._check_alt_i586_dependencies_before_launch = lambda: False
+    window._finish_silent_launch = MagicMock()
+
+    window._launch_gog_game("123", play_sound=False)
+
+    window._finish_silent_launch.assert_called_once_with()
+
+
+def test_egs_launch_checks_alt_i586_dependencies() -> None:
+    window: Any = MainWindow.__new__(MainWindow)
+    window.egs_api = SimpleNamespace(
+        get_launch_target=lambda _app_id: "/games/game/game.exe",
+    )
+    window.start_sh = ["start.sh"]
+    window.game_processes = []
+    window._check_alt_i586_dependencies_before_launch = lambda: False
+    window._finish_silent_launch = MagicMock()
+
+    window._launch_egs_game("123")
+
+    window._finish_silent_launch.assert_called_once_with()
+
 
 def test_gog_playtime_updates_live_by_launch_target() -> None:
     target = "/games/Bio Menace/game.exe"

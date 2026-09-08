@@ -1298,21 +1298,28 @@ def test_launch_autoinstall_checks_alt_i586_dependencies() -> None:
 
     assert window.installing is False
 
-def test_alt_package_query_keeps_ui_responsive(monkeypatch: MonkeyPatch) -> None:
+@mark.parametrize("returncode, expected", [(0, False), (1, True)])
+def test_alt_package_check_uses_install_script(
+    monkeypatch: MonkeyPatch,
+    returncode: int,
+    expected: bool,
+) -> None:
     process_events = MagicMock()
     monkeypatch.setattr("portprotonqt.main_window.QApplication.processEvents", process_events)
     monkeypatch.setattr("portprotonqt.main_window.time.sleep", lambda _seconds: None)
-    monkeypatch.setattr(
-        "portprotonqt.main_window.subprocess.run",
-        lambda *_args, **_kwargs: SimpleNamespace(
-            returncode=0,
-            stdout="glibc-nss\n",
-            stderr="",
-        ),
-    )
+    run = MagicMock(return_value=SimpleNamespace(returncode=returncode))
+    monkeypatch.setattr("portprotonqt.main_window.subprocess.run", run)
     window: Any = MainWindow.__new__(MainWindow)
+    window.start_sh = ["/tmp/scripts/start.sh"]
 
-    assert window._get_installed_alt_package_names() == ["glibc-nss"]
+    assert window._has_missing_alt_i586_packages() is expected
+    run.assert_called_once_with(
+        ["/tmp/scripts/start.sh", "cli", "--alt-i586-dependencies"],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
     process_events.assert_called()
 
 def test_initial_library_card_focus_does_not_use_navigation_reason() -> None:
@@ -1427,8 +1434,8 @@ def test_toggle_game_replaces_invalid_launch_output_bytes(
     assert popen_kwargs["text"] is True
     assert popen_kwargs["errors"] == "replace"
     assert window.input_manager.suspended
-    assert launch_button_states == [button.text]
-    assert launch_events == ["game_launch", "dependencies", "popen"]
+    assert launch_button_states == [""]
+    assert launch_events == ["dependencies", "game_launch", "popen"]
 
 def test_steam_launch_plays_game_launch_sound(monkeypatch: MonkeyPatch) -> None:
     launch_events: list[str] = []
