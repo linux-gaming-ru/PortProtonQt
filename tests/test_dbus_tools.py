@@ -406,7 +406,7 @@ class TestReleaseIdleInhibit:
         async def run():
             mock_bus = MagicMock()
             mock_iface = AsyncMock()
-            mock_iface.call_un_inhibit.side_effect = asyncio.TimeoutError()
+            mock_iface.call_un_inhibit.side_effect = TimeoutError()
             mock_bus.disconnect = MagicMock()
             await release_idle_inhibit(mock_bus, "screensaver", (mock_iface, "cookie"))
             return mock_bus
