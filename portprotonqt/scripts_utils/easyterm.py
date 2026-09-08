@@ -32,6 +32,7 @@ from portprotonqt.logger import get_logger
 from portprotonqt.theme_manager import ThemeManager
 
 logger = get_logger(__name__)
+APPLICATION_ID = "ru.linux_gaming.PortProtonQt"
 
 CONF_NAME = "PortProtonQt Terminal"
 CONF_FALLBACK_SHELL = "/bin/bash"
@@ -1862,6 +1863,8 @@ def main(argv: list[str] | None = None) -> int:
     command = build_command(args)
     cmd_mode = _is_cmd_mode(args)
     app = QApplication(sys.argv[:1])
+    app.setWindowIcon(QIcon.fromTheme(APPLICATION_ID))
+    app.setDesktopFileName(APPLICATION_ID)
     app_theme = load_current_theme()
     theme = load_current_terminal_scheme() or load_terminal_scheme("default")
     window = MainWindow(
