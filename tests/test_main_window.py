@@ -2553,7 +2553,8 @@ def test_egs_overlay_disable_uses_game_prefix(tmp_path: Path) -> None:
     prefix_path = tmp_path / "data/prefixes/DEFAULT"
     prefix_path.mkdir(parents=True)
     (prefix_path / "user.reg").write_text(
-        '[Software\\\\Epic Games\\\\EOS]\n"OverlayPath"="Z:/overlay"\n',
+        '[Software\\\\Epic Games\\\\EOS]\n\n'
+        '[SOFTWARE\\\\Epic Games\\\\EOS]\n"OverlayPath"="Z:/overlay"\n',
         encoding="utf-8",
     )
     config_dir = tmp_path / "legendary"

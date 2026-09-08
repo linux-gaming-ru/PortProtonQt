@@ -262,12 +262,11 @@ class EGSAPI:
             )
         except OSError:
             return False
-        section_start = registry.find(r"[Software\\Epic Games\\EOS]")
-        if section_start < 0:
-            return False
-        section_end = registry.find("\n[", section_start + 1)
-        section = registry[section_start:section_end if section_end >= 0 else None]
-        return '"OverlayPath"=' in section
+        for section in registry.casefold().split("\n["):
+            if section.startswith(r"software\\epic games\\eos]"):
+                if '"overlaypath"=' in section:
+                    return True
+        return False
 
     def get_launch_target(self, app_id: str) -> str | None:
         """Return the installed game's Windows executable."""
