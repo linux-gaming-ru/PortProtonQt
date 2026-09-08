@@ -31,6 +31,35 @@ def test_cachyos_releases_alternate_with_wineland() -> None:
         "proton-cachyos-wineland-11.0-20260713.3-slr-x86_64",
     ]
 
+
+def test_wine_entries_match_host_architecture(monkeypatch) -> None:
+    manager = ProtonManager.__new__(ProtonManager)
+    manager.cpu_level = 4
+    entries = [
+        {"name": "GE-Proton11-6", "url": "https://example.com/x86.tar.gz"},
+        {
+            "name": "GE-Proton11-6-aarch64",
+            "url": "https://example.com/aarch64.tar.gz",
+        },
+        {"name": "CachyOS", "url": "https://example.com/proton-arm64.tar.xz"},
+    ]
+
+    monkeypatch.setattr(
+        "portprotonqt.dialogs.proton_manager.platform.machine", lambda: "x86_64"
+    )
+    filtered = manager.filter_entries_by_cpu_level(entries, "proton_ge")
+    assert [entry["name"] for entry in filtered] == ["GE-Proton11-6"]
+
+    monkeypatch.setattr(
+        "portprotonqt.dialogs.proton_manager.platform.machine", lambda: "aarch64"
+    )
+    filtered = manager.filter_entries_by_cpu_level(entries, "proton_ge")
+    assert [entry["name"] for entry in filtered] == [
+        "GE-Proton11-6-aarch64",
+        "CachyOS",
+    ]
+
+
 def test_dropped_wine_archives_accepts_supported_local_files(tmp_path) -> None:
     wine_archive = tmp_path / "WINE_LG_11-10.tar.xz"
     wine_archive.touch()
