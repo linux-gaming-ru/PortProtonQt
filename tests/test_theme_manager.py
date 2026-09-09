@@ -56,6 +56,28 @@ def test_theme_manager_reuses_loaded_theme(monkeypatch) -> None:
     assert loaded_themes == ["first", "second"]
 
 
+def test_invalidate_theme_discards_module_and_icon_caches(monkeypatch) -> None:
+    icon_cache = {
+        "play_custom_False_1.0_None": object(),
+        "play_other_False_1.0_None": object(),
+    }
+    icon_dirs_cache = {"custom": {}, "other": {}}
+    monkeypatch.setattr("portprotonqt.theme_manager._icon_cache", icon_cache)
+    monkeypatch.setattr("portprotonqt.theme_manager._icon_dirs_cache", icon_dirs_cache)
+    manager = ThemeManager()
+    manager._theme_module_cache = {"custom": object(), "other": object()}
+    manager.current_theme_name = "custom"
+    manager.current_theme_module = object()
+
+    manager.invalidate_theme("custom")
+
+    assert manager._theme_module_cache.keys() == {"other"}
+    assert icon_dirs_cache.keys() == {"other"}
+    assert icon_cache.keys() == {"play_other_False_1.0_None"}
+    assert manager.current_theme_name is None
+    assert manager.current_theme_module is None
+
+
 # === load_dms_palette ===
 
 

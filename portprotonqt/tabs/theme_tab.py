@@ -4,7 +4,7 @@ import time
 from typing import TYPE_CHECKING, Any
 from collections.abc import Callable
 
-from PySide6.QtCore import QTimer, Qt
+from PySide6.QtCore import QFileSystemWatcher, QTimer, Qt
 from PySide6.QtWidgets import (
     QAbstractButton,
     QHBoxLayout,
@@ -24,7 +24,7 @@ from portprotonqt.image_utils import ImageCarousel
 from portprotonqt.localization import _
 from portprotonqt.logger import get_logger
 from portprotonqt.tabs.theme_store import THEME_STORE_ITEM, ThemeStoreMixin
-from portprotonqt.theme_manager import load_theme_screenshots
+from portprotonqt.theme_manager import _find_theme_folder, load_theme_screenshots
 from portprotonqt.tray_manager import restart_application_process
 
 logger = get_logger(__name__)
@@ -221,6 +221,50 @@ class MainWindowThemeTabMixin(ThemeStoreMixin, _MainWindowTypingBase):
 
         # Add widget to stackedWidget
         self.theme_tab_index = self.stackedWidget.addWidget(self.themeTabWidget)
+        self._setup_theme_file_watcher()
+
+    def _setup_theme_file_watcher(self) -> None:
+        self.themeFileWatcher = QFileSystemWatcher(self)
+        self.themeFileWatcher.fileChanged.connect(self._schedule_theme_reload)
+        self.themeFileWatcher.directoryChanged.connect(self._schedule_theme_reload)
+        self.themeReloadTimer = QTimer(self)
+        self.themeReloadTimer.setSingleShot(True)
+        self.themeReloadTimer.setInterval(250)
+        self.themeReloadTimer.timeout.connect(self._reload_active_custom_theme)
+        self._watch_active_theme_files()
+
+    def _watch_active_theme_files(self) -> None:
+        watcher = self.themeFileWatcher
+        watched_paths = [*watcher.files(), *watcher.directories()]
+        if watched_paths:
+            watcher.removePaths(watched_paths)
+        theme_name = self.current_theme_name
+        if not self.theme_manager.is_custom_theme(theme_name):
+            return
+        theme_folder = _find_theme_folder(theme_name)
+        if theme_folder is None:
+            return
+        paths = [theme_folder]
+        for root, dirs, files in os.walk(theme_folder):
+            dirs[:] = [name for name in dirs if name != "__pycache__"]
+            paths.extend(os.path.join(root, name) for name in dirs)
+            paths.extend(os.path.join(root, name) for name in files)
+        watcher.addPaths(paths)
+
+    def _schedule_theme_reload(self, _path: str) -> None:
+        self._watch_active_theme_files()
+        self.themeReloadTimer.start()
+
+    def _reload_active_custom_theme(self) -> None:
+        theme_name = self.current_theme_name
+        if not self.theme_manager.is_custom_theme(theme_name):
+            return
+        self.theme_manager.invalidate_theme(theme_name)
+        try:
+            self._apply_theme_live(theme_name)
+        except Exception as e:
+            logger.warning("Failed to reload theme '%s': %s", theme_name, e)
+        self._watch_active_theme_files()
 
     def _get_selected_custom_themes(self) -> list[str]:
         base_theme = self.themesCombo.currentText()
@@ -394,6 +438,8 @@ class MainWindowThemeTabMixin(ThemeStoreMixin, _MainWindowTypingBase):
                 ),
             )
         self.updateControlHints("force")
+        if hasattr(self, "themeFileWatcher"):
+            self._watch_active_theme_files()
 
     def _apply_deferred_theme_updates(
         self,

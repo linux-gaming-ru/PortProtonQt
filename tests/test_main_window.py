@@ -917,6 +917,23 @@ def test_theme_store_methods_resolve_from_store_mixin() -> None:
         assert getattr(MainWindow, method_name) is getattr(ThemeStoreMixin, method_name)
         assert method_name not in ThemeMixin.__dict__
 
+
+def test_custom_theme_file_change_reloads_active_theme() -> None:
+    manager = MagicMock()
+    manager.is_custom_theme.return_value = True
+    window = SimpleNamespace(
+        current_theme_name="console",
+        theme_manager=manager,
+        _apply_theme_live=MagicMock(),
+        _watch_active_theme_files=MagicMock(),
+    )
+
+    ThemeMixin._reload_active_custom_theme(cast(Any, window))
+
+    manager.invalidate_theme.assert_called_once_with("console")
+    window._apply_theme_live.assert_called_once_with("console")
+    window._watch_active_theme_files.assert_called_once_with()
+
 def test_tabs_package_exports_tab_mixins() -> None:
     import portprotonqt.tabs as tabs
 
