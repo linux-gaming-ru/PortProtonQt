@@ -551,6 +551,8 @@ class GameCard(AnimatedCard):
             self.nameLabel.setContentsMargins(0, 0, 10, 0)
         else:
             self.nameLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        if self.horizontal_layout:
+            self.nameLabel.setWordWrap(True)
         name_style = (
             self.theme.GAME_CARD_VERTICAL_NAME_STYLE
             if self.vertical_layout
