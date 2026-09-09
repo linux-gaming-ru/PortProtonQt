@@ -845,18 +845,30 @@ class AutoHideScrollArea(QScrollArea):
         self.setStyleSheet(self.theme.TRANSPARENT_BACKGROUND_STYLE)
 
         self._v_scrollbar = self.verticalScrollBar()
+        self._h_scrollbar = self.horizontalScrollBar()
         self._v_scrollbar.installEventFilter(self)
+        self._h_scrollbar.installEventFilter(self)
 
         self._opacity_effect = QGraphicsOpacityEffect(self._v_scrollbar)
         self._opacity_effect.setOpacity(0.0)
         self._v_scrollbar.setGraphicsEffect(self._opacity_effect)
 
+        self._h_opacity_effect = QGraphicsOpacityEffect(self._h_scrollbar)
+        self._h_opacity_effect.setOpacity(0.0)
+        self._h_scrollbar.setGraphicsEffect(self._h_opacity_effect)
+
         self._fade_animation = QPropertyAnimation(self._opacity_effect, b"opacity")
         self._fade_animation.setDuration(self.fade_duration_ms)
         self._fade_animation.setEasingCurve(QEasingCurve.Type.InOutCubic)
 
+        self._h_fade_animation = QPropertyAnimation(self._h_opacity_effect, b"opacity")
+        self._h_fade_animation.setDuration(self.fade_duration_ms)
+        self._h_fade_animation.setEasingCurve(QEasingCurve.Type.InOutCubic)
+
         self._is_visible = False
         self._scroll_needed = False
+        self._h_is_visible = False
+        self._h_scroll_needed = False
 
         self._apply_visible_style()
 
@@ -864,7 +876,12 @@ class AutoHideScrollArea(QScrollArea):
         self._hide_timer.setSingleShot(True)
         self._hide_timer.timeout.connect(self._start_fade_out)
 
+        self._h_hide_timer = QTimer(self)
+        self._h_hide_timer.setSingleShot(True)
+        self._h_hide_timer.timeout.connect(self._start_horizontal_fade_out)
+
         self._v_scrollbar.valueChanged.connect(self._on_scroll)
+        self._h_scrollbar.valueChanged.connect(self._on_horizontal_scroll)
 
         self.viewport().installEventFilter(self)
         initial_widget = self.widget()
@@ -875,6 +892,25 @@ class AutoHideScrollArea(QScrollArea):
 
     def _apply_visible_style(self) -> None:
         self._v_scrollbar.setStyleSheet(self.theme.SCROLL_STYLE)
+        self._h_scrollbar.setStyleSheet(self.theme.SCROLL_STYLE)
+
+    def _start_horizontal_fade_in(self) -> None:
+        if not self._h_scroll_needed:
+            return
+        self._h_fade_animation.stop()
+        self._h_fade_animation.setStartValue(self._h_opacity_effect.opacity())
+        self._h_fade_animation.setEndValue(1.0)
+        self._h_fade_animation.start()
+        self._h_is_visible = True
+
+    def _start_horizontal_fade_out(self) -> None:
+        if not self._h_scroll_needed:
+            return
+        self._h_fade_animation.stop()
+        self._h_fade_animation.setStartValue(self._h_opacity_effect.opacity())
+        self._h_fade_animation.setEndValue(0.0)
+        self._h_fade_animation.start()
+        self._h_is_visible = False
 
     def _start_fade_in(self) -> None:
         if not self._scroll_needed:
@@ -899,17 +935,28 @@ class AutoHideScrollArea(QScrollArea):
         self._opacity_effect.setOpacity(opacity)
         self._is_visible = opacity == 1.0
 
+    def _set_horizontal_opacity_immediately(self, opacity: float) -> None:
+        self._h_fade_animation.stop()
+        self._h_opacity_effect.setOpacity(opacity)
+        self._h_is_visible = opacity == 1.0
+
     def _update_scroll_needed(self) -> None:
         widget = self.widget()
         if widget is None:
             self._scroll_needed = False
+            self._h_scroll_needed = False
             self._set_opacity_immediately(0.0)
+            self._set_horizontal_opacity_immediately(0.0)
             self._hide_timer.stop()
+            self._h_hide_timer.stop()
             return
 
         content_height = widget.sizeHint().height()
+        content_width = widget.sizeHint().width()
         viewport_height = self.viewport().height()
+        viewport_width = self.viewport().width()
         self._scroll_needed = content_height > viewport_height
+        self._h_scroll_needed = content_width > viewport_width
 
         if not self._scroll_needed:
             self._set_opacity_immediately(0.0)
@@ -918,23 +965,40 @@ class AutoHideScrollArea(QScrollArea):
             if not self._is_visible:
                 self._set_opacity_immediately(0.0)
 
+        if not self._h_scroll_needed:
+            self._set_horizontal_opacity_immediately(0.0)
+            self._h_hide_timer.stop()
+        elif not self._h_is_visible:
+            self._set_horizontal_opacity_immediately(0.0)
+
     def _on_scroll(self, value: int) -> None:
         if not self._scroll_needed:
             return
         self._start_fade_in()
         self._hide_timer.start(self.hide_delay_ms)
 
+    def _on_horizontal_scroll(self, value: int) -> None:
+        if not self._h_scroll_needed:
+            return
+        self._start_horizontal_fade_in()
+        self._h_hide_timer.start(self.hide_delay_ms)
+
     def enterEvent(self, event):
         if self._scroll_needed:
             self._start_fade_in()
             self._hide_timer.start(self.hide_delay_ms)
+        if self._h_scroll_needed:
+            self._start_horizontal_fade_in()
+            self._h_hide_timer.start(self.hide_delay_ms)
 
     def leaveEvent(self, event):
         if self._scroll_needed and self._is_visible:
             self._hide_timer.start(self.hide_delay_ms)
+        if self._h_scroll_needed and self._h_is_visible:
+            self._h_hide_timer.start(self.hide_delay_ms)
 
     def eventFilter(self, obj, event):
-        if not hasattr(self, "_v_scrollbar"):
+        if not hasattr(self, "_v_scrollbar") or not hasattr(self, "_h_scrollbar"):
             return super().eventFilter(obj, event)
 
         if event.type() == QEvent.Type.Resize:
@@ -947,6 +1011,14 @@ class AutoHideScrollArea(QScrollArea):
             elif event.type() == QEvent.Type.Leave:
                 if self._scroll_needed and self._is_visible:
                     self._hide_timer.start(self.hide_delay_ms)
+        elif obj == self._h_scrollbar:
+            if event.type() == QEvent.Type.Enter:
+                if self._h_scroll_needed:
+                    self._start_horizontal_fade_in()
+                    self._h_hide_timer.start(self.hide_delay_ms)
+            elif event.type() == QEvent.Type.Leave:
+                if self._h_scroll_needed and self._h_is_visible:
+                    self._h_hide_timer.start(self.hide_delay_ms)
         return super().eventFilter(obj, event)
 
     def setWidget(self, widget: QWidget | None) -> None:
