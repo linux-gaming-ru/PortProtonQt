@@ -164,13 +164,19 @@ def get_portproton_scripts_path() -> str | None:
     if appimage_path:
         appimage_root = Path(sys.executable).resolve().parent.parent
         prefixes.append(("AppImage executable", appimage_root))
-    if os.getenv("FLATPAK_ID"):
-        prefixes.append(("Flatpak package", Path("/app")))
     prefixes.append(("system package", Path("/usr")))
+    xdg_scripts_dirs = [
+        ("XDG data", Path(data_dir) / "portproton" / "scripts")
+        for data_dir in os.getenv(
+            "XDG_DATA_DIRS", "/usr/local/share:/usr/share"
+        ).split(os.pathsep)
+        if data_dir
+    ]
 
     scripts_dirs = (
         ("repository", Path.cwd() / "build-aux" / "share" / "portproton" / "scripts"),
         *[(source, prefix / "share" / "portproton" / "scripts") for source, prefix in prefixes],
+        *xdg_scripts_dirs,
     )
     for source, scripts_dir in scripts_dirs:
         if (scripts_dir / "start.sh").is_file():

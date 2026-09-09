@@ -2,6 +2,8 @@
 import os
 from pathlib import Path
 
+from pytest import MonkeyPatch
+
 from portprotonqt.config.portproton import (
     extract_exec_target_path,
     _sanitize_icon_name,
@@ -10,7 +12,24 @@ from portprotonqt.config.portproton import (
     WINDOWS_LAUNCH_EXTENSIONS,
     DISC_IMAGE_EXTENSIONS,
     THEMED_LAUNCH_ICON_NAMES,
+    get_portproton_scripts_path,
 )
+
+
+def test_scripts_path_uses_xdg_data_dirs(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    data_dir = tmp_path / "share"
+    scripts_dir = data_dir / "portproton" / "scripts"
+    scripts_dir.mkdir(parents=True)
+    (scripts_dir / "start.sh").write_text("#!/bin/sh\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("XDG_DATA_DIRS", str(data_dir))
+    monkeypatch.delenv("APPDIR", raising=False)
+    monkeypatch.delenv("SHARUN_DIR", raising=False)
+
+    assert get_portproton_scripts_path() == str(scripts_dir)
 
 
 class TestExtractExecTargetPath:

@@ -1,7 +1,7 @@
 # PortProtonQt — AI Agent Guidelines
 
-**Project:** PortProtonQt — GUI for PortProton, Steam, Epic Games Store
-**Language:** Python 3.10+
+**Project:** PortProtonQt — Game library manager and launcher for Linux
+**Language:** Python 3.11+
 **Platform:** Linux (POSIX)
 **License:** GPL-3.0
 **Build:** Meson + uv
@@ -329,7 +329,7 @@ Do not assume conventions. Never invent behavior.
 
 ```bash
 # Setup
-uv python install 3.10
+uv python install 3.11
 uv sync
 source .venv/bin/activate
 pre-commit install --install-hooks
@@ -415,6 +415,7 @@ tests/
 ├── test_input_manager.py    # Gamepad input navigation and focus regressions
 ├── test_sound_manager.py    # UI sound playback, widget events, gamepad connection, theme sound files
 ├── test_main_window.py      # Main window data processing and callback regressions
+├── test_store_games.py      # GOG and EGS library, launch, install, and stop regressions
 ├── test_portproton_config.py # exec_line parsing, launcher tail, extensions
 ├── test_portproton_api.py   # PPDB API helpers, autoinstall localization fallback
 ├── test_autoinstall_status.py # Autoinstall installed-status matching regressions

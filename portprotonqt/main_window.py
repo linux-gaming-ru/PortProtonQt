@@ -5,7 +5,6 @@ import sys
 import signal
 import shlex
 import subprocess
-import tempfile
 import re
 import time
 from datetime import datetime
@@ -99,54 +98,6 @@ DISC_IMAGE_EXTENSIONS = (".iso", ".mdf", ".nrg")
 ALT_BIARCH_REPO = "x86_64-i586"
 ALT_BIARCH_URL = "https://www.altlinux.org/Biarch"
 GAME_LAUNCH_MARKER = "PORTPROTONQT_GAME_LAUNCH_STARTED"
-ALT_I586_BASE_PACKAGES = (
-    "glibc-nss",
-    "glibc-gconv-modules",
-    "libnm",
-    "libvulkan1",
-    "libd3d",
-    "libfreetype",
-)
-ALT_I586_PACKAGE_PREFIXES = ("libnss-", "xorg-dri-")
-ALT_I586_EXCLUDED_PACKAGES = ("libnss-fallback",)
-ALT_INSTALL_SCRIPT_MODE = 0o700
-ALT_I586_INSTALL_SCRIPT = """#!/bin/sh
-set -u
-trap 'rm -f "$0"' EXIT
-
-LIST=""
-
-add_if_needed() {
-    package="$1"
-    i586_package="i586-$package"
-
-    if rpm -q "$package" >/dev/null 2>&1 && ! rpm -q "$i586_package" >/dev/null 2>&1; then
-        LIST="$LIST $i586_package"
-    fi
-}
-
-for package in glibc-nss glibc-gconv-modules libnm libvulkan1 libd3d libfreetype; do
-    add_if_needed "$package"
-done
-
-for package in $(rpm -qa --qf '%{NAME}\\n' \
-    | grep '^libnss-' \
-    | grep -v '^libnss-fallback$' || true); do
-    add_if_needed "$package"
-done
-
-for package in $(rpm -qa --qf '%{NAME}\\n' | grep '^xorg-dri-' || true); do
-    add_if_needed "$package"
-done
-
-if ! apt-get update; then
-    exit 1
-fi
-
-if [ -n "$LIST" ]; then
-    apt-get install -y $LIST
-fi
-"""
 
 class MainWindow(
     MainWindowControlHintsMixin,
@@ -2236,19 +2187,27 @@ class MainWindow(
         process_alive = any(proc.poll() is None for proc in self.game_processes)
         if process_alive and not (
             getattr(self, "launcher_process_only", False)
-            and self.game_launch_started
+            and (
+                self.game_launch_started
+                or getattr(self, "game_stopped_by_user", False)
+            )
         ):
             self.game_process_exit_monotonic = None
             return True
         target = str(self.target_exe or "").lower()
         if target:
-            for process in psutil.process_iter(attrs=["name"]):
+            for process in psutil.process_iter(attrs=["name", "status"]):
                 try:
-                    if str(process.info.get("name") or "").lower() == target:
+                    if (
+                        str(process.info.get("name") or "").lower() == target
+                        and process.info.get("status") != psutil.STATUS_ZOMBIE
+                    ):
                         self.game_process_exit_monotonic = None
                         return True
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue
+        if getattr(self, "game_stopped_by_user", False):
+            return False
         launch_started = getattr(self, "game_launch_monotonic", None)
         if launch_started is not None:
             now = time.monotonic()
@@ -2397,6 +2356,10 @@ class MainWindow(
             self.current_running_button = button
         self.game_stopped_by_user = True
         self.egs_launch_cancelled = True
+        if getattr(self, "launcher_process_only", False):
+            if self._run_portproton_stop_command():
+                return True
+
         self._analyze_short_launch()
 
         self._terminate_game_processes()
@@ -2466,23 +2429,14 @@ class MainWindow(
 
         return ALT_BIARCH_REPO in result.stdout
 
-    def _get_missing_alt_i586_packages(self) -> list[str]:
-        try:
-            installed = set(self._get_installed_alt_package_names())
-        except (OSError, subprocess.SubprocessError) as e:
-            logger.warning("Failed to check ALT i586 packages: %s", e)
-            return [f"i586-{package}" for package in ALT_I586_BASE_PACKAGES]
+    def _has_missing_alt_i586_packages(self) -> bool:
+        if not self.start_sh:
+            return True
 
-        return [
-            f"i586-{package}" for package in self._get_alt_i586_package_names(installed)
-            if f"i586-{package}" not in installed
-        ]
-
-    def _get_installed_alt_package_names(self) -> list[str]:
         with ThreadPoolExecutor(max_workers=1) as executor:
             future = executor.submit(
                 subprocess.run,
-                ["rpm", "-qa", "--qf", "%{NAME}\n"],
+                self.start_sh + ["cli", "--alt-i586-dependencies"],
                 capture_output=True,
                 text=True,
                 timeout=10,
@@ -2493,42 +2447,38 @@ class MainWindow(
             while not future.done():
                 QApplication.processEvents(event_flags)
                 time.sleep(0.01)
-            result = future.result()
-        if result.returncode != 0:
-            raise subprocess.SubprocessError(result.stderr.strip())
+            try:
+                result = future.result()
+            except (OSError, subprocess.SubprocessError) as e:
+                logger.warning("Failed to check ALT i586 packages: %s", e)
+                return True
 
-        return result.stdout.splitlines()
+        return result.returncode != 0
 
-    def _get_alt_i586_package_names(self, installed: set[str]) -> list[str]:
-        packages = [
-            package for package in ALT_I586_BASE_PACKAGES
-            if package in installed
-        ]
-        packages.extend(
-            package for package in sorted(installed)
-            if self._is_alt_i586_prefixed_package(package)
-        )
-        return packages
-
-    def _is_alt_i586_prefixed_package(self, package: str) -> bool:
-        if package in ALT_I586_EXCLUDED_PACKAGES:
+    def _install_alt_i586_dependencies(self) -> bool:
+        if not self.start_sh:
             return False
-        return any(package.startswith(prefix) for prefix in ALT_I586_PACKAGE_PREFIXES)
 
-    def _create_alt_i586_install_script(self) -> str | None:
-        try:
-            fd, script_path = tempfile.mkstemp(
-                prefix="portprotonqt-alt-i586-",
-                suffix=".sh",
-            )
-            with os.fdopen(fd, "w", encoding="utf-8") as script:
-                script.write(ALT_I586_INSTALL_SCRIPT)
-            os.chmod(script_path, ALT_INSTALL_SCRIPT_MODE)
-        except OSError as e:
-            logger.warning("Failed to create ALT i586 install script: %s", e)
-            return None
+        command = [
+            "pkexec",
+            *self.start_sh,
+            "cli",
+            "--alt-i586-dependencies",
+            "install",
+        ]
+        process = QProcess(self)
+        event_loop = QEventLoop()
+        process.finished.connect(event_loop.quit)
+        process.start(
+            sys.executable,
+            ["-m", "portprotonqt.scripts_utils.easyterm", "-e", shlex.join(command)],
+        )
+        if not process.waitForStarted(5000):
+            logger.warning("Failed to start ALT i586 dependency installer")
+            return False
 
-        return script_path
+        event_loop.exec()
+        return not self._has_missing_alt_i586_packages()
 
     def _check_alt_i586_dependencies_before_launch(self) -> bool:
         if not self._is_alt_x86_64():
@@ -2542,7 +2492,7 @@ class MainWindow(
             )
             return False
 
-        if not self._get_missing_alt_i586_packages():
+        if not self._has_missing_alt_i586_packages():
             return True
 
         msg_box = QMessageBox(self)
@@ -2557,19 +2507,7 @@ class MainWindow(
         msg_box.setButtonText(QMessageBox.StandardButton.Cancel, _("Cancel"))
         reply = msg_box.exec()
         if reply == QMessageBox.StandardButton.Ok:
-            script_path = self._create_alt_i586_install_script()
-            if not script_path:
-                return False
-
-            QProcess.startDetached(
-                sys.executable,
-                [
-                    "-m",
-                    "portprotonqt.scripts_utils.easyterm",
-                    "-e",
-                    f"pkexec /bin/sh {shlex.quote(script_path)}",
-                ],
-            )
+            return self._install_alt_i586_dependencies()
         return False
 
     def _resolve_iso_launch_parts(self, iso_path: str) -> list[str] | None:
@@ -2753,6 +2691,9 @@ class MainWindow(
                 self, _("Error"), _("Cannot launch game while another game is running")
             )
             return
+        if not self._check_alt_i586_dependencies_before_launch():
+            self._finish_silent_launch()
+            return
         try:
             command = self.egs_api.build_command([
                 "launch", app_id, "--json", "--wrapper", self.start_sh[0],
@@ -2819,6 +2760,9 @@ class MainWindow(
         needs_setup = getattr(self.gog_api, "needs_support_setup", lambda _app_id: False)
         if needs_setup(app_id):
             self._start_gog_support_setup(app_id, button)
+            return
+        if not self._check_alt_i586_dependencies_before_launch():
+            self._finish_silent_launch()
             return
         try:
             command = self.gog_api.build_command([
@@ -2919,6 +2863,9 @@ class MainWindow(
             if not self.stop_running_game(update_button):
                 QMessageBox.warning(self, _("Error"), _("Failed to stop game"))
         else:
+            if not self._check_alt_i586_dependencies_before_launch():
+                return
+
             if update_button:
                 try:
                     update_button.setText(_("Stop"))
@@ -2927,12 +2874,6 @@ class MainWindow(
                 except RuntimeError:
                     update_button = None
             SoundManager().play("game_launch")
-            if not self._check_alt_i586_dependencies_before_launch():
-                if update_button:
-                    update_button.setText(_("Start"))
-                    icon = self.theme_manager.get_icon("play", as_path=True)
-                    update_button.setIcon(icon)
-                return
 
             # Save button reference for reset after game completion
             self.current_running_button = update_button

@@ -12,7 +12,7 @@
 ### Installation (devel)
 
 ```sh
-uv python install 3.10
+uv python install 3.11
 uv sync
 source .venv/bin/activate  # For bash/zsh
 # or
@@ -29,7 +29,7 @@ Launch using the `portprotonqt` command or via the shortcut in your application 
 
 ### Development
 
-To automatically prepare the environment (install Python 3.10, dependencies, pre-commit hooks, and generate translations), run the following script:
+To automatically prepare the environment (install Python 3.11, dependencies, pre-commit hooks, and generate translations), run the following script:
 
 ```sh
 ./dev-scripts/prepare_env.sh

@@ -44,7 +44,7 @@ Translations submitted online are periodically reviewed and merged into the main
 1. Run:
 
 ```bash
-uv python install 3.10
+uv python install 3.11
 uv sync --all-extras --dev
 source .venv/bin/activate
 python dev-scripts/l10n.py --create-new <locale_code>
@@ -64,7 +64,7 @@ python dev-scripts/l10n.py
 If you’ve added new strings to the code:
 
 ```bash
-uv python install 3.10
+uv python install 3.11
 uv sync --all-extras --dev
 source .venv/bin/activate
 python dev-scripts/l10n.py --update-all

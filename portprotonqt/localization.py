@@ -42,20 +42,24 @@ STORE_CONTENT_LOCALES = {'es': 'es-ES', 'pt': 'pt-BR', 'zh': 'zh-CN'}
 
 # Try local locale directory first, fallback to system for development
 _local_localedir = Path(__file__).parent / "locales"
-_system_prefix = "/app" if os.getenv("FLATPAK_ID") else os.getenv("SHARUN_DIR", "/usr")
-_system_localedir = Path(_system_prefix) / "share" / "locale"
+_locale_dirs = [_local_localedir]
+if os.getenv("SHARUN_DIR"):
+    _locale_dirs.append(Path(os.environ["SHARUN_DIR"]) / "share" / "locale")
+_locale_dirs.extend(
+    Path(data_dir) / "locale"
+    for data_dir in os.getenv(
+        "XDG_DATA_DIRS", "/usr/local/share:/usr/share"
+    ).split(os.pathsep)
+    if data_dir
+)
 
-try:
-    translate = gettext.translation(
-        domain="portprotonqt",
-        localedir=_local_localedir,
-    )
-except FileNotFoundError:
-    translate = gettext.translation(
-        domain="portprotonqt",
-        localedir=_system_localedir,
-        fallback=True,
-    )
+translate = gettext.NullTranslations()
+for _locale_dir in _locale_dirs:
+    try:
+        translate = gettext.translation("portprotonqt", localedir=_locale_dir)
+        break
+    except FileNotFoundError:
+        continue
 
 
 def _(message: str) -> str:

@@ -418,14 +418,13 @@ class ProtonManager(DraggableDialog):
 
     def filter_entries_by_cpu_level(self, entries, source_name):
         is_arm = platform.machine().lower().startswith(('arm', 'aarch64'))
-        if not is_arm:
-            entries = [
-                entry for entry in entries
-                if 'aarch64' not in entry.get('name', '').lower()
-                and '-arm' not in entry.get('name', '').lower()
-                and 'aarch64' not in entry.get('url', '').lower()
-                and '-arm' not in entry.get('url', '').lower()
-            ]
+        filtered_entries = []
+        for entry in entries:
+            entry_info = f"{entry.get('name', '')} {entry.get('url', '')}".lower()
+            entry_is_arm = 'aarch64' in entry_info or '-arm' in entry_info
+            if entry_is_arm == is_arm:
+                filtered_entries.append(entry)
+        entries = filtered_entries
         if source_name.lower() != 'proton_cachyos':
             return entries
         if self.cpu_level >= 4:

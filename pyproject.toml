@@ -2,7 +2,7 @@
 name = "portprotonqt"
 version = "1.4.1"
 description = "A project to rewrite PortProton (PortWINE) using PySide"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 readme = "README.md"
 license = { text = "GPL-3.0" }
 authors = [
@@ -15,7 +15,6 @@ classifiers = [
   "Development Status :: 3 - Alpha",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
@@ -30,12 +29,12 @@ dependencies = [
     "pillow>=12.3.0",
     "psutil>=7.2.2",
     "pyside6>=6.11.2",
-    "rapidfuzz>=3.14.5",
+    "rapidfuzz>=3.14.6",
     "qrcode>=8.2",
     "requests>=2.34.2",
     "tqdm>=4.70.0",
     "vdf>=3.4",
-    "websocket-client>=1.9.1",
+    "websocket-client>=1.9.2",
     "dbus-fast>=5.0.22",
     "pefile>=2024.8.26",
 ]
@@ -66,9 +65,9 @@ known-third-party = ["portprotonqt"]
 
 [tool.ruff]
 exclude = [".eggs", ".git", "build", "dist", "portprotonqt.egg-info", ".venv", "venv", "dev-scripts", "portprotonqt/themes", ".vscode"]
-target-version = "py310"
+target-version = "py311"
 
 [tool.pyright]
-pythonVersion = "3.10"
+pythonVersion = "3.11"
 pythonPlatform = "Linux"
 ignore = [".eggs", ".git", "build", "dist", "portprotonqt.egg-info", ".venv", "venv", "dev-scripts", "portprotonqt/themes", ".vscode"]

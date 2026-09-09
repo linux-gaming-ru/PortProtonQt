@@ -44,7 +44,7 @@
 1. Выполните:
 
 ```bash
-uv python install 3.10
+uv python install 3.11
 uv sync --all-extras --dev
 source .venv/bin/activate
 python dev-scripts/l10n.py --create-new <код_локали>
@@ -64,7 +64,7 @@ python dev-scripts/l10n.py
 Если вы добавили новые строки в код:
 
 ```bash
-uv python install 3.10
+uv python install 3.11
 uv sync --all-extras --dev
 source .venv/bin/activate
 python dev-scripts/l10n.py --update-all
