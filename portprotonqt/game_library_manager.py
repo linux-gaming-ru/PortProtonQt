@@ -143,7 +143,6 @@ class GameLibraryManager:
             self.gamesListLayout = QHBoxLayout(self.gamesListWidget)
             self.gamesListLayout.setContentsMargins(*layout_config["layout_margins"])
             self.gamesListLayout.setSpacing(layout_config["layout_spacing"])
-            scrollArea.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
             scrollArea.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         elif self.layout_mode == "vertical":
             layout_config = self.theme.GAME_CARD_VERTICAL
@@ -244,9 +243,6 @@ class GameLibraryManager:
                 Qt.ScrollBarPolicy.ScrollBarAlwaysOff
                 if horizontal
                 else Qt.ScrollBarPolicy.ScrollBarAsNeeded
-            )
-            self.gamesScrollArea.setHorizontalScrollBarPolicy(
-                Qt.ScrollBarPolicy.ScrollBarAlwaysOff
             )
             self.gamesScrollArea.setVerticalScrollBarPolicy(vertical_policy)
         theme_mode = str(getattr(self.theme, "LIBRARY_LAYOUT_MODE", "grid")).lower()

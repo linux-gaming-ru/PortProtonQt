@@ -1028,6 +1028,11 @@ class ThemeManager:
     def invalidate_theme(self, theme_name: str) -> None:
         """Discard a cached theme after its files change."""
         self._theme_module_cache.pop(theme_name, None)
+        _icon_dirs_cache.pop(theme_name, None)
+        marker = f"_{theme_name}_"
+        for cache_key in list(_icon_cache):
+            if marker in cache_key:
+                _icon_cache.pop(cache_key, None)
         if self.current_theme_name == theme_name:
             self.current_theme_name = None
             self.current_theme_module = None

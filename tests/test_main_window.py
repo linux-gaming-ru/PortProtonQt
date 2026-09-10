@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
 from portprotonqt.animations.library_controls import _animation_duration
 from portprotonqt.animations.game_card import GameCardAnimations
 from portprotonqt.config import game_config
+from portprotonqt.custom_widgets import AutoHideScrollArea
 from portprotonqt.detail_pages import DetailPageManager
 from portprotonqt.game_card import GameCard, SourceCorner
 from portprotonqt.game_library_manager import FullLibraryTile, GameLibraryManager
@@ -397,6 +398,27 @@ def test_live_theme_rebuilds_library_when_layout_mode_changes() -> None:
     )
 
     manager.rebuild_library_layout.assert_called_once_with("grid")
+
+def test_auto_hide_scroll_area_tracks_horizontal_overflow() -> None:
+    QApplication.instance() or QApplication([])
+    theme = SimpleNamespace(TRANSPARENT_BACKGROUND_STYLE="", SCROLL_STYLE="")
+    scroll_area = AutoHideScrollArea(theme=theme)
+    scroll_area.resize(100, 100)
+    content = QWidget()
+    content_layout = QVBoxLayout(content)
+    child = QWidget()
+    child.setFixedSize(200, 50)
+    content_layout.addWidget(child)
+    scroll_area.setWidget(content)
+    scroll_area.show()
+    QApplication.processEvents()
+
+    scroll_area._update_scroll_needed()
+    scroll_area._on_horizontal_scroll(1)
+
+    assert scroll_area._h_scroll_needed is True
+    assert scroll_area._h_is_visible is True
+    assert scroll_area._h_hide_timer.isActive()
 
 def test_vertical_library_uses_column_layout() -> None:
     QApplication.instance() or QApplication([])
@@ -916,6 +938,23 @@ def test_theme_store_methods_resolve_from_store_mixin() -> None:
     for method_name in THEME_STORE_METHODS:
         assert getattr(MainWindow, method_name) is getattr(ThemeStoreMixin, method_name)
         assert method_name not in ThemeMixin.__dict__
+
+
+def test_custom_theme_file_change_reloads_active_theme() -> None:
+    manager = MagicMock()
+    manager.is_custom_theme.return_value = True
+    window = SimpleNamespace(
+        current_theme_name="console",
+        theme_manager=manager,
+        _apply_theme_live=MagicMock(),
+        _watch_active_theme_files=MagicMock(),
+    )
+
+    ThemeMixin._reload_active_custom_theme(cast(Any, window))
+
+    manager.invalidate_theme.assert_called_once_with("console")
+    window._apply_theme_live.assert_called_once_with("console")
+    window._watch_active_theme_files.assert_called_once_with()
 
 def test_tabs_package_exports_tab_mixins() -> None:
     import portprotonqt.tabs as tabs
