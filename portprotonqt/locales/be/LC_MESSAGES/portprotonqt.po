@@ -343,13 +343,22 @@ msgstr ""
 msgid "Denied"
 msgstr ""
 
+msgid "Game Title"
+msgstr ""
+
+msgid "LAST LAUNCH"
+msgstr ""
+
+msgid "TIME SPENT"
+msgstr ""
+
+msgid "Library"
+msgstr ""
+
 msgid "Unknown Game"
 msgstr ""
 
 msgid "Downloading Wine…"
-msgstr ""
-
-msgid "Library"
 msgstr ""
 
 msgid "Auto Install"
@@ -747,6 +756,9 @@ msgstr ""
 msgid "sec."
 msgstr ""
 
+msgid "Pause Game"
+msgstr ""
+
 msgid "Exit"
 msgstr ""
 
@@ -757,6 +769,12 @@ msgid "Favorites"
 msgstr ""
 
 msgid "Recent Games"
+msgstr ""
+
+msgid "Resume Game"
+msgstr ""
+
+msgid "Failed to pause game"
 msgstr ""
 
 msgid "No recent games"
@@ -779,12 +797,6 @@ msgid "Download"
 msgstr ""
 
 msgid "Size"
-msgstr ""
-
-msgid "LAST LAUNCH"
-msgstr ""
-
-msgid "TIME SPENT"
 msgstr ""
 
 msgid "MAIN STORY"
@@ -811,13 +823,13 @@ msgstr ""
 msgid "Create Log"
 msgstr ""
 
+msgid "Stop Log"
+msgstr ""
+
 msgid "Open Card"
 msgstr ""
 
 msgid "Reinstall"
-msgstr ""
-
-msgid "Stop Log"
 msgstr ""
 
 msgid "Failed to start debug session"
@@ -1958,9 +1970,6 @@ msgid "Waiting…"
 msgstr ""
 
 msgid "Disk: "
-msgstr ""
-
-msgid "Game Title"
 msgstr ""
 
 msgid "Started at"

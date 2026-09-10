@@ -345,14 +345,24 @@ msgstr "损坏"
 msgid "Denied"
 msgstr "已拒绝"
 
+#, fuzzy
+msgid "Game Title"
+msgstr "游戏宽度"
+
+msgid "LAST LAUNCH"
+msgstr "上次启动"
+
+msgid "TIME SPENT"
+msgstr "游戏时长"
+
+msgid "Library"
+msgstr "库"
+
 msgid "Unknown Game"
 msgstr "未知游戏"
 
 msgid "Downloading Wine…"
 msgstr "正在下载 Wine…"
-
-msgid "Library"
-msgstr "库"
 
 msgid "Auto Install"
 msgstr "自动安装"
@@ -780,6 +790,10 @@ msgstr "分钟。"
 msgid "sec."
 msgstr "秒。"
 
+#, fuzzy
+msgid "Pause Game"
+msgstr "启动游戏"
+
 msgid "Exit"
 msgstr "退出"
 
@@ -791,6 +805,14 @@ msgstr "收藏夹"
 
 msgid "Recent Games"
 msgstr "最近游戏"
+
+#, fuzzy
+msgid "Resume Game"
+msgstr "最近游戏"
+
+#, fuzzy
+msgid "Failed to pause game"
+msgstr "停止游戏失败"
 
 msgid "No recent games"
 msgstr "无最近游戏"
@@ -813,12 +835,6 @@ msgstr "下载"
 
 msgid "Size"
 msgstr "大小"
-
-msgid "LAST LAUNCH"
-msgstr "上次启动"
-
-msgid "TIME SPENT"
-msgstr "游戏时长"
 
 msgid "MAIN STORY"
 msgstr "主线剧情"
@@ -844,14 +860,14 @@ msgstr "设置"
 msgid "Create Log"
 msgstr "创建日志"
 
+msgid "Stop Log"
+msgstr "停止日志"
+
 msgid "Open Card"
 msgstr "打开卡片"
 
 msgid "Reinstall"
 msgstr "重新安装"
-
-msgid "Stop Log"
-msgstr "停止日志"
 
 msgid "Failed to start debug session"
 msgstr "启动调试会话失败"
@@ -2004,10 +2020,6 @@ msgstr "警告"
 #, fuzzy
 msgid "Disk: "
 msgstr "链接："
-
-#, fuzzy
-msgid "Game Title"
-msgstr "游戏宽度"
 
 #, fuzzy
 msgid "Started at"

@@ -355,14 +355,23 @@ msgstr "Сломано"
 msgid "Denied"
 msgstr "Отказано"
 
+msgid "Game Title"
+msgstr "Название игры"
+
+msgid "LAST LAUNCH"
+msgstr "ПОСЛЕДНИЙ ЗАПУСК"
+
+msgid "TIME SPENT"
+msgstr "ПРОВЕДЁННОЕ ВРЕМЯ"
+
+msgid "Library"
+msgstr "Библиотека"
+
 msgid "Unknown Game"
 msgstr "Неизвестная игра"
 
 msgid "Downloading Wine…"
 msgstr "Скачивание Wine…"
-
-msgid "Library"
-msgstr "Библиотека"
 
 msgid "Auto Install"
 msgstr "Автоустановка"
@@ -819,6 +828,10 @@ msgstr "мин."
 msgid "sec."
 msgstr "сек."
 
+#, fuzzy
+msgid "Pause Game"
+msgstr "Запустить игру"
+
 msgid "Exit"
 msgstr "Выход"
 
@@ -830,6 +843,14 @@ msgstr "Избранное"
 
 msgid "Recent Games"
 msgstr "Недавние"
+
+#, fuzzy
+msgid "Resume Game"
+msgstr "Недавние"
+
+#, fuzzy
+msgid "Failed to pause game"
+msgstr "Не удалось остановить игру"
 
 msgid "No recent games"
 msgstr "Нет недавних игр"
@@ -852,12 +873,6 @@ msgstr "Скачать"
 
 msgid "Size"
 msgstr "Размер"
-
-msgid "LAST LAUNCH"
-msgstr "ПОСЛЕДНИЙ ЗАПУСК"
-
-msgid "TIME SPENT"
-msgstr "ПРОВЕДЁННОЕ ВРЕМЯ"
 
 msgid "MAIN STORY"
 msgstr "СЮЖЕТ"
@@ -883,14 +898,14 @@ msgstr "Настройки"
 msgid "Create Log"
 msgstr "Создать лог"
 
+msgid "Stop Log"
+msgstr "Остановить лог"
+
 msgid "Open Card"
 msgstr "Открыть карточку"
 
 msgid "Reinstall"
 msgstr "Переустановить"
-
-msgid "Stop Log"
-msgstr "Остановить лог"
 
 msgid "Failed to start debug session"
 msgstr "Не удалось запустить процесс отладки"
@@ -2053,9 +2068,6 @@ msgstr "Ожидание…"
 
 msgid "Disk: "
 msgstr "Диск: "
-
-msgid "Game Title"
-msgstr "Название игры"
 
 msgid "Started at"
 msgstr "Начато"

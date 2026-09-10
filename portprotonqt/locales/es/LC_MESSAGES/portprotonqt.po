@@ -357,14 +357,23 @@ msgstr "Falló"
 msgid "Denied"
 msgstr "Denegado"
 
+msgid "Game Title"
+msgstr "Título del juego"
+
+msgid "LAST LAUNCH"
+msgstr "ÚLTIMO LANZAMIENTO"
+
+msgid "TIME SPENT"
+msgstr "TIEMPO EMPLEADO"
+
+msgid "Library"
+msgstr "Biblioteca"
+
 msgid "Unknown Game"
 msgstr "Juego desconocido"
 
 msgid "Downloading Wine…"
 msgstr "Descargando Wine…"
-
-msgid "Library"
-msgstr "Biblioteca"
 
 msgid "Auto Install"
 msgstr "Instalación automática"
@@ -836,6 +845,10 @@ msgstr "min"
 msgid "sec."
 msgstr "s"
 
+#, fuzzy
+msgid "Pause Game"
+msgstr "Iniciar juego"
+
 msgid "Exit"
 msgstr "Salir"
 
@@ -847,6 +860,14 @@ msgstr "Favoritos"
 
 msgid "Recent Games"
 msgstr "Juegos recientes"
+
+#, fuzzy
+msgid "Resume Game"
+msgstr "Juegos recientes"
+
+#, fuzzy
+msgid "Failed to pause game"
+msgstr "Error al detener el juego"
 
 msgid "No recent games"
 msgstr "Sin juegos recientes"
@@ -869,12 +890,6 @@ msgstr "Descargar"
 
 msgid "Size"
 msgstr "Tamaño"
-
-msgid "LAST LAUNCH"
-msgstr "ÚLTIMO LANZAMIENTO"
-
-msgid "TIME SPENT"
-msgstr "TIEMPO EMPLEADO"
 
 msgid "MAIN STORY"
 msgstr "HISTORIA PRINCIPAL"
@@ -900,14 +915,14 @@ msgstr "Ajustes"
 msgid "Create Log"
 msgstr "Crear registro"
 
+msgid "Stop Log"
+msgstr "Detener el registro"
+
 msgid "Open Card"
 msgstr "Carta abierta"
 
 msgid "Reinstall"
 msgstr "Reinstalar"
-
-msgid "Stop Log"
-msgstr "Detener el registro"
 
 msgid "Failed to start debug session"
 msgstr "No se pudo iniciar la sesión de depuración"
@@ -2056,9 +2071,6 @@ msgstr "Esperando…"
 
 msgid "Disk: "
 msgstr "Disco: "
-
-msgid "Game Title"
-msgstr "Título del juego"
 
 msgid "Started at"
 msgstr "Comenzó en"
