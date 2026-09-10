@@ -380,13 +380,10 @@ class TrayManager:
 
     def switch_theme(self, theme_name: str):
         try:
-            ui_config.set_theme(theme_name)
-            logger.info(f"Saved theme {theme_name}, restarting application to apply changes")
-            restart_application_process()
+            self.main_window._apply_theme_live(theme_name)
         except Exception as e:
             logger.error(f"Failed to switch theme to {theme_name}: {e}")
-            ui_config.set_theme("standart")
-            restart_application_process()
+            self.main_window._apply_theme_live("standart")
 
     def force_exit(self):
         self.main_window.close()

@@ -288,9 +288,12 @@ def _analyze_pe(executable: str) -> tuple[str, dict[str, list[str]]]:
     try:
         optional_header = getattr(pe, "OPTIONAL_HEADER", None)
         data_directories = getattr(optional_header, "DATA_DIRECTORY", [])
-        clr = data_directories[
-            pefile.DIRECTORY_ENTRY["IMAGE_DIRECTORY_ENTRY_COM_DESCRIPTOR"]
+        descriptor_index = pefile.DIRECTORY_ENTRY[
+            "IMAGE_DIRECTORY_ENTRY_COM_DESCRIPTOR"
         ]
+        if not isinstance(descriptor_index, int):
+            raise IndexError
+        clr = data_directories[descriptor_index]
         if clr.VirtualAddress and ".NET Framework" not in findings.setdefault("Runtimes", []):
             findings["Runtimes"].append(".NET Framework")
     except (AttributeError, IndexError):

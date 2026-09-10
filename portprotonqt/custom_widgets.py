@@ -547,7 +547,8 @@ class AutoSizeButton(QPushButton):
         self.current_theme_name = selected_theme
         self.theme = self.theme_manager.apply_theme(selected_theme)
 
-        if padding is None:
+        self._uses_theme_padding = padding is None
+        if self._uses_theme_padding:
             padding = getattr(self.theme, 'autoSizeButtonPadding', 20)
 
         self._pad_top, self._pad_bottom, self._pad_left, self._pad_right = self._normalize_padding(padding)
@@ -573,6 +574,18 @@ class AutoSizeButton(QPushButton):
         self.setMinimumWidth(50)
 
         self.adjustFontSize()
+
+    def refresh_theme(self, theme: object) -> None:
+        """Refresh sizing values supplied by the active theme."""
+        self.theme = theme
+        if not self._uses_theme_padding:
+            return
+        padding = getattr(theme, "autoSizeButtonPadding", 20)
+        self._pad_top, self._pad_bottom, self._pad_left, self._pad_right = (
+            self._normalize_padding(padding)
+        )
+        self.adjustFontSize()
+        self.updateGeometry()
 
     def _extract_icon_name(self, icon_path):
         if isinstance(icon_path, str):

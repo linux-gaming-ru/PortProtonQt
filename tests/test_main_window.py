@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
 from portprotonqt.animations.library_controls import _animation_duration
 from portprotonqt.animations.game_card import GameCardAnimations
 from portprotonqt.config import game_config
-from portprotonqt.custom_widgets import AutoHideScrollArea
+from portprotonqt.custom_widgets import AutoHideScrollArea, AutoSizeButton
 from portprotonqt.detail_pages import DetailPageManager
 from portprotonqt.game_card import GameCard, SourceCorner
 from portprotonqt.game_library_manager import FullLibraryTile, GameLibraryManager
@@ -322,7 +322,7 @@ def test_main_window_inherits_all_tab_mixins() -> None:
         assert issubclass(MainWindow, mixin)
 
 def test_settings_retranslate_existing_interface(monkeypatch: MonkeyPatch) -> None:
-    QApplication.instance() or QApplication([])
+    _application = QApplication.instance() or QApplication([])
     label = QLabel("Настройки")
     combo = QComboBox()
     combo.addItem("Системный")
@@ -389,6 +389,20 @@ def test_tray_initialization_runs_once(monkeypatch: MonkeyPatch) -> None:
     assert window.tray_manager is tray_manager
 
 
+def test_tray_theme_switch_applies_theme_without_restart(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    manager = TrayManager.__new__(TrayManager)
+    manager.main_window = SimpleNamespace(_apply_theme_live=MagicMock())
+    restart = MagicMock()
+    monkeypatch.setattr("portprotonqt.tray_manager.restart_application_process", restart)
+
+    manager.switch_theme("console")
+
+    manager.main_window._apply_theme_live.assert_called_once_with("console")
+    restart.assert_not_called()
+
+
 def test_live_theme_style_replacement_does_not_rewrite_new_paths() -> None:
     mixin = MainWindowThemeTabMixin()
     style = "url(/themes/standart/images/check.svg)"
@@ -436,6 +450,19 @@ def test_live_theme_joins_named_composite_styles() -> None:
     style = mixin._get_named_theme_style(cast(Any, widget), theme)
 
     assert style == "pagefocus"
+
+
+def test_live_theme_refreshes_auto_size_button_padding() -> None:
+    _application = QApplication.instance() or QApplication([])
+    button = AutoSizeButton("Test", padding=None)
+
+    button.refresh_theme(SimpleNamespace(autoSizeButtonPadding=(10, 20)))
+
+    assert button._pad_top == 10
+    assert button._pad_bottom == 10
+    assert button._pad_left == 20
+    assert button._pad_right == 20
+
 
 def test_live_theme_rebuilds_library_when_layout_mode_changes() -> None:
     mixin = cast(Any, MainWindowThemeTabMixin())
@@ -500,7 +527,7 @@ def test_library_creates_background_layer_for_live_theme_switch() -> None:
 
 
 def test_auto_hide_scroll_area_tracks_horizontal_overflow() -> None:
-    QApplication.instance() or QApplication([])
+    _application = QApplication.instance() or QApplication([])
     theme = SimpleNamespace(TRANSPARENT_BACKGROUND_STYLE="", SCROLL_STYLE="")
     scroll_area = AutoHideScrollArea(theme=theme)
     scroll_area.resize(100, 100)
@@ -521,7 +548,7 @@ def test_auto_hide_scroll_area_tracks_horizontal_overflow() -> None:
     assert scroll_area._h_hide_timer.isActive()
 
 def test_vertical_library_uses_column_layout() -> None:
-    QApplication.instance() or QApplication([])
+    _application = QApplication.instance() or QApplication([])
     manager: Any = GameLibraryManager.__new__(GameLibraryManager)
     manager.gamesListWidget = QWidget()
     manager.gamesListLayout = QGridLayout(manager.gamesListWidget)
@@ -1859,7 +1886,7 @@ def test_delayed_system_adapters_appear_on_retry() -> None:
     assert not bluetooth_timer.isActive()
 
 def test_missing_system_adapters_stop_after_retries() -> None:
-    QApplication.instance() or QApplication([])
+    _application = QApplication.instance() or QApplication([])
     network_timer = QTimer()
     bluetooth_timer = QTimer()
     window = cast(
