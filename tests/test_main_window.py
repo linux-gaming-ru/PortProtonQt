@@ -454,6 +454,51 @@ def test_live_theme_rebuilds_library_when_layout_mode_changes() -> None:
 
     manager.rebuild_library_layout.assert_called_once_with("grid")
 
+
+def test_library_background_is_removed_when_live_theme_has_no_config(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    _application = QApplication.instance() or QApplication([])
+    manager: Any = GameLibraryManager.__new__(GameLibraryManager)
+    manager.full_library_open = False
+    manager.libraryBackgroundLabel = QLabel()
+    manager.theme = SimpleNamespace()
+    cover_label = QLabel()
+    cover_label.setPixmap(QPixmap(1, 1))
+    remove_background = MagicMock()
+    monkeypatch.setattr(
+        "portprotonqt.game_library_manager.remove_cover_background",
+        remove_background,
+    )
+
+    manager._update_library_background(SimpleNamespace(coverLabel=cover_label))
+
+    remove_background.assert_called_once_with(manager.libraryBackgroundLabel)
+
+
+def test_library_creates_background_layer_for_live_theme_switch() -> None:
+    _application = QApplication.instance() or QApplication([])
+    theme = SimpleNamespace(
+        LIBRARY_LAYOUT_MODE="grid",
+        LIBRARY_WIDGET_STYLE="",
+        LIST_WIDGET_STYLE="",
+        SCROLL_STYLE="",
+        SLIDER_SIZE_STYLE="",
+        TRANSPARENT_BACKGROUND_STYLE="",
+    )
+    main_window: Any = SimpleNamespace(
+        createSearchWidget=lambda: (QWidget(), QLabel()),
+        on_slider_released=lambda: None,
+        _register_gamepad_tooltip=lambda _widget, _text: None,
+    )
+    manager = GameLibraryManager(main_window, theme, None)
+
+    manager.create_games_library_widget()
+
+    assert manager.libraryBackgroundLabel is not None
+    assert isinstance(manager.gamesLibraryWidget.layout(), QGridLayout)
+
+
 def test_auto_hide_scroll_area_tracks_horizontal_overflow() -> None:
     QApplication.instance() or QApplication([])
     theme = SimpleNamespace(TRANSPARENT_BACKGROUND_STYLE="", SCROLL_STYLE="")

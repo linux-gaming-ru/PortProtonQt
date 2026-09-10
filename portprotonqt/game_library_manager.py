@@ -105,17 +105,17 @@ class GameLibraryManager:
         self.gamesLibraryWidget.setProperty("theme_style_name", "LIBRARY_WIDGET_STYLE")
         self.gamesLibraryWidget.setStyleSheet(self.theme.LIBRARY_WIDGET_STYLE)
         library_background = getattr(self.theme, "LIBRARY_BACKGROUND", None)
+        stack_layout = QGridLayout(self.gamesLibraryWidget)
         if isinstance(library_background, dict):
-            stack_layout = QGridLayout(self.gamesLibraryWidget)
             stack_layout.setContentsMargins(*library_background["margins"])
-            self.libraryBackgroundLabel = QLabel()
-            stack_layout.addWidget(self.libraryBackgroundLabel, 0, 0)
-            content_widget = QWidget()
-            content_widget.setStyleSheet(self.theme.TRANSPARENT_BACKGROUND_STYLE)
-            layout = QVBoxLayout(content_widget)
-            stack_layout.addWidget(content_widget, 0, 0)
         else:
-            layout = QVBoxLayout(self.gamesLibraryWidget)
+            stack_layout.setContentsMargins(0, 0, 0, 0)
+        self.libraryBackgroundLabel = QLabel()
+        stack_layout.addWidget(self.libraryBackgroundLabel, 0, 0)
+        content_widget = QWidget()
+        content_widget.setStyleSheet(self.theme.TRANSPARENT_BACKGROUND_STYLE)
+        layout = QVBoxLayout(content_widget)
+        stack_layout.addWidget(content_widget, 0, 0)
         self.libraryContentLayout = layout
         layout.setSpacing(15)
 
@@ -381,7 +381,10 @@ class GameLibraryManager:
         pixmap = card.coverLabel.pixmap()
         if pixmap is None or pixmap.isNull():
             return
-        library_config = self.theme.LIBRARY_BACKGROUND
+        library_config = getattr(self.theme, "LIBRARY_BACKGROUND", None)
+        if not isinstance(library_config, dict):
+            remove_cover_background(self.libraryBackgroundLabel)
+            return
         backgrounds = dict(getattr(self.theme, "DETAIL_PAGE_BACKGROUNDS", {}))
         backgrounds.update(library_config.get("backgrounds", {}))
         background_theme = SimpleNamespace(
