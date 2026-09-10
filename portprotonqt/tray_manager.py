@@ -79,6 +79,11 @@ class TrayManager:
         self.stop_game_action.setEnabled(False)
         self.stop_game_action.triggered.connect(self.stop_game)
 
+        self.pause_game_action = QAction(_("Pause Game"), self.main_window)
+        self.pause_game_action.setEnabled(False)
+        self.pause_game_action.triggered.connect(self.toggle_game_pause)
+
+        self.tray_menu.addAction(self.pause_game_action)
         self.tray_menu.addAction(self.stop_game_action)
         self.tray_menu.addSeparator()
         self.tray_menu.addSeparator()
@@ -96,8 +101,9 @@ class TrayManager:
     def refresh_tray_menu(self):
         self.tray_menu.clear()
 
+        self.tray_menu.addAction(self.pause_game_action)
         self.tray_menu.addAction(self.stop_game_action)
-        self.update_stop_game_action()
+        self.update_game_actions()
         if self.minimal_mode:
             return
         self.tray_menu.addSeparator()
@@ -139,11 +145,71 @@ class TrayManager:
         self._populate_themes_menu(themes_menu)
         self.tray_menu.addMenu(themes_menu)
 
-    def update_stop_game_action(self) -> None:
+    def update_game_actions(self) -> None:
+        processes = self._game_process_tree()
         game_processes = getattr(self.main_window, "game_processes", [])
         target_exe = getattr(self.main_window, "target_exe", None)
         has_running_game = bool(game_processes or target_exe)
         self.stop_game_action.setEnabled(has_running_game)
+        self.pause_game_action.setEnabled(bool(processes))
+        paused = self._are_processes_paused(processes)
+        self.pause_game_action.setText(_("Resume Game") if paused else _("Pause Game"))
+
+    def _are_processes_paused(self, processes: list[psutil.Process]) -> bool:
+        if not processes:
+            return False
+        try:
+            return all(
+                process.status() == psutil.STATUS_STOPPED for process in processes
+            )
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            return False
+
+    def _game_process_tree(self) -> list[psutil.Process]:
+        processes = {}
+        for launcher in getattr(self.main_window, "game_processes", []):
+            try:
+                parent = psutil.Process(launcher.pid)
+                for process in parent.children(recursive=True):
+                    processes[process.pid] = process
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+
+        target = str(getattr(self.main_window, "target_exe", "") or "").lower()
+        if not target:
+            return list(processes.values())
+        for process in psutil.process_iter(attrs=["name"]):
+            try:
+                if str(process.info.get("name") or "").lower() != target:
+                    continue
+                processes[process.pid] = process
+                for child in process.children(recursive=True):
+                    processes[child.pid] = child
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+        return list(processes.values())
+
+    def toggle_game_pause(self) -> None:
+        processes = self._game_process_tree()
+        if not processes:
+            self.update_game_actions()
+            return
+        paused = self._are_processes_paused(processes)
+        pause_signal = signal.SIGCONT if paused else signal.SIGSTOP
+        failures = 0
+        for process in processes:
+            try:
+                process.send_signal(pause_signal)
+            except (psutil.NoSuchProcess, psutil.AccessDenied, OSError) as error:
+                failures += 1
+                logger.warning(
+                    "Failed to change pause state for process %s: %s",
+                    process.pid,
+                    error,
+                )
+        if failures == len(processes):
+            QMessageBox.warning(self.main_window, _("Error"), _("Failed to pause game"))
+        self.update_game_actions()
 
     def handle_tray_click(self, reason):
         if reason == QSystemTrayIcon.ActivationReason.Context:
@@ -189,7 +255,7 @@ class TrayManager:
 
     def stop_game(self) -> None:
         if self.main_window.stop_running_game():
-            self.update_stop_game_action()
+            self.update_game_actions()
             if self.minimal_mode:
                 self.tray_icon.hide()
                 QApplication.quit()

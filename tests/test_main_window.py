@@ -1,6 +1,7 @@
 """Tests for main window library data processing."""
 
 import shlex
+import signal
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from queue import Queue
@@ -9,6 +10,7 @@ from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import MagicMock
 
+import psutil
 from pytest import MonkeyPatch, mark
 from PySide6.QtCore import QEventLoop, QObject, Qt, QTimer
 from PySide6.QtGui import QAction, QPixmap
@@ -70,25 +72,62 @@ def _tile_theme() -> Any:
         GAME_CARD_ANIMATION=GAME_CARD_ANIMATION,
     )
 
-def test_minimal_tray_contains_only_stop_action() -> None:
+def test_minimal_tray_contains_game_actions() -> None:
     _application = QApplication.instance() or QApplication([])
     manager = TrayManager.__new__(TrayManager)
     manager.tray_menu = QMenu()
+    manager.pause_game_action = QAction("Pause Game", manager.tray_menu)
     manager.stop_game_action = QAction("Stop Game", manager.tray_menu)
     manager.minimal_mode = True
-    manager.update_stop_game_action = MagicMock()
+    manager.update_game_actions = MagicMock()
 
     manager.refresh_tray_menu()
 
-    assert manager.tray_menu.actions() == [manager.stop_game_action]
-    manager.update_stop_game_action.assert_called_once_with()
+    assert manager.tray_menu.actions() == [
+        manager.pause_game_action,
+        manager.stop_game_action,
+    ]
+    manager.update_game_actions.assert_called_once_with()
+
+def test_tray_pauses_game_process_tree(monkeypatch: MonkeyPatch) -> None:
+    child = MagicMock(pid=12)
+    child.status.return_value = "running"
+    parent = MagicMock(pid=11)
+    parent.children.return_value = [child]
+    manager = TrayManager.__new__(TrayManager)
+    manager.main_window = SimpleNamespace(
+        game_processes=[SimpleNamespace(pid=11)], target_exe=None,
+    )
+    manager.update_game_actions = MagicMock()
+    monkeypatch.setattr("portprotonqt.tray_manager.psutil.Process", lambda _pid: parent)
+
+    manager.toggle_game_pause()
+
+    child.send_signal.assert_called_once_with(signal.SIGSTOP)
+    manager.update_game_actions.assert_called_once_with()
+
+def test_tray_resumes_target_process(monkeypatch: MonkeyPatch) -> None:
+    process = MagicMock(pid=21, info={"name": "game.exe"})
+    process.status.return_value = psutil.STATUS_STOPPED
+    process.children.return_value = []
+    manager = TrayManager.__new__(TrayManager)
+    manager.main_window = SimpleNamespace(game_processes=[], target_exe="GAME.EXE")
+    manager.update_game_actions = MagicMock()
+    monkeypatch.setattr(
+        "portprotonqt.tray_manager.psutil.process_iter", lambda attrs: [process]
+    )
+
+    manager.toggle_game_pause()
+
+    process.send_signal.assert_called_once_with(signal.SIGCONT)
+    manager.update_game_actions.assert_called_once_with()
 
 def test_minimal_tray_exits_after_stopping_game(monkeypatch: MonkeyPatch) -> None:
     manager = TrayManager.__new__(TrayManager)
     manager.main_window = SimpleNamespace(stop_running_game=lambda: True)
     manager.minimal_mode = True
     manager.tray_icon = MagicMock()
-    manager.update_stop_game_action = MagicMock()
+    manager.update_game_actions = MagicMock()
     quit_app = MagicMock()
     monkeypatch.setattr("portprotonqt.tray_manager.QApplication.quit", quit_app)
 
