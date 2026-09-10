@@ -509,6 +509,8 @@ def main():
     window = MainWindow(app_name=__app_name__, version=version, launch_exe=launch_path, resolution=window_resolution, show_system_tab=args.ppqtos)
     window.silent_launch_mode = silent_game_request
     if silent_game_request:
+        window._initialize_tray(__app_name__)
+        assert window.tray_manager is not None
         if exe_path:
             window.tray_manager.tray_icon.hide()
         else:

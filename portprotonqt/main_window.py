@@ -1989,7 +1989,8 @@ class MainWindow(
     def _finish_silent_launch(self) -> None:
         if not getattr(self, "silent_launch_mode", False):
             return
-        self.tray_manager.tray_icon.hide()
+        if self.tray_manager is not None:
+            self.tray_manager.tray_icon.hide()
         QApplication.quit()
 
     def _set_running_button_stop(self) -> None:
