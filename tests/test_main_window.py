@@ -334,6 +334,22 @@ def test_settings_retranslate_existing_interface(monkeypatch: MonkeyPatch) -> No
         "(third-party themes may be unsafe)"
     )
 
+def test_tray_initialization_runs_once(monkeypatch: MonkeyPatch) -> None:
+    tray_manager = MagicMock()
+    create_tray = MagicMock(return_value=tray_manager)
+    window = cast(
+        Any,
+        SimpleNamespace(tray_manager=None, current_theme_name="standart"),
+    )
+    monkeypatch.setattr(main_window_module, "TrayManager", create_tray)
+
+    MainWindow._initialize_tray(window, "PortProtonQt")
+    MainWindow._initialize_tray(window, "PortProtonQt")
+
+    create_tray.assert_called_once_with(window, "PortProtonQt", "standart")
+    assert window.tray_manager is tray_manager
+
+
 def test_live_theme_style_replacement_does_not_rewrite_new_paths() -> None:
     mixin = MainWindowThemeTabMixin()
     style = "url(/themes/standart/images/check.svg)"
@@ -452,7 +468,8 @@ def test_vertical_library_uses_column_layout() -> None:
     assert manager.gamesListLayout.spacing() == 5
 
 def test_full_library_tile_accepts_async_cover_result() -> None:
-    QApplication.instance() or QApplication([])
+    application = QApplication.instance() or QApplication([])
+    assert application is not None
     manager: Any = GameLibraryManager.__new__(GameLibraryManager)
     theme = _tile_theme()
     tile = FullLibraryTile(theme)
@@ -467,7 +484,8 @@ def test_full_library_tile_accepts_async_cover_result() -> None:
     assert not tile.tile_pixmap.isNull()
 
 def test_full_library_tile_uses_card_scale() -> None:
-    QApplication.instance() or QApplication([])
+    application = QApplication.instance() or QApplication([])
+    assert application is not None
     theme = _tile_theme()
     tile = FullLibraryTile(theme)
 
@@ -1713,7 +1731,8 @@ def test_logout_skips_without_session_id(monkeypatch: MonkeyPatch) -> None:
     assert calls == []
 
 def test_delayed_system_adapters_appear_on_retry() -> None:
-    QApplication.instance() or QApplication([])
+    application = QApplication.instance() or QApplication([])
+    assert application is not None
     event_loop = QEventLoop()
     network_timer = QTimer()
     bluetooth_timer = QTimer()

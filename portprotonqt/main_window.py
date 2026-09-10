@@ -258,7 +258,8 @@ class MainWindow(
         self.current_theme_name = selected_theme
         # Apply theme but defer heavy font loading
         self.theme = self.theme_manager.apply_theme(selected_theme)
-        self.tray_manager = TrayManager(self, app_name, self.current_theme_name)
+        self.tray_manager = None
+        QTimer.singleShot(0, lambda: self._initialize_tray(app_name))
         self.card_width = ui_config.get_card_width()
         self.auto_card_width = ui_config.get_auto_card_width()
         self.setWindowTitle(f"{app_name} {version}")
@@ -2922,6 +2923,11 @@ class MainWindow(
                 logger.error(f"Failed to launch game {exe_name}: {e}")
                 QMessageBox.warning(self, _("Error"), _("Failed to launch game: {0}").format(str(e)))
 
+    def _initialize_tray(self, app_name: str) -> None:
+        """Create the tray item after the Qt event loop starts."""
+        if self.tray_manager is None:
+            self.tray_manager = TrayManager(self, app_name, self.current_theme_name)
+
     def closeEvent(self, event):
         """Handle window close: check minimize_to_tray setting.
         If True - minimize to tray. Otherwise - fully close.
@@ -2943,7 +2949,7 @@ class MainWindow(
             watcher.wait()
 
         # Hide and remove tray icon
-        if hasattr(self, "tray_manager"):
+        if self.tray_manager is not None:
             self.tray_manager.shutdown()
 
         # Save card sizes only for grid layouts.
