@@ -13,6 +13,7 @@ logger = get_logger(__name__)
 _migrated = False
 
 
+# Remove after the legacy statistics migration period.
 def _migrate_last_launch_file(data_home: str) -> str:
     """Migrate last_launch from old cache dir to XDG_DATA_HOME."""
     global _migrated
@@ -43,6 +44,7 @@ def get_last_launch_path():
 _stats_migrated = False
 
 
+# Remove after the legacy statistics migration period.
 def _migrate_statistics_file(data_home: str) -> str:
     """Migrate statistics from old cache/tmp dir to XDG_DATA_HOME."""
     global _stats_migrated

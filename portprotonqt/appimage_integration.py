@@ -183,6 +183,7 @@ def integrate_appimage() -> Path:
     resolved_icon = icon_source.resolve()
     icon = icon_dir / f"{APP_ID}.svg"
     _copy_appimage(source, destination)
+    # Remove after the legacy AppImage migration period.
     legacy_appimage = Path.home() / "Applications/PortProtonQt.AppImage"
     if legacy_appimage.resolve() != destination.resolve():
         portproton_location = get_portproton_location()
