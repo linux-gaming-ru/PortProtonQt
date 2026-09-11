@@ -258,6 +258,22 @@ msgstr "Escritorio"
 msgid "Failed to save custom data: {error}"
 msgstr "No se han podido guardar los datos personalizados: {error}"
 
+#, fuzzy, python-brace-format
+msgid "Executable not found"
+msgstr "No se ha encontrado el archivo ejecutable: {0}"
+
+#, python-brace-format
+msgid "Executable not found: {0}"
+msgstr "No se ha encontrado el archivo ejecutable: {0}"
+
+#, fuzzy
+msgid "Select another executable"
+msgstr "Ruta al ejecutable:"
+
+#, fuzzy, python-brace-format
+msgid "Destination already exists: {0}"
+msgstr "El archivo ya existe: {file_name}"
+
 msgid "Game name and executable path are required"
 msgstr ""
 "Es necesario indicar el nombre del juego y la ruta del archivo ejecutable"
@@ -266,16 +282,16 @@ msgid "Failed to generate .desktop file data"
 msgstr "No se han podido generar los datos del archivo .desktop"
 
 #, python-brace-format
+msgid "Failed to save .desktop file: {error}"
+msgstr "No se ha podido guardar el archivo .desktop: {error}"
+
+#, python-brace-format
 msgid "Failed to delete old .desktop file: {error}"
 msgstr "No se ha podido eliminar el archivo .desktop antiguo: {error}"
 
 #, python-brace-format
 msgid "Removed old .desktop file for '{game_name}'"
 msgstr "Se ha eliminado el antiguo archivo .desktop de «{game_name}»"
-
-#, python-brace-format
-msgid "Failed to save .desktop file: {error}"
-msgstr "No se ha podido guardar el archivo .desktop: {error}"
 
 #, python-brace-format
 msgid "Failed to copy cover image: {error}"
@@ -434,10 +450,6 @@ msgstr "Nunca"
 
 msgid "Unknown Application"
 msgstr "Aplicación desconocida"
-
-#, python-brace-format
-msgid "Executable not found: {0}"
-msgstr "No se ha encontrado el archivo ejecutable: {0}"
 
 #, python-brace-format
 msgid "File not found: {0}"

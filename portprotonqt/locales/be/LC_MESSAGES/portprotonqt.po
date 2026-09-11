@@ -249,10 +249,28 @@ msgstr ""
 msgid "Failed to save custom data: {error}"
 msgstr ""
 
+msgid "Executable not found"
+msgstr ""
+
+#, python-brace-format
+msgid "Executable not found: {0}"
+msgstr ""
+
+msgid "Select another executable"
+msgstr ""
+
+#, python-brace-format
+msgid "Destination already exists: {0}"
+msgstr ""
+
 msgid "Game name and executable path are required"
 msgstr ""
 
 msgid "Failed to generate .desktop file data"
+msgstr ""
+
+#, python-brace-format
+msgid "Failed to save .desktop file: {error}"
 msgstr ""
 
 #, python-brace-format
@@ -261,10 +279,6 @@ msgstr ""
 
 #, python-brace-format
 msgid "Removed old .desktop file for '{game_name}'"
-msgstr ""
-
-#, python-brace-format
-msgid "Failed to save .desktop file: {error}"
 msgstr ""
 
 #, python-brace-format
@@ -422,10 +436,6 @@ msgid "Never"
 msgstr ""
 
 msgid "Unknown Application"
-msgstr ""
-
-#, python-brace-format
-msgid "Executable not found: {0}"
 msgstr ""
 
 #, python-brace-format
