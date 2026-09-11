@@ -613,16 +613,23 @@ class DetailPageManager:
             )
         buttons_layout.addWidget(play_button)
 
-        if str(game_source).lower() == "steam" and appid:
+        if source in {"steam", "gog", "egs"} and appid:
             edit_button = self._make_action_button(
                 _("Edit Shortcut"),
                 self.main_window.theme_manager.get_icon("edit", as_path=True),
             )
-            edit_button.clicked.connect(
-                lambda: self.main_window.context_menu_manager.edit_game_shortcut(
-                    game_name, exec_line, cover_path, appid
+            if source == "steam":
+                edit_button.clicked.connect(
+                    lambda: self.main_window.context_menu_manager.edit_game_shortcut(
+                        game_name, exec_line, cover_path, appid
+                    )
                 )
-            )
+            else:
+                edit_button.clicked.connect(
+                    lambda: self.main_window.context_menu_manager._edit_id_shortcut(
+                        game_name, cover_path, (source, str(appid))
+                    )
+                )
             buttons_layout.addWidget(edit_button)
         elif self._has_game_shortcut(game_name):
             edit_button = self._make_action_button(

@@ -895,12 +895,12 @@ class TestEditSteamShortcut:
         manager.game_library_manager.games = [old_game]
         monkeypatch.setattr(context_menu, "AddGameDialog", make_dialog)
 
-        context_menu.ContextMenuManager._edit_steam_shortcut(
-            manager, "Old Game", 730, "/cover.jpg"
+        context_menu.ContextMenuManager._edit_id_shortcut(
+            manager, "Old Game", "/cover.jpg", ("steam", "730")
         )
 
         assert created_with["steam_appid"] == "730"
-        game_dir = tmp_path / "PortProtonQt" / "custom_data" / "730"
+        game_dir = tmp_path / "PortProtonQt" / "custom_data" / "steam-730"
         assert (game_dir / "cover.webp").read_bytes() == b"cover"
         assert (game_dir / "metadata.txt").read_text(encoding="utf-8") == (
             "name=New Game\n"
@@ -914,6 +914,48 @@ class TestEditSteamShortcut:
             "New Game",
             str(game_dir / "cover.webp"),
         )
+
+    def test_saves_name_and_cover_by_store_id(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        import portprotonqt.context_menu_manager as context_menu
+
+        monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+        source_cover = tmp_path / "selected.png"
+        source_cover.write_bytes(b"cover")
+        dialog = MagicMock()
+        dialog.nameEdit.text.return_value = "Custom GOG Game"
+        dialog.coverEdit.text.return_value = str(source_cover)
+        dialog.last_cover_path = str(source_cover)
+        dialog.exec.return_value = context_menu.QDialog.DialogCode.Accepted
+        manager = context_menu.ContextMenuManager.__new__(
+            context_menu.ContextMenuManager
+        )
+        manager.parent = MagicMock()
+        manager.theme = None
+        manager.signals = MagicMock()
+        gog_game = (
+            "GOG Game", "", "/old.jpg", "123", "", "gog://launch/123",
+            "", "", "", "", 0, 0, "gog",
+        )
+        egs_game = (
+            "EGS Game", "", "/old.jpg", "ABC", "", "egs://launch/ABC",
+            "", "", "", "", 0, 0, "egs",
+        )
+        manager.game_library_manager = MagicMock(games=[gog_game, egs_game])
+        monkeypatch.setattr(context_menu, "AddGameDialog", lambda **_kwargs: dialog)
+
+        manager._edit_id_shortcut("GOG Game", "/old.jpg", ("gog", "123"))
+        manager._edit_id_shortcut("EGS Game", "/old.jpg", ("egs", "ABC"))
+
+        custom_root = tmp_path / "PortProtonQt" / "custom_data"
+        for storage_id in ("gog-123", "egs-ABC"):
+            game_dir = custom_root / storage_id
+            assert (game_dir / "metadata.txt").read_text() == "name=Custom GOG Game\n"
+            assert (game_dir / "cover.png").read_bytes() == b"cover"
+        replacement = manager.game_library_manager.replace_game_incremental
+        assert replacement.call_count == 2
+        assert all(call.args[2][0] == "Custom GOG Game" for call in replacement.call_args_list)
 
 
 # ── Delete installed shortcuts ───────────────────────────────────────────────

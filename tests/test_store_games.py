@@ -18,6 +18,35 @@ from portprotonqt.tabs.download_tab import MainWindowDownloadTabMixin as GOGMixi
 import portprotonqt.main_window as main_window_module
 import portprotonqt.tabs.download_tab as download_tab_module
 
+
+@mark.parametrize(("source", "app_id"), (("gog", "123"), ("egs", "ABC")))
+def test_custom_store_data_uses_source_and_id(
+    tmp_path: Path, monkeypatch: MonkeyPatch, source: str, app_id: str
+) -> None:
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    game_dir = tmp_path / "PortProtonQt" / "custom_data" / f"{source}-{app_id}"
+    game_dir.mkdir(parents=True)
+    (game_dir / "metadata.txt").write_text("name=Custom Game\n")
+    (game_dir / "cover.jpg").write_bytes(b"cover")
+
+    assert MainWindow._get_custom_store_data(source, app_id, "Store Game") == (
+        "Custom Game", str(game_dir / "cover.jpg")
+    )
+
+
+def test_custom_steam_data_reads_legacy_appid_directory(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    game_dir = tmp_path / "PortProtonQt" / "custom_data" / "730"
+    game_dir.mkdir(parents=True)
+    (game_dir / "metadata.txt").write_text("name=Legacy Name\n")
+
+    assert MainWindow._get_custom_steam_data("730", "Steam Game") == (
+        "Legacy Name", ""
+    )
+
+
 def test_gog_logout_removes_credentials_and_library_cache(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:

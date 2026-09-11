@@ -548,6 +548,14 @@ class ContextMenuManager:
                 import_action.triggered.connect(
                     lambda: self.parent._import_gog_game(game)
                 )
+            edit_action = menu.addAction(self._get_safe_icon("edit"), _("Edit Shortcut"))
+            edit_action.triggered.connect(
+                lambda: self._edit_id_shortcut(
+                    game_card.name,
+                    game_card.cover_path,
+                    ("gog", str(game_card.appid)),
+                )
+            )
 
         if game_card.game_source == "egs":
             app_id = str(game_card.appid)
@@ -611,6 +619,12 @@ class ContextMenuManager:
                 import_action.triggered.connect(
                     lambda: self.parent._import_egs_game(app_id)
                 )
+            edit_action = menu.addAction(self._get_safe_icon("edit"), _("Edit Shortcut"))
+            edit_action.triggered.connect(
+                lambda: self._edit_id_shortcut(
+                    game_card.name, game_card.cover_path, ("egs", app_id)
+                )
+            )
 
         if game_card.game_source == "steam":
             desktop_dir = QStandardPaths.writableLocation(
@@ -1288,29 +1302,34 @@ class ContextMenuManager:
         ):
             self._update_desktop_database()
 
-    def _edit_steam_shortcut(self, game_name: str, appid: int | str, cover_path: str) -> None:
-        appid_str = str(appid).strip()
-        if not appid_str.isdigit():
-            logger.warning("Invalid Steam appid for shortcut editing: %s", appid)
+    def _edit_id_shortcut(self, game_name: str, cover_path: str,
+                          store: tuple[str, str]) -> None:
+        source, app_id = store
+        app_id = str(app_id).strip()
+        invalid_path = app_id in {".", ".."} or os.path.basename(app_id) != app_id
+        if not app_id or invalid_path or (source == "steam" and not app_id.isdigit()):
+            logger.warning("Invalid %s game ID for shortcut editing: %s", source, app_id)
             return
         dialog = AddGameDialog(parent=self.parent, theme=self.theme, edit_mode=True,
-                               game_name=game_name, cover_path=cover_path, steam_appid=appid_str)
+                               game_name=game_name, cover_path=cover_path, steam_appid=app_id)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         new_name = dialog.nameEdit.text().strip()
         if not new_name:
             return
         selected_cover = dialog.coverEdit.text().strip()
-        if not os.path.isfile(selected_cover) and dialog.last_cover_path and os.path.isfile(dialog.last_cover_path):
+        if (not os.path.isfile(selected_cover) and dialog.last_cover_path
+                and os.path.isfile(dialog.last_cover_path)):
             selected_cover = dialog.last_cover_path
-        xdg_data_home = os.getenv(
-            "XDG_DATA_HOME", os.path.join(os.path.expanduser("~"), ".local", "share")
-        )
-        game_dir = os.path.join(xdg_data_home, "PortProtonQt", "custom_data", appid_str)
+        default_data_home = os.path.join(os.path.expanduser("~"), ".local", "share")
+        xdg_data_home = os.getenv("XDG_DATA_HOME", default_data_home)
+        game_dir = os.path.join(xdg_data_home, "PortProtonQt", "custom_data",
+                                f"{source}-{app_id}")
         try:
             os.makedirs(game_dir, exist_ok=True)
             clean_name = new_name.replace("\r", " ").replace("\n", " ").strip()
-            with open(os.path.join(game_dir, "metadata.txt"), "w", encoding="utf-8") as metadata_file:
+            metadata_path = os.path.join(game_dir, "metadata.txt")
+            with open(metadata_path, "w", encoding="utf-8") as metadata_file:
                 metadata_file.write(f"name={clean_name}\n")
             if selected_cover and os.path.isfile(selected_cover):
                 extension = os.path.splitext(selected_cover)[1].lower()
@@ -1322,19 +1341,16 @@ class ContextMenuManager:
                     shutil.copyfile(selected_cover, target_cover)
                 cover_path = target_cover
         except OSError as e:
-            self.signals.show_warning_dialog.emit(
-                _("Error"), _("Failed to save custom data: {error}").format(error=str(e))
-            )
+            message = _("Failed to save custom data: {error}").format(error=str(e))
+            self.signals.show_warning_dialog.emit(_("Error"), message)
             return
         for game in self.game_library_manager.games:
-            if str(game[3]) != appid_str or game[12] != "steam":
+            if str(game[3]) != app_id or game[12] != source:
                 continue
             updated_game = list(game)
             updated_game[0] = new_name
             updated_game[2] = cover_path
-            self.game_library_manager.replace_game_incremental(
-                game[0], game[5], tuple(updated_game)
-            )
+            self.game_library_manager.replace_game_incremental(game[0], game[5], tuple(updated_game))
             QTimer.singleShot(0, self.game_library_manager.load_visible_images)
             return
 
@@ -1419,7 +1435,7 @@ class ContextMenuManager:
             cover_path: The path to the game's cover image.
         """
         if appid is not None:
-            self._edit_steam_shortcut(game_name, appid, cover_path)
+            self._edit_id_shortcut(game_name, cover_path, ("steam", str(appid)))
             return
         if not self._check_portproton():
             return
