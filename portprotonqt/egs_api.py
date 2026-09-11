@@ -38,17 +38,31 @@ class EGSAPI:
 
     def __init__(self) -> None:
         data_home = Path(os.getenv("XDG_DATA_HOME", Path.home() / ".local/share"))
-        self.data_dir = data_home / "PortProtonQt" / "egs"
+        self.data_dir = data_home / "PortProtonQt" / "launcher" / "egs"
+        self.bin_dir = data_home / "PortProtonQt" / "bin"
+        legacy_dir = data_home / "PortProtonQt" / "egs"
+        if legacy_dir.exists() and not self.data_dir.exists():
+            self.data_dir.parent.mkdir(parents=True, exist_ok=True)
+            legacy_dir.rename(self.data_dir)
+        legacy_bin = self.data_dir / "bin"
+        if legacy_bin.is_dir():
+            self.bin_dir.mkdir(parents=True, exist_ok=True)
+            for legacy_binary in legacy_bin.iterdir():
+                target = self.bin_dir / legacy_binary.name
+                if not target.exists():
+                    legacy_binary.rename(target)
+            if not any(legacy_bin.iterdir()):
+                legacy_bin.rmdir()
         self.config_dir = self.data_dir / "legendary"
         self.user_path = self.config_dir / "user.json"
         self.library_path = self.data_dir / "library.json"
         self.sizes_path = self.data_dir / "sizes.json"
-        self.version_path = self.data_dir / "bin/legendary.version"
+        self.version_path = self.bin_dir / "legendary.version"
         self.games_dir = Path.home() / "Games"
 
     def get_legendary_path(self) -> str | None:
         """Return an available Legendary executable."""
-        bundled = self.data_dir / "bin/legendary"
+        bundled = self.bin_dir / "legendary"
         if bundled.is_file() and os.access(bundled, os.X_OK):
             return str(bundled)
         return shutil.which("legendary")
@@ -63,7 +77,7 @@ class EGSAPI:
 
     def update_legendary(self) -> str:
         """Update the bundled Legendary binary when a newer release exists."""
-        bundled = self.data_dir / "bin/legendary"
+        bundled = self.bin_dir / "legendary"
         if bundled.is_file() and os.access(bundled, os.X_OK):
             try:
                 last_check = self.version_path.stat().st_mtime
@@ -109,7 +123,7 @@ class EGSAPI:
             return ""
 
     def _download_legendary(self, asset: dict, release_tag: str) -> str:
-        target = self.data_dir / "bin/legendary"
+        target = self.bin_dir / "legendary"
         temporary = target.with_suffix(".part")
         target.parent.mkdir(parents=True, exist_ok=True)
         digest = hashlib.sha256()

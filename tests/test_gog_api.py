@@ -287,6 +287,7 @@ def test_is_authenticated_requires_token_and_user_id(monkeypatch) -> None:
 def test_ensure_gogdl_downloads_matching_architecture(tmp_path: Path, monkeypatch) -> None:
     api = GOGAPI()
     api.data_dir = tmp_path
+    api.bin_dir = tmp_path / "bin"
     asset = {"name": "gogdl_linux_x86_64"}
     response = Mock()
     response.json.return_value = {"assets": [asset], "tag_name": "v1.2.1"}
@@ -303,6 +304,7 @@ def test_ensure_gogdl_downloads_matching_architecture(tmp_path: Path, monkeypatc
 def test_update_gogdl_skips_current_release(tmp_path: Path, monkeypatch) -> None:
     api = GOGAPI()
     api.data_dir = tmp_path
+    api.bin_dir = tmp_path / "bin"
     api.gogdl_version_path = tmp_path / "bin/gogdl.version"
     gogdl_path = tmp_path / "bin/gogdl"
     gogdl_path.parent.mkdir()
@@ -322,6 +324,7 @@ def test_update_gogdl_skips_current_release(tmp_path: Path, monkeypatch) -> None
 def test_update_gogdl_checks_release_after_month(tmp_path: Path, monkeypatch) -> None:
     api = GOGAPI()
     api.data_dir = tmp_path
+    api.bin_dir = tmp_path / "bin"
     api.gogdl_version_path = tmp_path / "bin/gogdl.version"
     gogdl_path = tmp_path / "bin/gogdl"
     gogdl_path.parent.mkdir()
@@ -344,6 +347,7 @@ def test_update_gogdl_checks_release_after_month(tmp_path: Path, monkeypatch) ->
 def test_update_gogdl_records_failed_monthly_check(tmp_path: Path, monkeypatch) -> None:
     api = GOGAPI()
     api.data_dir = tmp_path
+    api.bin_dir = tmp_path / "bin"
     api.gogdl_version_path = tmp_path / "bin/gogdl.version"
     gogdl_path = tmp_path / "bin/gogdl"
     gogdl_path.parent.mkdir()
@@ -369,6 +373,7 @@ def test_update_gogdl_records_failed_monthly_check(tmp_path: Path, monkeypatch) 
 def test_update_gogdl_installs_new_release(tmp_path: Path, monkeypatch) -> None:
     api = GOGAPI()
     api.data_dir = tmp_path
+    api.bin_dir = tmp_path / "bin"
     api.gogdl_version_path = tmp_path / "bin/gogdl.version"
     asset = {"name": "gogdl_linux_x86_64"}
     monkeypatch.setattr(api, "_get_latest_gogdl_release", lambda: (asset, "v1.2.1"))

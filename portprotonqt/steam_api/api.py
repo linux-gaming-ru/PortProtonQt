@@ -14,7 +14,7 @@ from PIL import Image, UnidentifiedImageError
 from portprotonqt.logger import get_logger
 from portprotonqt.downloader import Downloader
 from portprotonqt.localization import get_steam_language
-from portprotonqt.config import THEMED_LAUNCH_ICON_NAMES, extract_exec_target_path, ui_config
+from portprotonqt.config import CACHE_DIR, THEMED_LAUNCH_ICON_NAMES, extract_exec_target_path, ui_config
 from portprotonqt.image_utils import COVER_IMAGE_EXTENSIONS
 from portprotonqt.steam_api.utils import decode_text, get_local_steam_cover
 from portprotonqt.steam_api.cache import (
@@ -501,8 +501,7 @@ def _get_cached_data_and_index(
 
 
 def _get_cached_steam_cover_path(appid: int) -> str:
-    xdg_cache_home = os.getenv("XDG_CACHE_HOME", os.path.join(os.path.expanduser("~"), ".cache"))
-    image_folder = os.path.join(xdg_cache_home, "PortProtonQt", "images")
+    image_folder = str(CACHE_DIR / "images")
     for ext in COVER_IMAGE_EXTENSIONS:
         cover_path = os.path.join(image_folder, f"{appid}{ext}")
         if os.path.exists(cover_path):

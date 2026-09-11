@@ -14,7 +14,8 @@ import requests
 from PySide6.QtCore import QThread, Signal
 
 from portprotonqt.downloader import get_requests_session
-from portprotonqt.config import CACHE_DIR, ui_config
+from portprotonqt.config import ui_config
+from portprotonqt.config.base import XDG_DATA_HOME
 from portprotonqt.logger import get_logger
 
 logger = get_logger(__name__)
@@ -59,7 +60,7 @@ def _get_appimage_arch() -> str:
 
 
 def _cached_tool_path() -> Path:
-    return CACHE_DIR / "bin" / "appimageupdatetool"
+    return XDG_DATA_HOME / "PortProtonQt" / "bin" / "appimageupdatetool"
 
 
 def _get_appimageupdatetool_url() -> str:

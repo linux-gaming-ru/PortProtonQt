@@ -1282,6 +1282,7 @@ def test_relocate_data_conflict_preserves_source(tmp_path: Path, monkeypatch: An
     from portprotonqt.context_menu_manager import ContextMenuManager
 
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    monkeypatch.setattr("portprotonqt.context_menu_manager._", lambda _text: "Conflict: {file_name}")
     old_exe, new_exe = str(tmp_path / "old.exe"), str(tmp_path / "new.exe")
     root = tmp_path / "PortProtonQt" / "custom_data"
     source = root / get_custom_data_dir_name(old_exe)
@@ -1291,9 +1292,10 @@ def test_relocate_data_conflict_preserves_source(tmp_path: Path, monkeypatch: An
     Path(old_exe + ".ppdb").write_text("source")
     manager = object.__new__(ContextMenuManager)
 
-    with pytest.raises(FileExistsError):
+    with pytest.raises(FileExistsError) as error:
         manager._relocate_shortcut_data(old_exe, new_exe)
 
+    assert str(error.value) == f"Conflict: {new_exe}.ppdb"
     assert (source / "metadata.txt").read_text() == "original"
     assert Path(new_exe + ".ppdb").read_text() == "destination"
     assert Path(old_exe + ".ppdb").read_text() == "source"
@@ -1386,3 +1388,45 @@ def test_missing_dialog_buttons_fit_translated_text(monkeypatch: Any) -> None:
 
     assert len(widths) == 3
     assert all(actual >= required for actual, required in widths)
+
+
+def test_edit_shortcut_removes_desktop_file_with_original_filename(
+    tmp_path: Path, monkeypatch: Any,
+) -> None:
+    import portprotonqt.context_menu_manager as context_menu
+
+    desktop_dir = tmp_path / "Desktop"
+    desktop_dir.mkdir()
+    source = tmp_path / "Original.desktop"
+    source.write_text("[Desktop Entry]\nName=Renamed\nExec=/games/game.exe\n")
+    desktop_shortcut = desktop_dir / source.name
+    desktop_shortcut.write_text(source.read_text())
+    manager = object.__new__(context_menu.ContextMenuManager)
+    manager.parent = None
+    manager.theme = SimpleNamespace()
+    manager.signals = MagicMock()
+    manager._check_portproton = MagicMock(return_value=True)
+    manager._get_exec_line = MagicMock(return_value="/games/game.exe")
+    manager._get_desktop_path = MagicMock(return_value=str(source))
+    manager._get_menu_shortcut_path = MagicMock(return_value=str(tmp_path / "missing.desktop"))
+    manager._relocate_shortcut_data = MagicMock(return_value=[])
+    dialog = MagicMock()
+    dialog.exec.return_value = context_menu.QDialog.DialogCode.Accepted
+    dialog.nameEdit.text.return_value = "Renamed"
+    dialog.exeEdit.text.return_value = "/games/game.exe"
+    dialog.coverEdit.text.return_value = ""
+    dialog.getDesktopEntryData.return_value = (source.read_text(), str(source))
+    dialog.add_to_menu_checkbox.isChecked.return_value = False
+    dialog.add_to_desktop_checkbox.isChecked.return_value = False
+    dialog.add_to_steam_checkbox.isChecked.return_value = False
+    monkeypatch.setattr(context_menu, "AddGameDialog", lambda **_kwargs: dialog)
+    monkeypatch.setattr(context_menu, "is_game_in_steam", lambda _name: False)
+    monkeypatch.setattr(
+        context_menu.QStandardPaths, "writableLocation", lambda _location: str(desktop_dir)
+    )
+
+    manager.edit_game_shortcut("Renamed", "/games/game.exe", "")
+
+    assert not desktop_shortcut.exists()
+    assert source.exists()
+    manager.signals.show_warning_dialog.emit.assert_not_called()

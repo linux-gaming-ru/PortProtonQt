@@ -8,7 +8,7 @@ from PySide6.QtCore import (
 from PySide6.QtWidgets import QGraphicsItem, QToolButton, QFrame, QLabel, QGraphicsScene, QHBoxLayout, QWidget, QGraphicsView, QVBoxLayout, QSizePolicy
 from PySide6.QtWidgets import QSpacerItem, QGraphicsPixmapItem, QDialog, QApplication
 from PIL import Image, ImageQt, ImageSequence
-from portprotonqt.config import ui_config
+from portprotonqt.config import CACHE_DIR, ui_config
 from portprotonqt.theme_manager import ThemeManager, load_theme
 from portprotonqt.downloader import Downloader
 from portprotonqt.icon_extractor import generate_thumbnail
@@ -367,8 +367,7 @@ def _get_ppdb_autoinstall_image_name(cover: str) -> str:
 
 
 def clear_ppdb_autoinstall_image_cache(cover_urls: list[str]) -> None:
-    xdg_cache_home = os.getenv("XDG_CACHE_HOME", os.path.join(os.path.expanduser("~"), ".cache"))
-    image_folder = os.path.join(xdg_cache_home, "PortProtonQt", "images")
+    image_folder = str(CACHE_DIR / "images")
     for cover in cover_urls:
         filename = _get_ppdb_autoinstall_image_name(cover)
         if not filename:
@@ -457,8 +456,7 @@ def load_pixmap_async(
             pixmap.load(icon_path)
             return pixmap
 
-        xdg_cache_home = os.getenv("XDG_CACHE_HOME", os.path.join(os.path.expanduser("~"), ".cache"))
-        image_folder = os.path.join(xdg_cache_home, "PortProtonQt", "images")
+        image_folder = str(CACHE_DIR / "images")
         os.makedirs(image_folder, exist_ok=True)
 
         if cover and cover.startswith("https://steamcdn-a.akamaihd.net/steam/apps/"):

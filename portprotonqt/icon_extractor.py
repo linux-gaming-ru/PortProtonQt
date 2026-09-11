@@ -7,6 +7,7 @@ import struct
 import io
 import pefile
 from PIL import Image
+from portprotonqt.config.base import CACHE_DIR
 from portprotonqt.logger import get_logger
 
 logger = get_logger(__name__)
@@ -48,14 +49,9 @@ def _resolve_batch_icon_target(inputfile: str) -> str | None:
 
 def get_exe_icon_cache_path(exe_path: str) -> str:
     """Return the shared cache path for an executable icon."""
-    cache_home = os.getenv(
-        "XDG_CACHE_HOME",
-        os.path.join(os.path.expanduser("~"), ".cache"),
-    )
     icon_name = re.sub(r"[^A-Za-z0-9._-]", "_", os.path.basename(exe_path))
     return os.path.join(
-        cache_home,
-        "PortProtonQt",
+        CACHE_DIR,
         "images",
         "exe_icons",
         f"{icon_name}.png",

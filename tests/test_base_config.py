@@ -1,5 +1,6 @@
 """Tests for config/base.py — BaseConfig read/write cycle."""
 from pathlib import Path
+import runpy
 
 import pytest
 
@@ -177,3 +178,14 @@ class TestUpdateAppVersion:
         from portprotonqt.config.base import update_app_version
         update_app_version("1.0.0")
         assert update_app_version("1.1.0") is True
+
+
+def test_cache_path_does_not_follow_temporary_xdg_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    source = Path(__file__).parents[1] / "portprotonqt" / "config" / "base.py"
+    for launch in ("first", "second"):
+        monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / launch))
+        paths = runpy.run_path(str(source))
+        assert paths["CACHE_DIR"] == tmp_path / "data" / "PortProtonQt" / "cache"

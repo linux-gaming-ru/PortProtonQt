@@ -47,11 +47,25 @@ class GOGAPI:
 
     def __init__(self) -> None:
         data_home = Path(os.getenv("XDG_DATA_HOME", Path.home() / ".local/share"))
-        self.data_dir = data_home / "PortProtonQt" / "gog"
+        self.data_dir = data_home / "PortProtonQt" / "launcher" / "gog"
+        self.bin_dir = data_home / "PortProtonQt" / "bin"
+        legacy_dir = data_home / "PortProtonQt" / "gog"
+        if legacy_dir.exists() and not self.data_dir.exists():
+            self.data_dir.parent.mkdir(parents=True, exist_ok=True)
+            legacy_dir.rename(self.data_dir)
+        legacy_bin = self.data_dir / "bin"
+        if legacy_bin.is_dir():
+            self.bin_dir.mkdir(parents=True, exist_ok=True)
+            for legacy_binary in legacy_bin.iterdir():
+                target = self.bin_dir / legacy_binary.name
+                if not target.exists():
+                    legacy_binary.rename(target)
+            if not any(legacy_bin.iterdir()):
+                legacy_bin.rmdir()
         self.auth_path = self.data_dir / "auth.json"
         self.account_path = self.data_dir / "account.json"
         self.config_dir = self.data_dir / "gogdl"
-        self.gogdl_version_path = self.data_dir / "bin/gogdl.version"
+        self.gogdl_version_path = self.bin_dir / "gogdl.version"
         self.library_path = self.data_dir / "library.json"
         self.installed_path = self.data_dir / "installed.json"
         self.sizes_path = self.data_dir / "sizes.json"
@@ -59,7 +73,7 @@ class GOGAPI:
 
     def get_gogdl_path(self) -> str | None:
         """Return an available gogdl executable."""
-        bundled = self.data_dir / "bin/gogdl"
+        bundled = self.bin_dir / "gogdl"
         if bundled.is_file() and os.access(bundled, os.X_OK):
             return str(bundled)
         return shutil.which("gogdl")
@@ -84,7 +98,7 @@ class GOGAPI:
 
     def update_gogdl(self) -> str:
         """Update the bundled gogdl binary to the latest official release."""
-        bundled = self.data_dir / "bin/gogdl"
+        bundled = self.bin_dir / "gogdl"
         if bundled.is_file() and os.access(bundled, os.X_OK):
             try:
                 last_check = self.gogdl_version_path.stat().st_mtime
@@ -134,7 +148,7 @@ class GOGAPI:
         return path
 
     def _download_gogdl_asset(self, asset: dict) -> str:
-        target = self.data_dir / "bin/gogdl"
+        target = self.bin_dir / "gogdl"
         temporary = target.with_suffix(".part")
         target.parent.mkdir(parents=True, exist_ok=True)
         digest = hashlib.sha256()

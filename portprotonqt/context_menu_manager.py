@@ -1368,7 +1368,7 @@ class ContextMenuManager:
         moves = [(source, target) for source, target in paths if os.path.exists(source)]
         for _source, target in moves:
             if os.path.lexists(target):
-                raise FileExistsError(_("Destination already exists: {0}").format(target))
+                raise FileExistsError(_("File already exists: {file_name}").format(file_name=target))
         completed = []
         try:
             for source, target in moves:
@@ -1546,8 +1546,8 @@ class ContextMenuManager:
             old_menu_path = self._get_menu_shortcut_path(game_name)
             new_menu_path = self._get_menu_shortcut_path(new_name)
             desktop_dir = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DesktopLocation)
-            old_desktop_path = os.path.join(desktop_dir, f"{game_name}.desktop")
-            new_desktop_path_target = os.path.join(desktop_dir, f"{new_name}.desktop")
+            old_desktop_path = self._get_shortcut_path(game_name, desktop_dir)
+            new_desktop_path_target = self._get_shortcut_path(new_name, desktop_dir)
 
             if game_name != new_name:
                 if os.path.exists(old_menu_path):

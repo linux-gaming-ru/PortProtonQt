@@ -45,7 +45,7 @@ def test_detail_page_exe_fallback_uses_image_cache(
 ) -> None:
     exe_path = tmp_path / "game.exe"
     exe_path.write_bytes(b"MZ")
-    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    monkeypatch.setattr("portprotonqt.icon_extractor.CACHE_DIR", tmp_path / "cache" / "PortProtonQt")
 
     fallback_exe, fallback_path = DetailPageManager._get_exe_icon_fallback({
         "exec_line": str(exe_path),
