@@ -781,12 +781,26 @@ def test_game_card_click_uses_select_callback() -> None:
         protondb_appid="1",
         autoinstall_exe_name="",
         select_callback=select_callback,
+        _get_missing_executable_path=lambda: "",
     )
 
     GameCard.click(cast(Any, card))
 
     select_callback.assert_called_once()
     assert select_callback.call_args.args[0]["name"] == "Game"
+
+
+def test_missing_game_card_click_offers_repair() -> None:
+    card = SimpleNamespace(
+        _get_missing_executable_path=lambda: "/missing/game.exe",
+        context_menu_manager=MagicMock(),
+        select_callback=MagicMock(),
+    )
+
+    GameCard.click(cast(Any, card))
+
+    card.context_menu_manager.handle_missing_executable.assert_called_once_with(card)
+    card.select_callback.assert_not_called()
 
 def test_game_card_theme_refresh_updates_hidden_badge_styles() -> None:
     card = MagicMock()

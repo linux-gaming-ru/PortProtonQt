@@ -11,7 +11,7 @@ Covers:
 import os
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 from PySide6.QtCore import QPoint, Qt
@@ -1246,3 +1246,143 @@ class TestCopyShortcut:
         _copy_shortcut(str(src), str(target_dir))
         dest = target_dir / "Game.desktop"
         assert os.access(str(dest), os.X_OK)
+
+
+def test_relocate_missing_executable_data(tmp_path: Path, monkeypatch: Any) -> None:
+    from portprotonqt.context_menu_manager import ContextMenuManager
+
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    old_exe = tmp_path / "Old Game.exe"
+    new_exe = tmp_path / "New Game.exe"
+    new_exe.touch()
+    old_ppdb = Path(f"{old_exe}.ppdb")
+    old_ppdb.write_text('export WINEPREFIX="GamePrefix"\n')
+    root = tmp_path / "PortProtonQt" / "custom_data"
+    old_folder = root / "Old Game"
+    old_folder.mkdir(parents=True)
+    (old_folder / "metadata.txt").write_text("name=My Game\n")
+    (old_folder / "cover.png").write_bytes(b"cover")
+    (old_folder / "screenshots").mkdir()
+    (old_folder / "screenshots" / "1.png").write_bytes(b"screenshot")
+    manager = object.__new__(ContextMenuManager)
+
+    manager._relocate_shortcut_data(str(old_exe), str(new_exe))
+
+    new_folder = root / get_custom_data_dir_name(str(new_exe))
+    assert not old_folder.exists()
+    assert not old_ppdb.exists()
+    assert (new_folder / "metadata.txt").read_text() == "name=My Game\n"
+    assert (new_folder / "cover.png").read_bytes() == b"cover"
+    assert (new_folder / "screenshots" / "1.png").read_bytes() == b"screenshot"
+    assert Path(f"{new_exe}.ppdb").read_text() == 'export WINEPREFIX="GamePrefix"\n'
+
+
+def test_relocate_data_conflict_preserves_source(tmp_path: Path, monkeypatch: Any) -> None:
+    import pytest
+    from portprotonqt.context_menu_manager import ContextMenuManager
+
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    old_exe, new_exe = str(tmp_path / "old.exe"), str(tmp_path / "new.exe")
+    root = tmp_path / "PortProtonQt" / "custom_data"
+    source = root / get_custom_data_dir_name(old_exe)
+    source.mkdir(parents=True)
+    (source / "metadata.txt").write_text("original")
+    Path(new_exe + ".ppdb").write_text("destination")
+    Path(old_exe + ".ppdb").write_text("source")
+    manager = object.__new__(ContextMenuManager)
+
+    with pytest.raises(FileExistsError):
+        manager._relocate_shortcut_data(old_exe, new_exe)
+
+    assert (source / "metadata.txt").read_text() == "original"
+    assert Path(new_exe + ".ppdb").read_text() == "destination"
+    assert Path(old_exe + ".ppdb").read_text() == "source"
+
+
+def test_relocate_statistics_preserves_other_games(tmp_path: Path, monkeypatch: Any) -> None:
+    from portprotonqt.context_menu_manager import ContextMenuManager
+    from portprotonqt.time_utils import get_last_launch_path, get_statistics_path
+
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    old_exe, new_exe = str(tmp_path / "Old Game.exe"), str(tmp_path / "New Game.exe")
+    statistics = Path(get_statistics_path())
+    statistics.parent.mkdir(parents=True, exist_ok=True)
+    statistics.write_text(f"{old_exe.replace(' ', '#@_@#')} sha256 125\n/other.exe hash 10\n")
+    last_launch = Path(get_last_launch_path())
+    last_launch.write_text("Old Game 2026-09-11T12:00:00\nOther 2026-01-01T00:00:00\n")
+    manager = object.__new__(ContextMenuManager)
+
+    manager._relocate_shortcut_statistics(old_exe, new_exe)
+
+    assert statistics.read_text() == f"{new_exe.replace(' ', '#@_@#')} sha256 125\n/other.exe hash 10\n"
+    assert last_launch.read_text() == "New Game 2026-09-11T12:00:00\nOther 2026-01-01T00:00:00\n"
+
+
+def test_missing_executable_dialog_actions(monkeypatch: Any) -> None:
+    import portprotonqt.context_menu_manager as context_menu
+
+    manager = object.__new__(context_menu.ContextMenuManager)
+    manager.parent = None
+    manager.delete_game = MagicMock()
+    manager.edit_game_shortcut = MagicMock()
+    card = SimpleNamespace(name="Game", exec_line="missing.exe", cover_path="cover.png",
+                           missing_executable_path="missing.exe")
+    dialog = MagicMock()
+    buttons = [object(), object(), object()]
+    monkeypatch.setattr(context_menu, "QMessageBox", MagicMock(return_value=dialog))
+    for selection in range(3):
+        dialog.addButton.side_effect = buttons
+        dialog.clickedButton.return_value = buttons[selection]
+        manager.handle_missing_executable(cast(Any, card))
+
+    manager.delete_game.assert_called_once_with("Game", "missing.exe")
+    manager.edit_game_shortcut.assert_called_once_with("Game", "missing.exe", "cover.png")
+
+
+def test_missing_executable_editor_can_be_cancelled(tmp_path: Path, monkeypatch: Any) -> None:
+    import portprotonqt.context_menu_manager as context_menu
+
+    manager = object.__new__(context_menu.ContextMenuManager)
+    manager.parent = None
+    manager.theme = SimpleNamespace()
+    manager._check_portproton = MagicMock(return_value=True)
+    manager._get_exec_line = MagicMock(return_value=f'portprotonqt --silent "{tmp_path}/missing.exe"')
+    manager._relocate_shortcut_data = MagicMock()
+    dialog = MagicMock()
+    dialog.exec.return_value = context_menu.QDialog.DialogCode.Rejected
+    factory = MagicMock(return_value=dialog)
+    monkeypatch.setattr(context_menu, "AddGameDialog", factory)
+
+    manager.edit_game_shortcut("Game", "old command", "cover.png")
+
+    assert factory.call_args.kwargs["exe_path"] == str(tmp_path / "missing.exe")
+    manager._relocate_shortcut_data.assert_not_called()
+
+
+def test_missing_dialog_buttons_fit_translated_text(monkeypatch: Any) -> None:
+    import portprotonqt.context_menu_manager as context_menu
+    from portprotonqt.themes.standart.styles.base import MAIN_WINDOW_STYLE, MESSAGE_BOX_STYLE
+
+    app = QApplication.instance() or QApplication([])
+    parent = QWidget()
+    parent.setStyleSheet(MAIN_WINDOW_STYLE + MESSAGE_BOX_STYLE)
+    manager = object.__new__(context_menu.ContextMenuManager)
+    manager.parent = parent
+    card = SimpleNamespace(missing_executable_path="/games/Long Game Name/missing.exe")
+    translations = {"Delete from PortProton": "Удалить из PortProton",
+                    "Select another executable": "Указать другой исполняемый файл"}
+    monkeypatch.setattr(context_menu, "_", lambda text: translations.get(text, text))
+    widths = []
+
+    def inspect_dialog(dialog: Any) -> int:
+        dialog.show()
+        app.processEvents()
+        widths.extend((button.width(), button.sizeHint().width()) for button in dialog.buttons())
+        dialog.reject()
+        return 0
+
+    monkeypatch.setattr(context_menu.QMessageBox, "exec", inspect_dialog)
+    manager.handle_missing_executable(cast(Any, card))
+
+    assert len(widths) == 3
+    assert all(actual >= required for actual, required in widths)
