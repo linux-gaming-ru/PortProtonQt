@@ -24,7 +24,7 @@ THEMES_DIRS = [
 ]
 
 # Cache paths
-CACHE_DIR = Path(os.getenv("XDG_CACHE_HOME", Path.home() / ".cache")) / "PortProtonQt"
+CACHE_DIR = XDG_DATA_HOME / "PortProtonQt" / "cache"
 
 # Module-level cache storage
 _config_cache: dict[str, configparser.ConfigParser] = {}

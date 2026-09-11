@@ -1,6 +1,7 @@
 """Tests for main window library data processing."""
 
 import shlex
+import signal
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from queue import Queue
@@ -9,6 +10,7 @@ from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import MagicMock
 
+import psutil
 from pytest import MonkeyPatch, mark
 from PySide6.QtCore import QEventLoop, QObject, Qt, QTimer
 from PySide6.QtGui import QAction, QPixmap
@@ -27,7 +29,7 @@ from PySide6.QtWidgets import (
 from portprotonqt.animations.library_controls import _animation_duration
 from portprotonqt.animations.game_card import GameCardAnimations
 from portprotonqt.config import game_config
-from portprotonqt.custom_widgets import AutoHideScrollArea
+from portprotonqt.custom_widgets import AutoHideScrollArea, AutoSizeButton
 from portprotonqt.detail_pages import DetailPageManager
 from portprotonqt.game_card import GameCard, SourceCorner
 from portprotonqt.game_library_manager import FullLibraryTile, GameLibraryManager
@@ -70,25 +72,62 @@ def _tile_theme() -> Any:
         GAME_CARD_ANIMATION=GAME_CARD_ANIMATION,
     )
 
-def test_minimal_tray_contains_only_stop_action() -> None:
+def test_minimal_tray_contains_game_actions() -> None:
     _application = QApplication.instance() or QApplication([])
     manager = TrayManager.__new__(TrayManager)
     manager.tray_menu = QMenu()
+    manager.pause_game_action = QAction("Pause Game", manager.tray_menu)
     manager.stop_game_action = QAction("Stop Game", manager.tray_menu)
     manager.minimal_mode = True
-    manager.update_stop_game_action = MagicMock()
+    manager.update_game_actions = MagicMock()
 
     manager.refresh_tray_menu()
 
-    assert manager.tray_menu.actions() == [manager.stop_game_action]
-    manager.update_stop_game_action.assert_called_once_with()
+    assert manager.tray_menu.actions() == [
+        manager.pause_game_action,
+        manager.stop_game_action,
+    ]
+    manager.update_game_actions.assert_called_once_with()
+
+def test_tray_pauses_game_process_tree(monkeypatch: MonkeyPatch) -> None:
+    child = MagicMock(pid=12)
+    child.status.return_value = "running"
+    parent = MagicMock(pid=11)
+    parent.children.return_value = [child]
+    manager = TrayManager.__new__(TrayManager)
+    manager.main_window = SimpleNamespace(
+        game_processes=[SimpleNamespace(pid=11)], target_exe=None,
+    )
+    manager.update_game_actions = MagicMock()
+    monkeypatch.setattr("portprotonqt.tray_manager.psutil.Process", lambda _pid: parent)
+
+    manager.toggle_game_pause()
+
+    child.send_signal.assert_called_once_with(signal.SIGSTOP)
+    manager.update_game_actions.assert_called_once_with()
+
+def test_tray_resumes_target_process(monkeypatch: MonkeyPatch) -> None:
+    process = MagicMock(pid=21, info={"name": "game.exe"})
+    process.status.return_value = psutil.STATUS_STOPPED
+    process.children.return_value = []
+    manager = TrayManager.__new__(TrayManager)
+    manager.main_window = SimpleNamespace(game_processes=[], target_exe="GAME.EXE")
+    manager.update_game_actions = MagicMock()
+    monkeypatch.setattr(
+        "portprotonqt.tray_manager.psutil.process_iter", lambda attrs: [process]
+    )
+
+    manager.toggle_game_pause()
+
+    process.send_signal.assert_called_once_with(signal.SIGCONT)
+    manager.update_game_actions.assert_called_once_with()
 
 def test_minimal_tray_exits_after_stopping_game(monkeypatch: MonkeyPatch) -> None:
     manager = TrayManager.__new__(TrayManager)
     manager.main_window = SimpleNamespace(stop_running_game=lambda: True)
     manager.minimal_mode = True
     manager.tray_icon = MagicMock()
-    manager.update_stop_game_action = MagicMock()
+    manager.update_game_actions = MagicMock()
     quit_app = MagicMock()
     monkeypatch.setattr("portprotonqt.tray_manager.QApplication.quit", quit_app)
 
@@ -283,7 +322,7 @@ def test_main_window_inherits_all_tab_mixins() -> None:
         assert issubclass(MainWindow, mixin)
 
 def test_settings_retranslate_existing_interface(monkeypatch: MonkeyPatch) -> None:
-    QApplication.instance() or QApplication([])
+    _application = QApplication.instance() or QApplication([])
     label = QLabel("Настройки")
     combo = QComboBox()
     combo.addItem("Системный")
@@ -334,6 +373,36 @@ def test_settings_retranslate_existing_interface(monkeypatch: MonkeyPatch) -> No
         "(third-party themes may be unsafe)"
     )
 
+def test_tray_initialization_runs_once(monkeypatch: MonkeyPatch) -> None:
+    tray_manager = MagicMock()
+    create_tray = MagicMock(return_value=tray_manager)
+    window = cast(
+        Any,
+        SimpleNamespace(tray_manager=None, current_theme_name="standart"),
+    )
+    monkeypatch.setattr(main_window_module, "TrayManager", create_tray)
+
+    MainWindow._initialize_tray(window, "PortProtonQt")
+    MainWindow._initialize_tray(window, "PortProtonQt")
+
+    create_tray.assert_called_once_with(window, "PortProtonQt", "standart")
+    assert window.tray_manager is tray_manager
+
+
+def test_tray_theme_switch_applies_theme_without_restart(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    manager = TrayManager.__new__(TrayManager)
+    manager.main_window = SimpleNamespace(_apply_theme_live=MagicMock())
+    restart = MagicMock()
+    monkeypatch.setattr("portprotonqt.tray_manager.restart_application_process", restart)
+
+    manager.switch_theme("console")
+
+    manager.main_window._apply_theme_live.assert_called_once_with("console")
+    restart.assert_not_called()
+
+
 def test_live_theme_style_replacement_does_not_rewrite_new_paths() -> None:
     mixin = MainWindowThemeTabMixin()
     style = "url(/themes/standart/images/check.svg)"
@@ -382,6 +451,19 @@ def test_live_theme_joins_named_composite_styles() -> None:
 
     assert style == "pagefocus"
 
+
+def test_live_theme_refreshes_auto_size_button_padding() -> None:
+    _application = QApplication.instance() or QApplication([])
+    button = AutoSizeButton("Test", padding=None)
+
+    button.refresh_theme(SimpleNamespace(autoSizeButtonPadding=(10, 20)))
+
+    assert button._pad_top == 10
+    assert button._pad_bottom == 10
+    assert button._pad_left == 20
+    assert button._pad_right == 20
+
+
 def test_live_theme_rebuilds_library_when_layout_mode_changes() -> None:
     mixin = cast(Any, MainWindowThemeTabMixin())
     layout = object()
@@ -399,8 +481,53 @@ def test_live_theme_rebuilds_library_when_layout_mode_changes() -> None:
 
     manager.rebuild_library_layout.assert_called_once_with("grid")
 
+
+def test_library_background_is_removed_when_live_theme_has_no_config(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    _application = QApplication.instance() or QApplication([])
+    manager: Any = GameLibraryManager.__new__(GameLibraryManager)
+    manager.full_library_open = False
+    manager.libraryBackgroundLabel = QLabel()
+    manager.theme = SimpleNamespace()
+    cover_label = QLabel()
+    cover_label.setPixmap(QPixmap(1, 1))
+    remove_background = MagicMock()
+    monkeypatch.setattr(
+        "portprotonqt.game_library_manager.remove_cover_background",
+        remove_background,
+    )
+
+    manager._update_library_background(SimpleNamespace(coverLabel=cover_label))
+
+    remove_background.assert_called_once_with(manager.libraryBackgroundLabel)
+
+
+def test_library_creates_background_layer_for_live_theme_switch() -> None:
+    _application = QApplication.instance() or QApplication([])
+    theme = SimpleNamespace(
+        LIBRARY_LAYOUT_MODE="grid",
+        LIBRARY_WIDGET_STYLE="",
+        LIST_WIDGET_STYLE="",
+        SCROLL_STYLE="",
+        SLIDER_SIZE_STYLE="",
+        TRANSPARENT_BACKGROUND_STYLE="",
+    )
+    main_window: Any = SimpleNamespace(
+        createSearchWidget=lambda: (QWidget(), QLabel()),
+        on_slider_released=lambda: None,
+        _register_gamepad_tooltip=lambda _widget, _text: None,
+    )
+    manager = GameLibraryManager(main_window, theme, None)
+
+    manager.create_games_library_widget()
+
+    assert manager.libraryBackgroundLabel is not None
+    assert isinstance(manager.gamesLibraryWidget.layout(), QGridLayout)
+
+
 def test_auto_hide_scroll_area_tracks_horizontal_overflow() -> None:
-    QApplication.instance() or QApplication([])
+    _application = QApplication.instance() or QApplication([])
     theme = SimpleNamespace(TRANSPARENT_BACKGROUND_STYLE="", SCROLL_STYLE="")
     scroll_area = AutoHideScrollArea(theme=theme)
     scroll_area.resize(100, 100)
@@ -421,7 +548,7 @@ def test_auto_hide_scroll_area_tracks_horizontal_overflow() -> None:
     assert scroll_area._h_hide_timer.isActive()
 
 def test_vertical_library_uses_column_layout() -> None:
-    QApplication.instance() or QApplication([])
+    _application = QApplication.instance() or QApplication([])
     manager: Any = GameLibraryManager.__new__(GameLibraryManager)
     manager.gamesListWidget = QWidget()
     manager.gamesListLayout = QGridLayout(manager.gamesListWidget)
@@ -452,7 +579,8 @@ def test_vertical_library_uses_column_layout() -> None:
     assert manager.gamesListLayout.spacing() == 5
 
 def test_full_library_tile_accepts_async_cover_result() -> None:
-    QApplication.instance() or QApplication([])
+    application = QApplication.instance() or QApplication([])
+    assert application is not None
     manager: Any = GameLibraryManager.__new__(GameLibraryManager)
     theme = _tile_theme()
     tile = FullLibraryTile(theme)
@@ -467,7 +595,8 @@ def test_full_library_tile_accepts_async_cover_result() -> None:
     assert not tile.tile_pixmap.isNull()
 
 def test_full_library_tile_uses_card_scale() -> None:
-    QApplication.instance() or QApplication([])
+    application = QApplication.instance() or QApplication([])
+    assert application is not None
     theme = _tile_theme()
     tile = FullLibraryTile(theme)
 
@@ -652,12 +781,26 @@ def test_game_card_click_uses_select_callback() -> None:
         protondb_appid="1",
         autoinstall_exe_name="",
         select_callback=select_callback,
+        _get_missing_executable_path=lambda: "",
     )
 
     GameCard.click(cast(Any, card))
 
     select_callback.assert_called_once()
     assert select_callback.call_args.args[0]["name"] == "Game"
+
+
+def test_missing_game_card_click_offers_repair() -> None:
+    card = SimpleNamespace(
+        _get_missing_executable_path=lambda: "/missing/game.exe",
+        context_menu_manager=MagicMock(),
+        select_callback=MagicMock(),
+    )
+
+    GameCard.click(cast(Any, card))
+
+    card.context_menu_manager.handle_missing_executable.assert_called_once_with(card)
+    card.select_callback.assert_not_called()
 
 def test_game_card_theme_refresh_updates_hidden_badge_styles() -> None:
     card = MagicMock()
@@ -1713,7 +1856,8 @@ def test_logout_skips_without_session_id(monkeypatch: MonkeyPatch) -> None:
     assert calls == []
 
 def test_delayed_system_adapters_appear_on_retry() -> None:
-    QApplication.instance() or QApplication([])
+    application = QApplication.instance() or QApplication([])
+    assert application is not None
     event_loop = QEventLoop()
     network_timer = QTimer()
     bluetooth_timer = QTimer()
@@ -1756,7 +1900,7 @@ def test_delayed_system_adapters_appear_on_retry() -> None:
     assert not bluetooth_timer.isActive()
 
 def test_missing_system_adapters_stop_after_retries() -> None:
-    QApplication.instance() or QApplication([])
+    _application = QApplication.instance() or QApplication([])
     network_timer = QTimer()
     bluetooth_timer = QTimer()
     window = cast(

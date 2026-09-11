@@ -55,7 +55,8 @@ def test_exe_icon_cache_path_uses_shared_directory(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    monkeypatch.setattr("portprotonqt.icon_extractor.CACHE_DIR", tmp_path / "cache" / "PortProtonQt")
+    monkeypatch.setattr(image_utils, "CACHE_DIR", tmp_path / "cache" / "PortProtonQt")
 
     icon_path = get_exe_icon_cache_path("/games/Game Name.exe")
 
@@ -554,7 +555,8 @@ def test_game_card_exe_fallback_uses_image_cache(
 ) -> None:
     exe_path = tmp_path / "game.exe"
     exe_path.write_bytes(b"MZ")
-    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    monkeypatch.setattr("portprotonqt.icon_extractor.CACHE_DIR", tmp_path / "cache" / "PortProtonQt")
+    monkeypatch.setattr(image_utils, "CACHE_DIR", tmp_path / "cache" / "PortProtonQt")
     card: Any = SimpleNamespace(
         exec_line=str(exe_path),
         name="Game",
@@ -626,7 +628,8 @@ def test_remote_cover_replaces_immediate_exe_fallback_only_on_success(
     ) -> None:
         callbacks.append(callback)
 
-    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    monkeypatch.setattr("portprotonqt.icon_extractor.CACHE_DIR", tmp_path / "cache" / "PortProtonQt")
+    monkeypatch.setattr(image_utils, "CACHE_DIR", tmp_path / "cache" / "PortProtonQt")
     monkeypatch.setattr(image_utils, "QPixmap", FakePixmap)
     monkeypatch.setattr(image_utils.image_executor, "submit", lambda callback: callback())
     monkeypatch.setattr(image_utils, "downloader", SimpleNamespace(download_async=defer_download))

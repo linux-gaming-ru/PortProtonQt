@@ -2,6 +2,7 @@ import os
 import glob
 import shutil
 import tempfile
+from typing import TYPE_CHECKING
 from PySide6.QtWidgets import QMessageBox, QDialog, QMenu, QLineEdit, QApplication, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame
 from PySide6.QtCore import QUrl, QPoint, QObject, Signal, Qt, QStandardPaths, QTimer, QSize, QProcess
 from PySide6.QtGui import QDesktopServices, QIcon, QKeySequence
@@ -33,6 +34,9 @@ from portprotonqt.virtual_keyboard import VirtualKeyboard
 from portprotonqt.image_utils import COVER_IMAGE_EXTENSIONS
 
 logger = get_logger(__name__)
+
+if TYPE_CHECKING:
+    from portprotonqt.game_card import GameCard
 
 class ContextMenuSignals(QObject):
     """Signals for thread-safe UI updates from worker threads."""
@@ -1007,7 +1011,7 @@ class ContextMenuManager:
         if not resolved_exec_line:
             return
         shortcut_paths = self._get_installed_shortcut_paths(game_name)
-        exe_path = self._parse_exe_path(resolved_exec_line, game_name)
+        exe_path = extract_exec_target_path(resolved_exec_line)
         if not self._remove_file(
             desktop_path,
             _("Failed to delete .desktop file: {error}"),
@@ -1334,6 +1338,77 @@ class ContextMenuManager:
             QTimer.singleShot(0, self.game_library_manager.load_visible_images)
             return
 
+    def handle_missing_executable(self, game_card: "GameCard") -> None:
+        """Offer removal or shortcut repair when the launch file is missing."""
+        msg_box = QMessageBox(self.parent)
+        msg_box.setIcon(QMessageBox.Icon.Question)
+        msg_box.setWindowTitle(_("Executable not found"))
+        msg_box.setText(_("Executable not found: {0}").format(game_card.missing_executable_path))
+        delete_button = msg_box.addButton(_("Delete from PortProton"), QMessageBox.ButtonRole.DestructiveRole)
+        edit_button = msg_box.addButton(_("Select another executable"), QMessageBox.ButtonRole.ActionRole)
+        msg_box.addButton(QMessageBox.StandardButton.Cancel)
+        for button in msg_box.buttons():
+            button.ensurePolished()
+            button.setMinimumWidth(button.sizeHint().width())
+        msg_box.exec()
+        if msg_box.clickedButton() == delete_button:
+            self.delete_game(game_card.name, game_card.exec_line)
+        elif msg_box.clickedButton() == edit_button:
+            self.edit_game_shortcut(game_card.name, game_card.exec_line, game_card.cover_path)
+
+    def _relocate_shortcut_data(self, old_exe: str, new_exe: str) -> list[tuple[str, str]]:
+        """Move path-specific data, refusing to overwrite another game's data."""
+        if os.path.abspath(old_exe) == os.path.abspath(new_exe):
+            return []
+        data_home = os.getenv("XDG_DATA_HOME", os.path.expanduser("~/.local/share"))
+        custom_root = os.path.join(data_home, "PortProtonQt", "custom_data")
+        old_folder = resolve_custom_data_dir(custom_root, old_exe)
+        new_folder = os.path.join(custom_root, get_custom_data_dir_name(new_exe))
+        paths = [(old_folder, new_folder), (old_exe + ".ppdb", new_exe + ".ppdb")]
+        moves = [(source, target) for source, target in paths if os.path.exists(source)]
+        for _source, target in moves:
+            if os.path.lexists(target):
+                raise FileExistsError(_("File already exists: {file_name}").format(file_name=target))
+        completed = []
+        try:
+            for source, target in moves:
+                shutil.move(source, target)
+                completed.append((source, target))
+        except OSError:
+            for source, target in reversed(completed):
+                shutil.move(target, source)
+            raise
+        return completed
+
+    def _relocate_shortcut_statistics(self, old_exe: str, new_exe: str) -> None:
+        """Keep playtime and last launch associated with a repaired shortcut."""
+        from portprotonqt.time_utils import get_last_launch_path, get_statistics_path
+
+        old_name = os.path.splitext(os.path.basename(old_exe))[0]
+        new_name = os.path.splitext(os.path.basename(new_exe))[0]
+        last_launch_path = get_last_launch_path()
+        records = (
+            (get_statistics_path(), os.path.normpath(old_exe).replace(" ", "#@_@#"), new_exe.replace(" ", "#@_@#")),
+            (last_launch_path, old_name, new_name),
+        )
+        for path, old_key, new_key in records:
+            if not os.path.isfile(path):
+                continue
+            try:
+                with open(path, encoding="utf-8") as stream:
+                    lines = stream.readlines()
+                updated = []
+                for line in lines:
+                    parts = line.rsplit(maxsplit=1) if path == last_launch_path else line.split(maxsplit=1)
+                    if len(parts) == 2 and parts[0] == old_key:
+                        line = f"{new_key} {parts[1].rstrip()}\n"
+                    updated.append(line)
+                if updated != lines:
+                    with open(path, "w", encoding="utf-8") as stream:
+                        stream.writelines(updated)
+            except OSError as error:
+                logger.warning("Failed to relocate statistics for %s: %s", old_exe, error)
+
     def edit_game_shortcut(self, game_name, exec_line, cover_path, appid=None):
         """
         Opens a dialog allowing the user to edit a game shortcut in edit mode to modify an existing .desktop file.
@@ -1352,7 +1427,7 @@ class ContextMenuManager:
         if not exec_line:
             return
         old_exec_line = exec_line
-        exe_path = self._parse_exe_path(exec_line, game_name)
+        exe_path = extract_exec_target_path(exec_line)
         if not exe_path:
             return
         dialog = AddGameDialog(
@@ -1383,6 +1458,27 @@ class ContextMenuManager:
                 return
 
             old_path = self._get_desktop_path(game_name)
+            moved_paths = []
+            try:
+                moved_paths = self._relocate_shortcut_data(exe_path, new_exe_path)
+                with open(new_desktop_path, "w", encoding="utf-8") as f:
+                    f.write(desktop_entry)
+                os.chmod(new_desktop_path, 0o755)
+            except OSError as e:
+                for source, target in reversed(moved_paths):
+                    shutil.move(target, source)
+                self.signals.show_warning_dialog.emit(
+                    _("Error"),
+                    _("Failed to save .desktop file: {error}").format(error=str(e))
+                )
+                return
+            for source, target in moved_paths:
+                if new_cover_path.startswith(source + os.sep):
+                    new_cover_path = target + new_cover_path[len(source):]
+                if dialog.last_cover_path and dialog.last_cover_path.startswith(source + os.sep):
+                    dialog.last_cover_path = target + dialog.last_cover_path[len(source):]
+            if exe_path != new_exe_path:
+                self._relocate_shortcut_statistics(exe_path, new_exe_path)
             if game_name != new_name and os.path.exists(old_path):
                 self._remove_file(
                     old_path,
@@ -1390,17 +1486,6 @@ class ContextMenuManager:
                     _("Removed old .desktop file for '{game_name}'"),
                     game_name
                 )
-
-            try:
-                with open(new_desktop_path, "w", encoding="utf-8") as f:
-                    f.write(desktop_entry)
-                os.chmod(new_desktop_path, 0o755)
-            except OSError as e:
-                self.signals.show_warning_dialog.emit(
-                    _("Error"),
-                    _("Failed to save .desktop file: {error}").format(error=str(e))
-                )
-                return
             saved_entry = parse_desktop_entry(new_desktop_path)
             updated_exec_line = new_exe_path
             if saved_entry:
@@ -1461,8 +1546,8 @@ class ContextMenuManager:
             old_menu_path = self._get_menu_shortcut_path(game_name)
             new_menu_path = self._get_menu_shortcut_path(new_name)
             desktop_dir = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DesktopLocation)
-            old_desktop_path = os.path.join(desktop_dir, f"{game_name}.desktop")
-            new_desktop_path_target = os.path.join(desktop_dir, f"{new_name}.desktop")
+            old_desktop_path = self._get_shortcut_path(game_name, desktop_dir)
+            new_desktop_path_target = self._get_shortcut_path(new_name, desktop_dir)
 
             if game_name != new_name:
                 if os.path.exists(old_menu_path):
@@ -1473,19 +1558,22 @@ class ContextMenuManager:
                     self.remove_from_steam(game_name, new_exe_path, "portproton")
 
             if dialog.add_to_menu_checkbox.isChecked():
-                if not os.path.exists(new_menu_path):
+                if exe_path != new_exe_path or not os.path.exists(new_menu_path):
                     self.add_to_menu(new_name, updated_exec_line)
             elif os.path.exists(new_menu_path):
                 self.remove_from_menu(new_name)
 
             if dialog.add_to_desktop_checkbox.isChecked():
-                if not os.path.exists(new_desktop_path_target):
+                if exe_path != new_exe_path or not os.path.exists(new_desktop_path_target):
                     self.add_to_desktop(new_name, updated_exec_line)
             elif os.path.exists(new_desktop_path_target):
                 self.remove_from_desktop(new_name)
 
             is_in_steam = is_game_in_steam(new_name)
             if dialog.add_to_steam_checkbox.isChecked():
+                if is_in_steam and exe_path != new_exe_path:
+                    self.remove_from_steam(new_name, old_exec_line, "portproton")
+                    is_in_steam = False
                 if not is_in_steam:
                     self.add_to_steam(new_name, updated_exec_line, new_cover_path)
             elif is_in_steam:
@@ -1569,7 +1657,7 @@ class ContextMenuManager:
         exec_line = self._get_exec_line(game_name, exec_line)
         if not exec_line:
             return
-        exe_path = self._parse_exe_path(exec_line, game_name)
+        exe_path = extract_exec_target_path(exec_line)
         if not exe_path:
             return
         logger.debug("Removing game '%s' from Steam", game_name)

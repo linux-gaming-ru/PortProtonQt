@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PortProtonQt 0.1.1\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-09-01 17:22+0500\n"
+"POT-Creation-Date: 2026-09-11 12:18+0500\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -245,10 +245,28 @@ msgstr ""
 msgid "Failed to save custom data: {error}"
 msgstr ""
 
+msgid "Executable not found"
+msgstr ""
+
+#, python-brace-format
+msgid "Executable not found: {0}"
+msgstr ""
+
+msgid "Select another executable"
+msgstr ""
+
+#, python-brace-format
+msgid "Destination already exists: {0}"
+msgstr ""
+
 msgid "Game name and executable path are required"
 msgstr ""
 
 msgid "Failed to generate .desktop file data"
+msgstr ""
+
+#, python-brace-format
+msgid "Failed to save .desktop file: {error}"
 msgstr ""
 
 #, python-brace-format
@@ -257,10 +275,6 @@ msgstr ""
 
 #, python-brace-format
 msgid "Removed old .desktop file for '{game_name}'"
-msgstr ""
-
-#, python-brace-format
-msgid "Failed to save .desktop file: {error}"
 msgstr ""
 
 #, python-brace-format
@@ -339,13 +353,22 @@ msgstr ""
 msgid "Denied"
 msgstr ""
 
+msgid "Game Title"
+msgstr ""
+
+msgid "LAST LAUNCH"
+msgstr ""
+
+msgid "TIME SPENT"
+msgstr ""
+
+msgid "Library"
+msgstr ""
+
 msgid "Unknown Game"
 msgstr ""
 
 msgid "Downloading Wine…"
-msgstr ""
-
-msgid "Library"
 msgstr ""
 
 msgid "Auto Install"
@@ -409,10 +432,6 @@ msgid "Never"
 msgstr ""
 
 msgid "Unknown Application"
-msgstr ""
-
-#, python-brace-format
-msgid "Executable not found: {0}"
 msgstr ""
 
 #, python-brace-format
@@ -743,6 +762,9 @@ msgstr ""
 msgid "sec."
 msgstr ""
 
+msgid "Pause Game"
+msgstr ""
+
 msgid "Exit"
 msgstr ""
 
@@ -753,6 +775,12 @@ msgid "Favorites"
 msgstr ""
 
 msgid "Recent Games"
+msgstr ""
+
+msgid "Resume Game"
+msgstr ""
+
+msgid "Failed to pause game"
 msgstr ""
 
 msgid "No recent games"
@@ -775,12 +803,6 @@ msgid "Download"
 msgstr ""
 
 msgid "Size"
-msgstr ""
-
-msgid "LAST LAUNCH"
-msgstr ""
-
-msgid "TIME SPENT"
 msgstr ""
 
 msgid "MAIN STORY"
@@ -807,13 +829,13 @@ msgstr ""
 msgid "Create Log"
 msgstr ""
 
+msgid "Stop Log"
+msgstr ""
+
 msgid "Open Card"
 msgstr ""
 
 msgid "Reinstall"
-msgstr ""
-
-msgid "Stop Log"
 msgstr ""
 
 msgid "Failed to start debug session"
@@ -1954,9 +1976,6 @@ msgid "Waiting…"
 msgstr ""
 
 msgid "Disk: "
-msgstr ""
-
-msgid "Game Title"
 msgstr ""
 
 msgid "Started at"

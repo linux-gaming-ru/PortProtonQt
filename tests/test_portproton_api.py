@@ -1,6 +1,8 @@
 """Tests for PortProton API helpers."""
 
 from pathlib import Path
+
+import pytest
 from typing import Any, cast
 
 import portprotonqt.portproton_api as portproton_api
@@ -190,9 +192,13 @@ def test_autoinstall_script_uses_cached_card_data(
     assert "name=Cached Game" in metadata_path.read_text(encoding="utf-8")
 
 
-def test_autoinstall_refresh_clears_cached_ppdb_images(tmp_config_dir: Path) -> None:
+def test_autoinstall_refresh_clears_cached_ppdb_images(
+    tmp_config_dir: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
     api = PortProtonAPI()
-    image_dir = tmp_config_dir.parent / "cache" / "PortProtonQt" / "images"
+    cache_dir = tmp_config_dir.parent / "data" / "PortProtonQt" / "cache"
+    monkeypatch.setattr("portprotonqt.image_utils.CACHE_DIR", cache_dir)
+    image_dir = cache_dir / "images"
     image_dir.mkdir(parents=True)
     compact_cache = image_dir / "43_compat.webp"
     full_cache = image_dir / "43.webp"

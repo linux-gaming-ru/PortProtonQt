@@ -37,6 +37,7 @@ def test_build_command_places_confirmation_before_subcommand(
 def test_update_legendary_skips_matching_release(tmp_path: Path, monkeypatch) -> None:
     api = EGSAPI()
     api.data_dir = tmp_path
+    api.bin_dir = tmp_path / "bin"
     api.version_path = tmp_path / "bin/legendary.version"
     bundled = tmp_path / "bin/legendary"
     bundled.parent.mkdir()

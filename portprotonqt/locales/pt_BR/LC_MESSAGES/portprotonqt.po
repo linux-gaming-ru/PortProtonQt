@@ -260,11 +260,31 @@ msgstr "Área de Trabalho"
 msgid "Failed to save custom data: {error}"
 msgstr "Falha ao salvar os dados personalizados: {error}"
 
+#, fuzzy, python-brace-format
+msgid "Executable not found"
+msgstr "Executável não encontrado: {0}"
+
+#, python-brace-format
+msgid "Executable not found: {0}"
+msgstr "Executável não encontrado: {0}"
+
+#, fuzzy
+msgid "Select another executable"
+msgstr "Excluir atalhos sem executável"
+
+#, fuzzy, python-brace-format
+msgid "Destination already exists: {0}"
+msgstr "A pasta já existe: {file_name}"
+
 msgid "Game name and executable path are required"
 msgstr "O nome do jogo e o caminho do executável são obrigatórios"
 
 msgid "Failed to generate .desktop file data"
 msgstr "Falha ao gerar os dados do arquivo .desktop"
+
+#, python-brace-format
+msgid "Failed to save .desktop file: {error}"
+msgstr "Falha ao salvar o arquivo .desktop: {error}"
 
 #, python-brace-format
 msgid "Failed to delete old .desktop file: {error}"
@@ -273,10 +293,6 @@ msgstr "Falha ao excluir o arquivo .desktop antigo: {error}"
 #, python-brace-format
 msgid "Removed old .desktop file for '{game_name}'"
 msgstr "Arquivo .desktop antigo de '{game_name}' removido"
-
-#, python-brace-format
-msgid "Failed to save .desktop file: {error}"
-msgstr "Falha ao salvar o arquivo .desktop: {error}"
 
 #, python-brace-format
 msgid "Failed to copy cover image: {error}"
@@ -358,14 +374,23 @@ msgstr "Quebrado"
 msgid "Denied"
 msgstr "Negado"
 
+msgid "Game Title"
+msgstr "Título do jogo"
+
+msgid "LAST LAUNCH"
+msgstr "ÚLTIMO LANÇAMENTO"
+
+msgid "TIME SPENT"
+msgstr "TEMPO JOGADO"
+
+msgid "Library"
+msgstr "Biblioteca"
+
 msgid "Unknown Game"
 msgstr "Jogo Desconhecido"
 
 msgid "Downloading Wine…"
 msgstr "Baixando Wine…"
-
-msgid "Library"
-msgstr "Biblioteca"
 
 msgid "Auto Install"
 msgstr "Instalação Automática"
@@ -426,10 +451,6 @@ msgstr "Nunca"
 
 msgid "Unknown Application"
 msgstr "Aplicativo Desconhecido"
-
-#, python-brace-format
-msgid "Executable not found: {0}"
-msgstr "Executável não encontrado: {0}"
 
 #, python-brace-format
 msgid "File not found: {0}"
@@ -824,6 +845,10 @@ msgstr "min."
 msgid "sec."
 msgstr "s."
 
+#, fuzzy
+msgid "Pause Game"
+msgstr "Iniciar Jogo"
+
 msgid "Exit"
 msgstr "Sair"
 
@@ -835,6 +860,14 @@ msgstr "Favoritos"
 
 msgid "Recent Games"
 msgstr "Jogos Recentes"
+
+#, fuzzy
+msgid "Resume Game"
+msgstr "Jogos Recentes"
+
+#, fuzzy
+msgid "Failed to pause game"
+msgstr "Falha ao parar o jogo"
 
 msgid "No recent games"
 msgstr "Nenhum jogo recente"
@@ -857,12 +890,6 @@ msgstr "Baixar"
 
 msgid "Size"
 msgstr "Tamanho"
-
-msgid "LAST LAUNCH"
-msgstr "ÚLTIMO LANÇAMENTO"
-
-msgid "TIME SPENT"
-msgstr "TEMPO JOGADO"
 
 msgid "MAIN STORY"
 msgstr "HISTÓRIA PRINCIPAL"
@@ -888,14 +915,14 @@ msgstr "Configurações"
 msgid "Create Log"
 msgstr "Criar log"
 
+msgid "Stop Log"
+msgstr "Encerrar log"
+
 msgid "Open Card"
 msgstr "Abrir cartão"
 
 msgid "Reinstall"
 msgstr "Reinstale"
-
-msgid "Stop Log"
-msgstr "Encerrar log"
 
 msgid "Failed to start debug session"
 msgstr "Falha ao iniciar a sessão de depuração"
@@ -2059,9 +2086,6 @@ msgstr "Aguardando…"
 
 msgid "Disk: "
 msgstr "Disco: "
-
-msgid "Game Title"
-msgstr "Título do jogo"
 
 msgid "Started at"
 msgstr "Iniciado em"

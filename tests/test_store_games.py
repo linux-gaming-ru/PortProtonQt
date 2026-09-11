@@ -777,3 +777,35 @@ def test_egs_overlay_disable_uses_game_prefix(tmp_path: Path) -> None:
     assert arguments == [
         "eos-overlay", "disable", "--prefix", str(prefix_path),
     ]
+
+
+@mark.parametrize("store_info", [
+    ("egs", "legendary", EGSAPI),
+    ("gog", "gogdl", GOGAPI),
+])
+def test_store_storage_migrates_existing_data(
+    tmp_path: Path, monkeypatch: MonkeyPatch,
+    store_info: tuple[str, str, type[EGSAPI] | type[GOGAPI]],
+) -> None:
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    store, binary, api_class = store_info
+    root = tmp_path / "PortProtonQt"
+    legacy = root / store
+    (legacy / "bin").mkdir(parents=True)
+    (legacy / "library.json").write_text("[]")
+    (legacy / "bin" / "extra.exe").write_text("extra executable")
+    (legacy / "bin" / binary).write_text("executable")
+    (legacy / "bin" / binary).chmod(0o700)
+    (legacy / "bin" / f"{binary}.version").write_text("v1")
+
+    api = api_class()
+
+    assert api.data_dir == root / "launcher" / store
+    assert api.library_path.read_text() == "[]"
+    assert api.bin_dir == root / "bin"
+    assert (api.bin_dir / binary).read_text() == "executable"
+    assert (api.bin_dir / f"{binary}.version").read_text() == "v1"
+    assert (api.bin_dir / "extra.exe").read_text() == "extra executable"
+    assert not (api.data_dir / "bin").exists()
+    assert not legacy.exists()
+    assert api_class().library_path.read_text() == "[]"

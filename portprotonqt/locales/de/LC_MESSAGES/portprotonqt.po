@@ -258,11 +258,31 @@ msgstr "Desktop"
 msgid "Failed to save custom data: {error}"
 msgstr "Fehler beim Speichern der Benutzerdaten: {error}"
 
+#, fuzzy, python-brace-format
+msgid "Executable not found"
+msgstr "Ausführbare Datei nicht gefunden: {0}"
+
+#, python-brace-format
+msgid "Executable not found: {0}"
+msgstr "Ausführbare Datei nicht gefunden: {0}"
+
+#, fuzzy
+msgid "Select another executable"
+msgstr "Titelbilder ohne ausführbaren Dateien entfernen"
+
+#, fuzzy, python-brace-format
+msgid "Destination already exists: {0}"
+msgstr "Die Datei existiert bereits: {file_name}"
+
 msgid "Game name and executable path are required"
 msgstr "Spielname und Ausführungspfad werden benötigt"
 
 msgid "Failed to generate .desktop file data"
 msgstr "Fehler beim Generieren der .desktop-Datei"
+
+#, python-brace-format
+msgid "Failed to save .desktop file: {error}"
+msgstr "Speichern der .desktop-Datei fehlgeschlagen: {error}"
 
 #, python-brace-format
 msgid "Failed to delete old .desktop file: {error}"
@@ -271,10 +291,6 @@ msgstr "Die alte .desktop-Datei konnte nicht gelöscht werden: {error}"
 #, python-brace-format
 msgid "Removed old .desktop file for '{game_name}'"
 msgstr "Die alte .desktop-Datei für '{game_name}' wurde entfernt"
-
-#, python-brace-format
-msgid "Failed to save .desktop file: {error}"
-msgstr "Speichern der .desktop-Datei fehlgeschlagen: {error}"
 
 #, python-brace-format
 msgid "Failed to copy cover image: {error}"
@@ -356,14 +372,23 @@ msgstr "Kaputt"
 msgid "Denied"
 msgstr "Abgelehnt"
 
+msgid "Game Title"
+msgstr "Spieltitel"
+
+msgid "LAST LAUNCH"
+msgstr "LETZTER START"
+
+msgid "TIME SPENT"
+msgstr "SPIELZEIT"
+
+msgid "Library"
+msgstr "Sammlung"
+
 msgid "Unknown Game"
 msgstr "Unbekanntes Spiel"
 
 msgid "Downloading Wine…"
 msgstr "Wine wird heruntergeladen…"
-
-msgid "Library"
-msgstr "Sammlung"
 
 msgid "Auto Install"
 msgstr "Automatische Installation"
@@ -424,10 +449,6 @@ msgstr "Niemals"
 
 msgid "Unknown Application"
 msgstr "Unbekannte Anwendung"
-
-#, python-brace-format
-msgid "Executable not found: {0}"
-msgstr "Ausführbare Datei nicht gefunden: {0}"
 
 #, python-brace-format
 msgid "File not found: {0}"
@@ -817,6 +838,10 @@ msgstr "Min."
 msgid "sec."
 msgstr "Sek."
 
+#, fuzzy
+msgid "Pause Game"
+msgstr "Spiel starten"
+
 msgid "Exit"
 msgstr "Exit"
 
@@ -828,6 +853,14 @@ msgstr "Favoriten"
 
 msgid "Recent Games"
 msgstr "Aktuelle Spiele"
+
+#, fuzzy
+msgid "Resume Game"
+msgstr "Aktuelle Spiele"
+
+#, fuzzy
+msgid "Failed to pause game"
+msgstr "Spiel konnte nicht gestoppt werden"
 
 msgid "No recent games"
 msgstr "Keine aktuellen Spiele"
@@ -851,12 +884,6 @@ msgstr "Herunterladen"
 
 msgid "Size"
 msgstr "Größe"
-
-msgid "LAST LAUNCH"
-msgstr "LETZTER START"
-
-msgid "TIME SPENT"
-msgstr "SPIELZEIT"
 
 msgid "MAIN STORY"
 msgstr "HAUPTSPIEL"
@@ -882,14 +909,14 @@ msgstr "Einstellungen"
 msgid "Create Log"
 msgstr "Protokoll erstellen"
 
+msgid "Stop Log"
+msgstr "Protokollierung beenden"
+
 msgid "Open Card"
 msgstr "Ansicht öffnen"
 
 msgid "Reinstall"
 msgstr "Neuinstallation"
-
-msgid "Stop Log"
-msgstr "Protokollierung beenden"
 
 msgid "Failed to start debug session"
 msgstr "Protokollierung konnte nicht gestartet werden"
@@ -2056,9 +2083,6 @@ msgstr "Warten…"
 
 msgid "Disk: "
 msgstr "Datenträger: "
-
-msgid "Game Title"
-msgstr "Spieltitel"
 
 msgid "Started at"
 msgstr "Begonnen"

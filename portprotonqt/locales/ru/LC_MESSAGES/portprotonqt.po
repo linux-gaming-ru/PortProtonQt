@@ -257,11 +257,31 @@ msgstr "Рабочий стол"
 msgid "Failed to save custom data: {error}"
 msgstr "Не удалось сохранить пользовательские данные: {error}"
 
+#, fuzzy, python-brace-format
+msgid "Executable not found"
+msgstr "Исполняемый файл не найден: {0}"
+
+#, python-brace-format
+msgid "Executable not found: {0}"
+msgstr "Исполняемый файл не найден: {0}"
+
+#, fuzzy
+msgid "Select another executable"
+msgstr "Удалить карточки без исполняемых файлов"
+
+#, fuzzy, python-brace-format
+msgid "Destination already exists: {0}"
+msgstr "Файл уже существует: {file_name}"
+
 msgid "Game name and executable path are required"
 msgstr "Требуются название игры и путь к исполняемому файлу"
 
 msgid "Failed to generate .desktop file data"
 msgstr "Не удалось сгенерировать данные файла .desktop"
+
+#, python-brace-format
+msgid "Failed to save .desktop file: {error}"
+msgstr "Не удалось сохранить файл .desktop: {error}"
 
 #, python-brace-format
 msgid "Failed to delete old .desktop file: {error}"
@@ -270,10 +290,6 @@ msgstr "Не удалось удалить старый файл .desktop: {erro
 #, python-brace-format
 msgid "Removed old .desktop file for '{game_name}'"
 msgstr "Удалён старый файл .desktop для '{game_name}'"
-
-#, python-brace-format
-msgid "Failed to save .desktop file: {error}"
-msgstr "Не удалось сохранить файл .desktop: {error}"
 
 #, python-brace-format
 msgid "Failed to copy cover image: {error}"
@@ -355,14 +371,23 @@ msgstr "Сломано"
 msgid "Denied"
 msgstr "Отказано"
 
+msgid "Game Title"
+msgstr "Название игры"
+
+msgid "LAST LAUNCH"
+msgstr "ПОСЛЕДНИЙ ЗАПУСК"
+
+msgid "TIME SPENT"
+msgstr "ПРОВЕДЁННОЕ ВРЕМЯ"
+
+msgid "Library"
+msgstr "Библиотека"
+
 msgid "Unknown Game"
 msgstr "Неизвестная игра"
 
 msgid "Downloading Wine…"
 msgstr "Скачивание Wine…"
-
-msgid "Library"
-msgstr "Библиотека"
 
 msgid "Auto Install"
 msgstr "Автоустановка"
@@ -423,10 +448,6 @@ msgstr "Никогда"
 
 msgid "Unknown Application"
 msgstr "Неизвестное приложение"
-
-#, python-brace-format
-msgid "Executable not found: {0}"
-msgstr "Исполняемый файл не найден: {0}"
 
 #, python-brace-format
 msgid "File not found: {0}"
@@ -819,6 +840,10 @@ msgstr "мин."
 msgid "sec."
 msgstr "сек."
 
+#, fuzzy
+msgid "Pause Game"
+msgstr "Запустить игру"
+
 msgid "Exit"
 msgstr "Выход"
 
@@ -830,6 +855,14 @@ msgstr "Избранное"
 
 msgid "Recent Games"
 msgstr "Недавние"
+
+#, fuzzy
+msgid "Resume Game"
+msgstr "Недавние"
+
+#, fuzzy
+msgid "Failed to pause game"
+msgstr "Не удалось остановить игру"
 
 msgid "No recent games"
 msgstr "Нет недавних игр"
@@ -852,12 +885,6 @@ msgstr "Скачать"
 
 msgid "Size"
 msgstr "Размер"
-
-msgid "LAST LAUNCH"
-msgstr "ПОСЛЕДНИЙ ЗАПУСК"
-
-msgid "TIME SPENT"
-msgstr "ПРОВЕДЁННОЕ ВРЕМЯ"
 
 msgid "MAIN STORY"
 msgstr "СЮЖЕТ"
@@ -883,14 +910,14 @@ msgstr "Настройки"
 msgid "Create Log"
 msgstr "Создать лог"
 
+msgid "Stop Log"
+msgstr "Остановить лог"
+
 msgid "Open Card"
 msgstr "Открыть карточку"
 
 msgid "Reinstall"
 msgstr "Переустановить"
-
-msgid "Stop Log"
-msgstr "Остановить лог"
 
 msgid "Failed to start debug session"
 msgstr "Не удалось запустить процесс отладки"
@@ -2053,9 +2080,6 @@ msgstr "Ожидание…"
 
 msgid "Disk: "
 msgstr "Диск: "
-
-msgid "Game Title"
-msgstr "Название игры"
 
 msgid "Started at"
 msgstr "Начато"

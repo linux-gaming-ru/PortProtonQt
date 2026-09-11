@@ -1209,6 +1209,9 @@ class GameCard(AnimatedCard):
         super().showEvent(event)
 
     def click(self) -> None:
+        if self._get_missing_executable_path() and self.context_menu_manager:
+            self.context_menu_manager.handle_missing_executable(self)
+            return
         game_data = {
             "name": self.name,
             "description": self.description,
