@@ -9,7 +9,7 @@ msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: support@linux-gaming.ru\n"
 "POT-Creation-Date: 2026-03-22 13:50+0500\n"
-"PO-Revision-Date: 2026-09-05 17:10+0000\n"
+"PO-Revision-Date: 2026-09-11 07:34+0000\n"
 "Last-Translator: adem4ik <adem4ik@noreply.codeberg.org>\n"
 "Language-Team: Russian <https://translate.codeberg.org/projects/portprotonqt/"
 "portprotonqt/ru/>\n"
@@ -840,9 +840,8 @@ msgstr "мин."
 msgid "sec."
 msgstr "сек."
 
-#, fuzzy
 msgid "Pause Game"
-msgstr "Запустить игру"
+msgstr "Приостановить игру"
 
 msgid "Exit"
 msgstr "Выход"
@@ -856,13 +855,11 @@ msgstr "Избранное"
 msgid "Recent Games"
 msgstr "Недавние"
 
-#, fuzzy
 msgid "Resume Game"
-msgstr "Недавние"
+msgstr "Возобновить игру"
 
-#, fuzzy
 msgid "Failed to pause game"
-msgstr "Не удалось остановить игру"
+msgstr "Не удалось приостановить игру"
 
 msgid "No recent games"
 msgstr "Нет недавних игр"
