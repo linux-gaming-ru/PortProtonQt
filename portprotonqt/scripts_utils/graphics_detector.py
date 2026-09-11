@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any
 
 UNREAL_BOOTSTRAPPER_MAX_SIZE = 1_048_576
+LAUNCHER_NAME_MARKERS = ("launcher", "setup", "updater", "unins")
 
 DIRECTX_IMPORTS = {
     "ddraw.dll": "DirectDraw",
@@ -89,7 +90,26 @@ def resolve_graphics_executable(file_path: str) -> Path:
         renpy_libraries = sorted(path.parent.glob("lib/*/librenpython.dll"))
         if renpy_libraries:
             return renpy_libraries[0]
+    is_launcher = any(marker in path.stem.lower() for marker in LAUNCHER_NAME_MARKERS)
+    if is_launcher or not _is_pe_file(path):
+        pe_candidates = [
+            candidate
+            for candidate in path.parent.glob("*.exe")
+            if candidate != path
+            and _is_pe_file(candidate)
+            and not any(marker in candidate.stem.lower() for marker in LAUNCHER_NAME_MARKERS)
+        ]
+        if pe_candidates:
+            return max(pe_candidates, key=lambda candidate: candidate.stat().st_size)
     return path
+
+
+def _is_pe_file(path: Path) -> bool:
+    try:
+        with path.open("rb") as executable:
+            return executable.read(2) == b"MZ"
+    except OSError:
+        return False
 
 
 def _add_pe_imports(path: Path, directx: set[str], opengl: set[str]) -> None:
@@ -148,6 +168,7 @@ def _main(argv: list[str]) -> int:
         result = analyze_executable(argv[1])
         print(f"HIGHEST_DX={result['highest_directx']}")
         print(f"USES_OGL={'true' if result['uses_opengl'] else 'false'}")
+        print(f"SOURCE={result['source']}")
         return 0
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
