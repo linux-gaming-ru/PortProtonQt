@@ -149,6 +149,7 @@ def get_toggle_settings():
         'PW_USE_SPECIALK': _("Enable SpecialK (injection library for fixing graphics, latency and more)"),
         # Upscalers and Frame Generation
         'PW_USE_OPTISCALER': _("Enable OptiScaler (replacement upscaler / frame generator)"),
+        'PW_USE_RESHADE': _("Enable ReShade post-processing"),
         'PW_USE_LS_FRAME_GEN': _("Enable Lossless Scaling frame generation (experimental)"),
         'PW_WINE_FULLSCREEN_FSR': _("FSR upscaling in fullscreen with ProtonGE below native resolution"),
         # Ray Tracing

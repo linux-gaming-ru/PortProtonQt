@@ -272,3 +272,96 @@ def test_vk_gpu_info_uses_build_aux_binary() -> None:
 
     assert '/../../../bin/vk_gpu_info"' in helper
     assert "dev-scripts/vk_gpu_info" not in helper
+
+
+def test_reshade_prefers_directx_for_unity() -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text(
+        encoding="utf-8",
+    )
+
+    assert "source=$(echo \"$detect\" | grep '^SOURCE=' | cut -d= -f2-)" in helper
+    assert (
+        '[[ "${source##*/}" == UnityPlayer.dll && "$highest" != None ]] '
+        "&& vulkan=false"
+    ) in helper
+
+
+def test_reshade_and_optiscaler_are_mutually_exclusive() -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text(
+        encoding="utf-8",
+    )
+
+    assert 'DISABLE_EDIT_DB_LIST+=" PW_USE_OPTISCALER PW_USE_SPECIALK"' in helper
+    assert 'DISABLE_EDIT_DB_LIST+=" PW_USE_RESHADE"' in helper
+
+
+def test_reshade_repeated_link_does_not_create_nested_shaders(tmp_path: Path) -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text(
+        encoding="utf-8",
+    )
+    link_function = helper.split("try_force_link_dir () {", 1)[1].split("\n}", 1)[0]
+    shaders = tmp_path / "shaders"
+    shaders.mkdir()
+    game = tmp_path / "game"
+    game.mkdir()
+    script = f'try_force_link_dir () {{{link_function}\n}}\n'
+    link_call = helper.split('    [[ "$PW_USE_RESHADE" != 1 ]] && return 0', 1)[1]
+    link_call = link_call.split('    pw_specialk_set_ini_value', 1)[0]
+    script += f'root="$1"\nPATH_TO_GAME="$2"\n{link_call * 2}'
+
+    subprocess.run(
+        ["bash", "-c", script, "bash", str(tmp_path), str(game)],
+        check=True,
+    )
+
+    assert (game / "ReShade_shaders").resolve() == shaders
+    assert not (shaders / "shaders").exists()
+
+
+def test_reshade_disable_cleans_unreal_shipping_directory(tmp_path: Path) -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text(
+        encoding="utf-8",
+    )
+    sync_function = helper.split("pw_reshade_sync_files () {", 1)[1].split("\n}", 1)[0]
+    game_root = tmp_path / "game"
+    game_root.mkdir()
+    game_exe = game_root / "Praest.exe"
+    game_exe.touch()
+    game = game_root / "Praest" / "Binaries" / "Win64"
+    game.mkdir(parents=True)
+    runtime = tmp_path / "plugins" / "reshade_windows" / "reshade" / "6.8.0_Addon"
+    runtime.mkdir(parents=True)
+    reshade_dll = runtime / "ReShade32.dll"
+    reshade_dll.touch()
+    (game / "opengl32.dll").symlink_to(reshade_dll)
+    (game / "opengl32.dll.b").symlink_to(reshade_dll)
+    (game / "ReShadePreset.ini").write_text("[GENERAL]\n")
+    (game / "reshade_version").write_text("6.8.0_Addon\nopengl32.dll\n")
+    script = f'pw_reshade_sync_files () {{{sync_function}\n}}\n'
+    script += 'try_remove_file () { rm -f "$1"; }\npw_reshade_sync_files\n'
+
+    subprocess.run(
+        ["bash", "-c", script],
+        check=True,
+        env={
+            **os.environ,
+            "PW_EXE_FILE": str(game_exe),
+            "PW_PLUGINS_PATH": str(tmp_path / "plugins"),
+            "PW_USE_RESHADE": "0",
+            "PW_RESHADE_API": "",
+            "PW_RESHADE_EXE": "",
+            "PATH_TO_GAME": str(game),
+        },
+    )
+
+    assert not (game / "opengl32.dll").exists()
+    assert not (game / "opengl32.dll.b").exists()
+    assert not (game / "ReShadePreset.ini").exists()
+
+
+def test_ini_writer_matches_spaces_around_equals() -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text(
+        encoding="utf-8",
+    )
+
+    assert '^[[:space:]]*$key[[:space:]]*=' in helper
