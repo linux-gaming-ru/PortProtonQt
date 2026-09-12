@@ -41,6 +41,7 @@ from portprotonqt.dialogs.base import DraggableDialog
 from portprotonqt.dialogs.dialog_utils import create_dialog_hints_widget, update_dialog_hints
 from portprotonqt.dialogs.settings_mangohud import MANGOHUD_ENV_KEYS, MangoHudSettingsMixin
 from portprotonqt.dialogs.settings_gamescope import GAMESCOPE_ENV_KEYS, GamescopeSettingsMixin
+from portprotonqt.dialogs.settings_reshade import RESHADE_ENV_KEYS, ReShadeSettingsMixin
 from portprotonqt.dialogs.settings_vkbasalt import VKBASALT_ENV_KEYS, VkBasaltSettingsMixin
 from portprotonqt.localization import _, format_setting_name_for_display
 from portprotonqt.logger import get_logger
@@ -71,6 +72,8 @@ DEFAULT_WINE_SETTING_KEYS = {
     'PW_PREFIX_NAME': 'PW_DEFAULT_PREFIX_NAME',
     'PW_VULKAN_USE': 'PW_DEFAULT_VULKAN_USE',
 }
+
+
 def _normalize_prefix_directories(prefixes_dir):
     if not os.path.isdir(prefixes_dir):
         return
@@ -135,6 +138,7 @@ class ExeSettingsDialog(
     DraggableDialog,
     MangoHudSettingsMixin,
     GamescopeSettingsMixin,
+    ReShadeSettingsMixin,
     VkBasaltSettingsMixin,
 ):
     """Dialog for configuring executable-specific settings."""
@@ -193,6 +197,7 @@ class ExeSettingsDialog(
         self.advanced_settings_by_key = {}
         self.init_mangohud_state()
         self.init_gamescope_state()
+        self.init_reshade_state()
         self.init_vkbasalt_state()
         self.blocked_keys = set()
         self.numa_nodes = {}
@@ -317,6 +322,8 @@ class ExeSettingsDialog(
         self.mangohud_tab_layout = QVBoxLayout(self.mangohud_tab)
         self.vkbasalt_tab = QWidget()
         self.vkbasalt_tab_layout = QVBoxLayout(self.vkbasalt_tab)
+        self.reshade_tab = QWidget()
+        self.reshade_tab_layout = QVBoxLayout(self.reshade_tab)
         self.gamescope_tab = QWidget()
         self.gamescope_tab_layout = QVBoxLayout(self.gamescope_tab)
 
@@ -324,6 +331,7 @@ class ExeSettingsDialog(
         self.tab_widget.addTab(self.advanced_tab, _("Advanced"))
         self.tab_widget.addTab(self.mangohud_tab, "MangoHud")
         self.tab_widget.addTab(self.vkbasalt_tab, "vkBasalt")
+        self.tab_widget.addTab(self.reshade_tab, "ReShade")
         if self.gamescope_available:
             self.tab_widget.addTab(self.gamescope_tab, "Gamescope")
         self.tab_widget.currentChanged.connect(self.on_table_selection_changed)
@@ -448,6 +456,7 @@ class ExeSettingsDialog(
 
         self.setup_mangohud_tab()
         self.setup_vkbasalt_tab()
+        self.setup_reshade_tab()
         if self.gamescope_available:
             self.setup_gamescope_tab()
 
@@ -543,6 +552,7 @@ class ExeSettingsDialog(
                             or key in MANGOHUD_ENV_KEYS
                             or key in GAMESCOPE_ENV_KEYS
                             or key in VKBASALT_ENV_KEYS
+                            or key in RESHADE_ENV_KEYS
                             or key in TOGGLE_BOOL_KEYS
                         ):
                             if val.startswith('"') and val.endswith('"') and len(val) >= 2:
@@ -577,6 +587,8 @@ class ExeSettingsDialog(
                 self.current_settings[key] = ''
             for key in VKBASALT_ENV_KEYS:
                 self.current_settings[key] = ''
+            for key in RESHADE_ENV_KEYS:
+                self.current_settings[key] = ''
         elif not self.user_conf:
             self.current_settings.setdefault('PW_MANGOHUD', '0')
             self.current_settings.setdefault('PW_VKBASALT', '0')
@@ -605,6 +617,7 @@ class ExeSettingsDialog(
         self.populate_advanced()
         self.populate_mangohud()
         self.populate_vkbasalt()
+        self.populate_reshade()
         if self.gamescope_available:
             self.populate_gamescope()
         self.populate_favorites(select_tab=True)
@@ -1324,6 +1337,7 @@ class ExeSettingsDialog(
 
         self._filter_mangohud_settings(search_text)
         self._filter_vkbasalt_settings(search_text)
+        self._filter_reshade_settings(search_text)
         self._filter_gamescope_settings(search_text)
 
     def apply_changes(self):
@@ -1398,6 +1412,7 @@ class ExeSettingsDialog(
         if self.gamescope_available:
             gamescope_changes = self._collect_gamescope_changes()
         vkbasalt_changes = self._collect_vkbasalt_changes()
+        reshade_changes = self._collect_reshade_changes()
         if self.user_conf:
             if self.current_settings.get('PW_MANGOHUD') != '1':
                 mangohud_changes = [
@@ -1414,7 +1429,14 @@ class ExeSettingsDialog(
                     change for change in gamescope_changes
                     if change.startswith('PW_GAMESCOPE=')
                 ]
-        specialized_changes = mangohud_changes + vkbasalt_changes + gamescope_changes
+            if self.current_settings.get('PW_USE_RESHADE') != '1':
+                reshade_changes = [
+                    change for change in reshade_changes
+                    if change.startswith('PW_USE_RESHADE=')
+                ]
+        specialized_changes = (
+            mangohud_changes + vkbasalt_changes + reshade_changes + gamescope_changes
+        )
         if self.user_conf:
             defaults = ('', '0', '0.00', 'Home')
             specialized_changes = [
@@ -1507,6 +1529,8 @@ class ExeSettingsDialog(
         super().closeEvent(event)
 
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
+        if isinstance(obj, QWidget) and self._handle_reshade_key_button_event(obj, event):
+            return True
         if isinstance(obj, QWidget) and self._handle_vkbasalt_key_button_event(obj, event):
             return True
 

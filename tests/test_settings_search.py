@@ -5,12 +5,13 @@ from types import SimpleNamespace
 from typing import cast
 
 import pytest
-from PySide6.QtCore import QEvent
+from PySide6.QtCore import QEvent, Qt
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QGridLayout,
     QGroupBox,
+    QLineEdit,
     QStackedWidget,
     QWidget,
 )
@@ -26,10 +27,50 @@ from portprotonqt.dialogs.settings_mangohud import (
     MANGOHUD_TOGGLE_DESCRIPTIONS,
     MangoHudSettingsMixin,
 )
+from portprotonqt.dialogs.settings_reshade import ReShadeSettingsMixin
 from portprotonqt.dialogs.settings_vkbasalt import VkBasaltSettingsMixin
 
 
 _application = QApplication.instance() or QApplication([])
+
+
+def test_reshade_collects_enable_exe_api_and_font() -> None:
+    settings = ReShadeSettingsMixin()
+    settings.current_settings = {
+        "PW_USE_RESHADE": "1",
+        "PW_RESHADE_SCREENSHOT_KEY": "44,0,0,0",
+        "PW_RESHADE_OVERLAY_KEY": "36,0,0,0",
+    }
+    settings.original_values = {"PW_USE_RESHADE": "0"}
+    settings.reshade_original_values = {
+        "PW_RESHADE_EXE": "",
+        "PW_RESHADE_API": "auto",
+        "PW_RESHADE_FONT": "",
+        "PW_RESHADE_SCREENSHOT_PATH": "",
+        "PW_RESHADE_SCREENSHOT_KEY": "44,0,0,0",
+        "PW_RESHADE_OVERLAY_KEY": "36,0,0,0",
+    }
+    settings.reshade_exe_edit = QLineEdit("/games/game.exe")
+    settings.reshade_api_combo = CustomComboBox()
+    settings.reshade_api_combo.addItems(["Auto", "Vulkan"])
+    settings.reshade_api_combo.setCurrentText("Vulkan")
+    settings.reshade_font_combo = CustomComboBox()
+    settings.reshade_font_combo.addItem("DejaVu Sans", "DejaVu Sans")
+    settings.reshade_screenshot_edit = QLineEdit("/screenshots")
+
+    assert settings._collect_reshade_changes() == [
+        "PW_USE_RESHADE=1",
+        "PW_RESHADE_EXE=/games/game.exe",
+        "PW_RESHADE_API=vulkan",
+        "PW_RESHADE_FONT=DejaVu Sans",
+        "PW_RESHADE_SCREENSHOT_PATH=/screenshots",
+    ]
+    assert settings._reshade_virtual_key(
+        Qt.Key.Key_Semicolon.value, Qt.KeyboardModifier.NoModifier
+    ) == 186
+    assert settings._reshade_virtual_key(
+        Qt.Key.Key_1.value, Qt.KeyboardModifier.KeypadModifier
+    ) == 97
 
 
 def test_mangohud_search_ignores_unavailable_categories() -> None:
