@@ -662,7 +662,9 @@ def test_installed_egs_detail_shows_store_controls(monkeypatch) -> None:
         "name": "DOOM 64",
     })
 
-    assert _get_added_buttons(manager) == ["Settings", "Create Log", "Open Folder"]
+    assert _get_added_buttons(manager) == [
+        "Edit Shortcut", "Settings", "Create Log", "Open Folder"
+    ]
 
 
 def test_steam_with_appid_shows_edit_not_add(monkeypatch) -> None:

@@ -40,6 +40,7 @@ class EGSAPI:
         data_home = Path(os.getenv("XDG_DATA_HOME", Path.home() / ".local/share"))
         self.data_dir = data_home / "PortProtonQt" / "launcher" / "egs"
         self.bin_dir = data_home / "PortProtonQt" / "bin"
+        # Remove after the legacy launcher storage migration period.
         legacy_dir = data_home / "PortProtonQt" / "egs"
         if legacy_dir.exists() and not self.data_dir.exists():
             self.data_dir.parent.mkdir(parents=True, exist_ok=True)

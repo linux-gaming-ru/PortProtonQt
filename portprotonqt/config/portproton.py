@@ -289,6 +289,7 @@ def _get_desktop_paths(desktop_dir: str | None) -> tuple[str, ...]:
     return (os.path.join(os.path.expanduser("~"), "Desktop"),)
 
 
+# Remove after the legacy shortcut migration period.
 def migrate_legacy_shortcut(
     portproton_path: str,
     desktop_dir: str | None = None,

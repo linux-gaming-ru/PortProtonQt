@@ -340,17 +340,31 @@ class PortProtonAPI:
 
     def _get_autoinstall_exe_name(self, script_path: str) -> str:
         install_exe = ""
+        shortcut_name = ""
         try:
             with open(script_path, encoding="utf-8") as script_file:
                 for line in script_file:
+                    if line.lstrip().startswith("#"):
+                        continue
+                    if "PORTWINE_CREATE_SHORTCUT_NAME=" in line:
+                        match = re.search(
+                            r'PORTWINE_CREATE_SHORTCUT_NAME=["\']([^"\']+)', line
+                        )
+                        if match:
+                            shortcut_name = match.group(1)
                     if "PW_EXE_FILE" in line:
                         exe_name = self._extract_exe_name_from_script_line(line)
                         if exe_name:
-                            return exe_name
+                            install_exe = exe_name
+                    if line.strip().startswith("pw_create_unique_exe"):
+                        match = re.search(r'pw_create_unique_exe\s+["\']?([^"\' ]+)', line)
+                        unique_name = match.group(1) if match else shortcut_name
+                        if unique_name:
+                            return f"{os.path.splitext(unique_name)[0]}.exe"
                     if "PW_AUTOINSTALL_EXE" not in line:
                         continue
                     exe_name = self._extract_exe_name_from_script_line(line)
-                    if exe_name:
+                    if exe_name and not install_exe:
                         install_exe = exe_name
         except OSError as e:
             logger.warning("Failed to read autoinstall script %s: %s", script_path, e)

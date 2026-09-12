@@ -189,3 +189,40 @@ def test_cache_path_does_not_follow_temporary_xdg_cache(
         monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / launch))
         paths = runpy.run_path(str(source))
         assert paths["CACHE_DIR"] == tmp_path / "data" / "PortProtonQt" / "cache"
+
+
+def test_legacy_cache_is_moved_to_data_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    legacy_cache = tmp_path / "legacy" / "PortProtonQt"
+    legacy_cache.mkdir(parents=True)
+    (legacy_cache / "steam_apps.json").write_text("cached", encoding="utf-8")
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "legacy"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+
+    source = Path(__file__).parents[1] / "portprotonqt" / "config" / "base.py"
+    paths = runpy.run_path(str(source))
+
+    assert (paths["CACHE_DIR"] / "steam_apps.json").read_text(encoding="utf-8") == "cached"
+    assert not legacy_cache.exists()
+
+
+def test_legacy_cache_merges_into_existing_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    legacy_cache = tmp_path / "legacy" / "PortProtonQt"
+    legacy_images = legacy_cache / "images"
+    legacy_images.mkdir(parents=True)
+    (legacy_images / "cover.jpg").write_text("cover", encoding="utf-8")
+    current_cache = tmp_path / "data" / "PortProtonQt" / "cache"
+    current_cache.mkdir(parents=True)
+    (current_cache / "steam_apps.json").write_text("apps", encoding="utf-8")
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "legacy"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+
+    source = Path(__file__).parents[1] / "portprotonqt" / "config" / "base.py"
+    runpy.run_path(str(source))
+
+    assert (current_cache / "images" / "cover.jpg").read_text(encoding="utf-8") == "cover"
+    assert (current_cache / "steam_apps.json").read_text(encoding="utf-8") == "apps"
+    assert not legacy_cache.exists()

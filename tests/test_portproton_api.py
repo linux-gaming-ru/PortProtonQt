@@ -192,6 +192,33 @@ def test_autoinstall_script_uses_cached_card_data(
     assert "name=Cached Game" in metadata_path.read_text(encoding="utf-8")
 
 
+@pytest.mark.parametrize(
+    ("unique_call", "shortcut_name", "expected_name"),
+    (
+        ('pw_create_unique_exe "wosb_launcher_pp"', "World of Sea Battle", "wosb_launcher_pp"),
+        ("pw_create_unique_exe", "Anomaly Zone", "Anomaly Zone"),
+    ),
+)
+def test_autoinstall_custom_data_uses_unique_exe_name(
+    tmp_config_dir: Path, tmp_path: Path, unique_call: str,
+    shortcut_name: str, expected_name: str,
+) -> None:
+    api = PortProtonAPI(downloader=cast(Any, DummyDownloader()))
+    script_path = tmp_path / "game.ppai"
+    script_path.write_text(
+        f'PORTWINE_CREATE_SHORTCUT_NAME="{shortcut_name}"\n'
+        'PW_EXE_FILE="$WINEPREFIX/drive_c/Game/launcher.exe"\n'
+        f"{unique_call}\n",
+        encoding="utf-8",
+    )
+
+    api.write_autoinstall_custom_data(str(script_path), {"name": "Game"})
+
+    custom_root = tmp_config_dir.parent / "data" / "PortProtonQt" / "custom_data"
+    assert (custom_root / expected_name / "metadata.txt").exists()
+    assert not (custom_root / "launcher").exists()
+
+
 def test_autoinstall_refresh_clears_cached_ppdb_images(
     tmp_config_dir: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -1,6 +1,7 @@
 """Base configuration class for PortProtonQt."""
 import os
 import configparser
+import shutil
 from pathlib import Path
 from portprotonqt.logger import get_logger
 from portprotonqt.config.validators import validate_string, validate_int, validate_bool, ValidationError
@@ -25,6 +26,26 @@ THEMES_DIRS = [
 
 # Cache paths
 CACHE_DIR = XDG_DATA_HOME / "PortProtonQt" / "cache"
+LEGACY_CACHE_DIR = Path(os.getenv("XDG_CACHE_HOME", Path.home() / ".cache")) / "PortProtonQt"
+
+
+# Remove after the legacy cache migration period.
+def _migrate_legacy_cache() -> None:
+    """Move the legacy XDG cache into persistent application data."""
+    if not LEGACY_CACHE_DIR.is_dir():
+        return
+    try:
+        if not CACHE_DIR.exists():
+            CACHE_DIR.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(LEGACY_CACHE_DIR), str(CACHE_DIR))
+            return
+        shutil.copytree(LEGACY_CACHE_DIR, CACHE_DIR, dirs_exist_ok=True)
+        shutil.rmtree(LEGACY_CACHE_DIR)
+    except OSError as error:
+        logger.warning("Failed to migrate legacy cache directory: %s", error)
+
+
+_migrate_legacy_cache()
 
 # Module-level cache storage
 _config_cache: dict[str, configparser.ConfigParser] = {}

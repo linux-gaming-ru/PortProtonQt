@@ -1045,6 +1045,9 @@ class MainWindow(
         def on_game_info(game: dict, steam_info: dict) -> None:
             nonlocal processed_count
             app_id = str(game.get("app_id", ""))
+            name, custom_cover = MainWindow._get_custom_store_data(
+                "gog", app_id, str(game.get("title", app_id))
+            )
             is_installed = api.is_game_installed(app_id, installed)
             if not only_installed or is_installed:
                 action = "launch" if is_installed else "install"
@@ -1054,8 +1057,8 @@ class MainWindow(
                 ) if target else 0
                 playtime_seconds = playtime_seconds or 0
                 games.append((
-                    str(game.get("title", app_id)),
-                    str(game.get("description", "")), str(game.get("cover", "")),
+                    name, str(game.get("description", "")),
+                    custom_cover or str(game.get("cover", "")),
                     app_id,
                     steam_info.get("controller_support", ""),
                     f"gog://{action}/{app_id}",
@@ -1104,6 +1107,9 @@ class MainWindow(
         def on_game_info(game: dict, steam_info: dict) -> None:
             nonlocal processed_count
             app_id = str(game["app_id"])
+            name, custom_cover = MainWindow._get_custom_store_data(
+                "egs", app_id, str(game.get("title", app_id))
+            )
             installed = self.egs_api.is_game_installed(app_id)
             if not only_installed or installed:
                 target = self.egs_api.get_launch_target(app_id) if installed else None
@@ -1115,8 +1121,8 @@ class MainWindow(
                 ) if target else 0
                 playtime = playtime or 0
                 games.append((
-                    str(game.get("title", app_id)), description,
-                    str(game.get("cover", "")), app_id,
+                    name, description,
+                    custom_cover or str(game.get("cover", "")), app_id,
                     steam_info.get("controller_support", ""),
                     f"egs://{'launch' if installed else 'install'}/{app_id}",
                     get_last_launch(f"egs-{app_id}") if target else _("Never"),
@@ -1214,12 +1220,30 @@ class MainWindow(
         appid: int | str, fallback_name: str
     ) -> tuple[str, str]:
         """Return custom Steam name and cover stored by AppID."""
+        return MainWindow._get_custom_store_data("steam", appid, fallback_name)
+
+    @staticmethod
+    def _get_custom_store_data(
+        source: str, appid: int | str, fallback_name: str
+    ) -> tuple[str, str]:
+        """Return custom store name and cover stored by game ID."""
+        appid_str = str(appid)
+        if appid_str in {"", ".", ".."} or os.path.basename(appid_str) != appid_str:
+            return fallback_name, ""
         xdg_data_home = os.getenv(
             "XDG_DATA_HOME", os.path.join(os.path.expanduser("~"), ".local", "share")
         )
+        storage_id = f"{source}-{appid_str}"
         game_dir = os.path.join(
-            xdg_data_home, "PortProtonQt", "custom_data", str(appid)
+            xdg_data_home, "PortProtonQt", "custom_data", storage_id
         )
+        if source == "steam" and not os.path.isdir(game_dir):
+            # Remove the legacy AppID-only fallback after the migration period.
+            legacy_dir = os.path.join(
+                xdg_data_home, "PortProtonQt", "custom_data", appid_str
+            )
+            if os.path.isdir(legacy_dir):
+                game_dir = legacy_dir
         metadata_path = os.path.join(game_dir, "metadata.txt")
         custom_name = fallback_name
         if os.path.isfile(metadata_path):

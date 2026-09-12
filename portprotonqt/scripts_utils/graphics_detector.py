@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any
 
 UNREAL_BOOTSTRAPPER_MAX_SIZE = 1_048_576
+LAUNCHER_NAME_MARKERS = ("launcher", "setup", "updater", "unins")
 
 DIRECTX_IMPORTS = {
     "ddraw.dll": "DirectDraw",
@@ -49,6 +50,8 @@ OPENGL_SIGNATURES = {
     "OpenGL Utility Library": (b"glu32.dll", b"gluPerspective", b"gluLookAt"),
 }
 
+VULKAN_SIGNATURES = (b"vulkan-1.dll", b"vkCreateInstance", b"vkGetInstanceProcAddr")
+
 
 def analyze_executable(file_path: str) -> dict[str, Any]:
     """Detect graphics API usage in a Windows executable."""
@@ -59,14 +62,16 @@ def analyze_executable(file_path: str) -> dict[str, Any]:
 
     directx = set()
     opengl = set()
+    vulkan = set()
 
     if analysis_path.suffix.lower() in {".exe", ".dll"}:
         _add_pe_imports(analysis_path, directx, opengl)
-    _add_file_signatures(analysis_path, directx, opengl)
+    _add_file_signatures(analysis_path, directx, opengl, vulkan)
 
     return {
         "highest_directx": _highest_directx(list(directx)),
         "uses_opengl": bool(opengl),
+        "uses_vulkan": bool(vulkan),
         "source": str(analysis_path),
     }
 
@@ -89,7 +94,26 @@ def resolve_graphics_executable(file_path: str) -> Path:
         renpy_libraries = sorted(path.parent.glob("lib/*/librenpython.dll"))
         if renpy_libraries:
             return renpy_libraries[0]
+    is_launcher = any(marker in path.stem.lower() for marker in LAUNCHER_NAME_MARKERS)
+    if is_launcher or not _is_pe_file(path):
+        pe_candidates = [
+            candidate
+            for candidate in path.parent.glob("*.exe")
+            if candidate != path
+            and _is_pe_file(candidate)
+            and not any(marker in candidate.stem.lower() for marker in LAUNCHER_NAME_MARKERS)
+        ]
+        if pe_candidates:
+            return max(pe_candidates, key=lambda candidate: candidate.stat().st_size)
     return path
+
+
+def _is_pe_file(path: Path) -> bool:
+    try:
+        with path.open("rb") as executable:
+            return executable.read(2) == b"MZ"
+    except OSError:
+        return False
 
 
 def _add_pe_imports(path: Path, directx: set[str], opengl: set[str]) -> None:
@@ -117,7 +141,9 @@ def _add_pe_imports(path: Path, directx: set[str], opengl: set[str]) -> None:
         return
 
 
-def _add_file_signatures(path: Path, directx: set[str], opengl: set[str]) -> None:
+def _add_file_signatures(
+    path: Path, directx: set[str], opengl: set[str], vulkan: set[str]
+) -> None:
     try:
         with path.open("rb") as f:
             data = f.read(67108864).lower()
@@ -131,6 +157,8 @@ def _add_file_signatures(path: Path, directx: set[str], opengl: set[str]) -> Non
     for name, patterns in OPENGL_SIGNATURES.items():
         if any(p.lower() in data for p in patterns):
             opengl.add(name)
+    if any(signature.lower() in data for signature in VULKAN_SIGNATURES):
+        vulkan.add("Vulkan")
 
 
 def _highest_directx(directx: list[str]) -> str:
@@ -148,6 +176,8 @@ def _main(argv: list[str]) -> int:
         result = analyze_executable(argv[1])
         print(f"HIGHEST_DX={result['highest_directx']}")
         print(f"USES_OGL={'true' if result['uses_opengl'] else 'false'}")
+        print(f"USES_VULKAN={'true' if result['uses_vulkan'] else 'false'}")
+        print(f"SOURCE={result['source']}")
         return 0
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
