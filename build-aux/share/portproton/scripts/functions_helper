@@ -2495,6 +2495,110 @@ pw_specialk_sync_files () {
 
 }
 
+pw_reshade_sync_files () {
+    local root="${PW_PLUGINS_PATH}/reshade_windows" runtime detect arch dll highest ogl vulkan
+    local manifest_reg package installed
+    if [[ "$PW_USE_RESHADE" == 1 ]] ; then
+        runtime="$root/reshade/$PW_RESHADE_VER"
+        detect=$(python_module graphics_detector "$PW_EXE_FILE")
+        file "$PW_EXE_FILE" | grep -qE 'x86-64|PE32\+' && arch=64 || arch=32
+        highest=$(echo "$detect" | grep '^HIGHEST_DX=' | cut -d= -f2)
+        ogl=$(echo "$detect" | grep '^USES_OGL=' | cut -d= -f2)
+        vulkan=$(echo "$detect" | grep '^USES_VULKAN=' | cut -d= -f2)
+    fi
+    if [[ "$PW_USE_RESHADE" == 1 ]] \
+    && [[ ! -f "$runtime/ReShade32.dll" || ! -f "$runtime/ReShade32.json" \
+    || ! -f "$runtime/ReShade64.dll" || ! -f "$runtime/ReShade64.json" ]] ; then
+        try_download "https://reshade.me/downloads/ReShade_Setup_${PW_RESHADE_VER}.exe" \
+            "${PORT_DATA_PATH}/data/tmp/ReShade_Setup_${PW_RESHADE_VER}.exe"
+        create_new_dir "$runtime"
+        unpack "${PORT_DATA_PATH}/data/tmp/ReShade_Setup_${PW_RESHADE_VER}.exe" \
+            "$runtime" silent || fatal "Failed to extract ReShade."
+        try_remove_file "${PORT_DATA_PATH}/data/tmp/ReShade_Setup_${PW_RESHADE_VER}.exe"
+    fi
+    if [[ "$PW_USE_RESHADE" == 1 && ! -f "$root/d3dcompiler_47.dll" ]] ; then
+        try_download "https://github.com/itsOwen/LetMeReShade/releases/download/LetMeReShade_Binaries/d3dcompiler_47.dll" "$root/d3dcompiler_47.dll"
+    fi
+    if [[ "$PW_USE_RESHADE" == 1 && ! -f "$root/d3d8.dll" ]] ; then
+        try_download "https://github.com/crosire/d3d8to9/releases/download/v${PW_D3D8TO9_VER}/d3d8.dll" "$root/d3d8.dll"
+    fi
+    if [[ "$PW_USE_RESHADE" == 1 && ! -d "$root/shaders/Merged/Shaders" ]] ; then
+        create_new_dir "$root/shaders/Merged/Shaders"
+        create_new_dir "$root/shaders/Merged/Textures"
+        for package in reshade_shaders sweetfx_shaders immerse_shaders astrayfx_shaders prod80_shaders retroarch_shaders ; do
+            if [[ "$package" == immerse_shaders ]] ; then
+                try_download "https://github.com/martymcmodding/iMMERSE/archive/refs/heads/main.tar.gz" \
+                    "${PORT_DATA_PATH}/data/tmp/${package}.tar.gz"
+            else
+                try_download "https://github.com/itsOwen/LetMeReShade/releases/download/LetMeReShade_Binaries/${package}.tar.gz" \
+                    "${PORT_DATA_PATH}/data/tmp/${package}.tar.gz"
+            fi
+            create_new_dir "$root/shaders/$package"
+            unpack "${PORT_DATA_PATH}/data/tmp/${package}.tar.gz" "$root/shaders/$package" \
+                silent || fatal "Failed to extract $package."
+            find "$root/shaders/$package" -type d -iname Shaders -exec cp -rf '{}/.' "$root/shaders/Merged/Shaders/" \;
+            find "$root/shaders/$package" -type d -iname Textures -exec cp -rf '{}/.' "$root/shaders/Merged/Textures/" \;
+            try_remove_file "${PORT_DATA_PATH}/data/tmp/${package}.tar.gz"
+        done
+    fi
+    if [[ "$PW_USE_RESHADE" == 1 && "$vulkan" == true ]] ; then
+        dll="Vulkan${arch}"
+    elif [[ "$PW_USE_RESHADE" == 1 ]] ; then
+        case "$highest" in
+            "DirectX 10"|"DirectX 11"|"DirectX 12") dll=dxgi.dll ;;
+            "DirectX 8"|"DirectX 9") dll=d3d9.dll ;;
+            "DirectDraw") return 0 ;;
+            *) [[ "$ogl" == true ]] && dll=opengl32.dll || dll=dxgi.dll ;;
+        esac
+    fi
+    if [[ -f "$PATH_TO_GAME/reshade_version" ]] \
+    && { [[ "$PW_USE_RESHADE" != 1 ]] \
+    || [[ "$(<"$PATH_TO_GAME/reshade_version")" != "$PW_RESHADE_VER"$'\n'"$dll" ]]; } ; then
+        installed=$(sed -n '2p' "$PATH_TO_GAME/reshade_version")
+        try_remove_file "$PATH_TO_GAME/$installed"
+        [[ -e "$PATH_TO_GAME/${installed}.b" ]] \
+            && mv -f "$PATH_TO_GAME/${installed}.b" "$PATH_TO_GAME/$installed"
+        [[ -L "$PATH_TO_GAME/d3dcompiler_47.dll" ]] && unlink "$PATH_TO_GAME/d3dcompiler_47.dll"
+        [[ -L "$PATH_TO_GAME/d3d8.dll" ]] && unlink "$PATH_TO_GAME/d3d8.dll"
+        [[ -e "$PATH_TO_GAME/d3d8.dll.b" ]] \
+            && mv -f "$PATH_TO_GAME/d3d8.dll.b" "$PATH_TO_GAME/d3d8.dll"
+        [[ -L "$PATH_TO_GAME/ReShade_shaders" ]] && unlink "$PATH_TO_GAME/ReShade_shaders"
+        [[ -L "$PATH_TO_GAME/ReShade.ini" ]] && unlink "$PATH_TO_GAME/ReShade.ini"
+        try_remove_file "$PATH_TO_GAME/reshade_version"
+    fi
+    [[ "$PW_USE_RESHADE" != 1 ]] && return 0
+    try_force_link_dir "$root/shaders" "$PATH_TO_GAME/ReShade_shaders"
+    pw_specialk_set_ini_value "$PATH_TO_GAME/ReShade.ini" "GENERAL" "EffectSearchPaths" '.\\ReShade_shaders\\Merged\\Shaders'
+    pw_specialk_set_ini_value "$PATH_TO_GAME/ReShade.ini" "GENERAL" "TextureSearchPaths" '.\\ReShade_shaders\\Merged\\Textures'
+    if [[ -f /usr/share/fonts/ttf/dejavu/DejaVuSans.ttf ]] ; then
+        pw_specialk_set_ini_value "$PATH_TO_GAME/ReShade.ini" "STYLE" "Font" 'Z:\\usr\\share\\fonts\\ttf\\dejavu\\DejaVuSans.ttf'
+        pw_specialk_set_ini_value "$PATH_TO_GAME/ReShade.ini" "STYLE" "EditorFont" 'Z:\\usr\\share\\fonts\\ttf\\dejavu\\DejaVuSans.ttf'
+    fi
+    if [[ "$vulkan" == true ]] ; then
+        manifest_reg="Z:${runtime//\//\\}\\ReShade${arch}.json"
+        manifest_reg=${manifest_reg//\\/\\\\\\\\}
+        get_and_set_reg_file --add 'Software\Khronos\Vulkan\ImplicitLayers' "$manifest_reg" REG_DWORD 0 user
+        if [[ "$arch" == 32 ]] ; then
+            get_and_set_reg_file --add 'Software\Wow6432Node\Khronos\Vulkan\ImplicitLayers' "$manifest_reg" REG_DWORD 0 system
+        else
+            get_and_set_reg_file --add 'Software\Khronos\Vulkan\ImplicitLayers' "$manifest_reg" REG_DWORD 0 system
+        fi
+        var_winedlloverride_update "vulkan-1=n,b"
+        printf '%s\n%s\n' "$PW_RESHADE_VER" "$dll" > "$PATH_TO_GAME/reshade_version"
+        return 0
+    fi
+    [[ -e "$PATH_TO_GAME/$dll" && ! -e "$PATH_TO_GAME/${dll}.b" ]] && mv -f "$PATH_TO_GAME/$dll" "$PATH_TO_GAME/${dll}.b"
+    try_force_link_file "$runtime/ReShade${arch}.dll" "$PATH_TO_GAME/$dll"
+    try_force_link_file "$root/d3dcompiler_47.dll" "$PATH_TO_GAME/d3dcompiler_47.dll"
+    var_winedlloverride_update "d3dcompiler_47=n;${dll%.*}=n,b"
+    if [[ "$highest" == "DirectX 8" ]] ; then
+        [[ -e "$PATH_TO_GAME/d3d8.dll" && ! -e "$PATH_TO_GAME/d3d8.dll.b" ]] && mv -f "$PATH_TO_GAME/d3d8.dll" "$PATH_TO_GAME/d3d8.dll.b"
+        try_force_link_file "$root/d3d8.dll" "$PATH_TO_GAME/d3d8.dll"
+        var_winedlloverride_update "d3d8=n,b"
+    fi
+    printf '%s\n%s\n' "$PW_RESHADE_VER" "$dll" > "$PATH_TO_GAME/reshade_version"
+}
+
 pw_prepare_gamescope_launch () {
     [[ "$PW_USE_NATIVE_WAYLAND" == "1" ]] && export PW_GAMESCOPE="0"
 
@@ -2929,6 +3033,7 @@ start_portproton () {
 
     pw_optiscaler_sync_files
     pw_specialk_sync_files
+    pw_reshade_sync_files
 
     if [[ "${PW_USE_RAY_TRACING}" == "1" ]] ; then
         var_vkd3d_config_update dxr
@@ -4001,7 +4106,6 @@ steamplay_launch () {
 
         pw_optiscaler_sync_files
         pw_specialk_sync_files
-
         PORT_WINE_PREFIX="$STEAM_COMPAT_DATA_PATH/pfx"
 
         pw_prepare_gamescope_launch
@@ -4066,6 +4170,8 @@ steamplay_launch () {
                 fatal "$PW_WINE_USE not found!"
             fi
         fi
+
+        pw_reshade_sync_files
 
         # Winetricks
         if [[ -n "${PW_DLL_INSTALL:-}" ]] ; then
@@ -4269,7 +4375,7 @@ gui_edit_db () {
     KEY_EDIT_DB_GUI=$RANDOM
     DISABLE_EDIT_DB_LIST=""
     PW_EDIT_DB_LIST=(PW_MANGOHUD PW_MANGOHUD_USER_CONF PW_VKBASALT PW_VKBASALT_USER_CONF
-    PW_VKBASALT_EFFECTS PW_VKBASALT_FFX_CAS PW_DGVOODOO2 PW_USE_SPECIALK
+    PW_VKBASALT_EFFECTS PW_VKBASALT_FFX_CAS PW_DGVOODOO2 PW_USE_SPECIALK PW_USE_RESHADE
     PW_USE_ESYNC PW_USE_FSYNC PW_USE_NTSYNC PW_USE_RAY_TRACING PW_USE_NVAPI_AND_DLSS PW_USE_OPTISCALER
     PW_USE_LS_FRAME_GEN PW_WINE_FULLSCREEN_FSR PW_HIDE_NVIDIA_GPU PW_VIRTUAL_DESKTOP PW_USE_TERMINAL
     PW_USE_GAMEMODE PW_USE_INHIBIT_SLEEP PW_USE_D3D_EXTRAS PW_FIX_VIDEO_IN_GAME PW_REDUCE_PULSE_LATENCY
@@ -4303,6 +4409,10 @@ gui_edit_db () {
         DISABLE_EDIT_DB_LIST+=" PW_VKBASALT PW_VKBASALT_USER_CONF PW_USE_RAY_TRACING PW_USE_OBS_VKCAPTURE PW_USE_GALLIUM_ZINK PW_USE_WINED3D_VULKAN"
     fi
     [[ "${PW_USE_SPECIALK}" == "1" ]] && DISABLE_EDIT_DB_LIST+=" PW_DGVOODOO2"
+    [[ "${PW_USE_RESHADE}" == "1" ]] && DISABLE_EDIT_DB_LIST+=" PW_USE_OPTISCALER PW_USE_SPECIALK"
+    if [[ "${PW_USE_OPTISCALER}" == "1" || "${PW_USE_SPECIALK}" == "1" ]] ; then
+        DISABLE_EDIT_DB_LIST+=" PW_USE_RESHADE"
+    fi
 
     [[ ! -e "/dev/ntsync" ]] && DISABLE_EDIT_DB_LIST+=" PW_USE_NTSYNC"
 
