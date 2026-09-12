@@ -456,3 +456,117 @@ def test_run_after_command_placeholder_preserves_arguments_and_status(
     )
     assert result.returncode == exit_code, result.stderr
     assert result.stdout == "yes\nаргумент с пробелами\n$(false)\n\n"
+
+
+@mark.parametrize("arch", [32, 64])
+def test_reshade_switches_between_proxy_and_specialk_plugin(tmp_path: Path, arch: int) -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text()
+    functions = "".join(
+        name + " () {" + helper.split(name + " () {", 1)[1].split("\n}\n", 1)[0] + "\n}\n"
+        for name in ("pw_specialk_sync_files", "pw_reshade_sync_files")
+    )
+    game = tmp_path / "game"
+    game.mkdir()
+    exe = game / "game.exe"
+    exe.touch()
+    root = tmp_path / "reshade_windows"
+    runtime = root / "reshade/1_Addon"
+    runtime.mkdir(parents=True)
+    (root / "shaders/Shaders").mkdir(parents=True)
+    for path in ("ReShade32.dll", "ReShade64.dll", "ReShade32.json", "ReShade64.json"):
+        (runtime / path).write_text("reshade")
+    for path in ("d3dcompiler_47.dll", "d3d8.dll"):
+        (root / path).touch()
+    sk = tmp_path / "specialk/specialk-1"
+    sk.mkdir(parents=True)
+    (sk / f"SpecialK{arch}.dll").write_text("specialk")
+    launch_calls = helper.split("    pw_optiscaler_sync_files\n", 1)[1].split("\n\n", 1)[0]
+    script = functions + "sync_files() {\n" + launch_calls + "\n}\n" + '''
+file() { [[ "$TEST_ARCH" != 64 ]] || echo x86-64; }
+python_module() { printf 'HIGHEST_DX=DirectX 9\\nUSES_OGL=false\\nUSES_VULKAN=false\\n'; }
+try_remove_file() { rm -f -- "$1"; }
+try_force_link_file() { ln -sfnT -- "$1" "$2"; }
+try_force_link_dir() { try_force_link_file "$@"; }
+pw_specialk_set_ini_value() { :; }
+var_winedlloverride_update() { :; }
+plugin="$PATH_TO_GAME/ReShade${TEST_ARCH}.dll"
+proxy="$PATH_TO_GAME/d3d9.dll"
+PW_USE_SPECIALK=0 sync_files
+[[ -f "$proxy" && ! -L "$proxy" && $(<"$proxy") == reshade && ! -e "$plugin" ]] || exit 1
+PW_USE_SPECIALK=1 sync_files
+[[ $(<"$proxy") == specialk && -f "$plugin" && ! -L "$plugin" && $(<"$plugin") == reshade ]] || exit 2
+PW_USE_SPECIALK=0 sync_files
+[[ -f "$proxy" && ! -L "$proxy" && $(<"$proxy") == reshade && ! -e "$plugin" ]] || exit 3
+printf manual > "$plugin"
+PW_USE_SPECIALK=1 sync_files
+PW_USE_SPECIALK=0 sync_files
+[[ $(<"$plugin") == manual ]] || exit 4
+'''
+    result = subprocess.run(
+        ["bash", "-c", script], capture_output=True, text=True, check=False,
+        env={"PATH": os.defpath, "PATH_TO_GAME": str(game), "PW_EXE_FILE": str(exe),
+             "PW_PLUGINS_PATH": str(tmp_path), "TEST_ARCH": str(arch),
+             "PW_USE_RESHADE": "1", "PW_RESHADE_VER": "1", "PW_SPECIALK_VER": "1"},
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_reshade_renodx_download_and_disable(tmp_path: Path) -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text()
+    marker = '    local renodx_url='
+    block = marker + helper.split(marker, 1)[1].split('\n    [[ "$PW_USE_RESHADE" != 1 ]]', 1)[0]
+    manual = tmp_path / "renodx-manual.addon64"
+    manual.write_bytes(b"manual")
+    script = (
+        'try_download() { [[ "$1" == "$PW_RESHADE_RENODX" && "$3" == no_mirror ]] && printf test-addon > "$2"; }\n'
+        'print_warning() { echo "$*" >&2; }\n'
+        'try_remove_file() { rm -f -- "$1"; }\n'
+        'sync_files() { local arch=64;\n' + block + '\n}\n'
+        'PW_USE_RESHADE=1 sync_files\n'
+        'files=("$PATH_TO_GAME"/PortProton-RenoDX-*.addon64)\n'
+        '[[ ${#files[@]} == 1 && $(<"${files[0]}") == test-addon ]]\n'
+        'PW_USE_RESHADE=0 sync_files\n'
+        '[[ ! -e "${files[0]}" ]]\n'
+    )
+    result = subprocess.run(
+        ["bash", "-ec", script],
+        env={"PATH": os.defpath, "PATH_TO_GAME": str(tmp_path),
+             "PW_RESHADE_RENODX": "https://example.github.io/renodx/game.addon64"},
+        capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert manual.read_bytes() == b"manual"
+
+
+@mark.parametrize("steam_play", [False, True])
+def test_reshade_font_link_stays_inside_prefix(tmp_path: Path, steam_play: bool) -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text()
+    ini_setter = helper.split("pw_specialk_set_ini_value () {", 1)[1].split("\n}\n", 1)[0]
+    copy_file = helper.split("try_copy_file () {", 1)[1].split("\n}\n", 1)[0]
+    marker = '    if [[ -f "$reshade_font" ]] ; then'
+    font_block = marker + helper.split(marker, 1)[1].split("\n    screenshot_path=", 1)[0]
+    source = tmp_path / "host font.ttf"
+    source.write_bytes(b"test font")
+    ini = tmp_path / "ReShade.ini"
+    ini.write_text("[STYLE]\nFont=Z:\\old.ttf\nEditorFont=Z:\\old.ttf\n")
+    wine_prefix = tmp_path / "wine prefix"
+    prefix = tmp_path / "Steam prefix" if steam_play else wine_prefix
+    result = subprocess.run(
+        ["bash", "-ec", "pw_specialk_set_ini_value () {" + ini_setter + "\n}\n"
+         + "try_copy_file () {" + copy_file + "\n}\n"
+         + "stage_font () {\n" + font_block + '\n}\nstage_font "$@"',
+         "bash", *([str(prefix)] if steam_play else [])],
+        env={"PATH": os.defpath, "WINEPREFIX": str(wine_prefix),
+             "reshade_font": str(source), "PATH_TO_GAME": str(tmp_path)},
+        capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    font, editor_font = ini.read_text().splitlines()[1:]
+    assert font.startswith("Font=C:/PortProton/reshade-fonts/")
+    assert editor_font == f"Editor{font}"
+    link = prefix / "drive_c" / font.removeprefix("Font=C:/")
+    assert link.is_symlink()
+    assert not link.readlink().is_absolute()
+    assert link.resolve().is_relative_to(prefix)
+    source.unlink()
+    assert link.read_bytes() == b"test font"

@@ -6,7 +6,8 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
-from PySide6.QtCore import QEvent, QRect, Qt, QTimer
+from PySide6.QtCore import QByteArray, QEvent, QRect, Qt, QTimer
+from PySide6.QtNetwork import QNetworkReply
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import (
     QApplication,
@@ -36,10 +37,29 @@ from portprotonqt.dialogs.settings_mangohud import (
     MANGOHUD_TOGGLE_DESCRIPTIONS,
     MangoHudSettingsMixin,
 )
+from portprotonqt.dialogs.settings_reshade import ReShadeSettingsMixin
 from portprotonqt.dialogs.settings_vkbasalt import VkBasaltSettingsMixin
 
 
 _application = QApplication.instance() or QApplication([])
+
+
+def test_reshade_renodx_catalog_keeps_saved_selection() -> None:
+    url = "https://example.github.io/renodx/game.addon64"
+    combo = CustomComboBox()
+    combo.addItem("game.addon64", url)
+    reply = SimpleNamespace(
+        deleteLater=lambda: None,
+        error=lambda: QNetworkReply.NetworkError.NoError,
+        readAll=lambda: QByteArray(f"| Game Title | Author | [Snapshot]({url}) |".encode()),
+    )
+
+    settings = SimpleNamespace(reshade_renodx_combo=combo)
+    ReShadeSettingsMixin._renodx_catalog_finished(
+        cast(ReShadeSettingsMixin, settings), cast(QNetworkReply, reply)
+    )
+    assert combo.currentData() == url
+    assert combo.currentText() == "Game Title"
 
 
 def test_settings_dialog_search_accepts_typing_without_search_focus() -> None:
@@ -87,6 +107,48 @@ def test_settings_dialog_search_accepts_typing_without_search_focus() -> None:
         dialog.close()
         dialog.deleteLater()
         QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+
+def test_reshade_collects_enable_exe_api_and_font() -> None:
+    settings = ReShadeSettingsMixin()
+    settings.current_settings = {
+        "PW_USE_RESHADE": "1",
+        "PW_RESHADE_SCREENSHOT_KEY": "44,0,0,0",
+        "PW_RESHADE_OVERLAY_KEY": "36,0,0,0",
+    }
+    settings.original_values = {"PW_USE_RESHADE": "0"}
+    settings.reshade_original_values = {
+        "PW_RESHADE_EXE": "",
+        "PW_RESHADE_API": "auto",
+        "PW_RESHADE_FONT": "",
+        "PW_RESHADE_SCREENSHOT_PATH": "",
+        "PW_RESHADE_SCREENSHOT_KEY": "44,0,0,0",
+        "PW_RESHADE_OVERLAY_KEY": "36,0,0,0",
+    }
+    settings.reshade_exe_edit = QLineEdit("/games/game.exe")
+    settings.reshade_renodx_combo = CustomComboBox()
+    settings.reshade_renodx_combo.addItem("Game", "https://example.github.io/renodx/game.addon64")
+    settings.reshade_api_combo = CustomComboBox()
+    settings.reshade_api_combo.addItems(["Auto", "Vulkan"])
+    settings.reshade_api_combo.setCurrentText("Vulkan")
+    settings.reshade_font_combo = CustomComboBox()
+    settings.reshade_font_combo.addItem("DejaVu Sans", "DejaVu Sans")
+    settings.reshade_screenshot_edit = QLineEdit("/screenshots")
+
+    assert settings._collect_reshade_changes() == [
+        "PW_USE_RESHADE=1",
+        "PW_RESHADE_EXE=/games/game.exe",
+        "PW_RESHADE_API=vulkan",
+        "PW_RESHADE_RENODX=https://example.github.io/renodx/game.addon64",
+        "PW_RESHADE_FONT=DejaVu Sans",
+        "PW_RESHADE_SCREENSHOT_PATH=/screenshots",
+    ]
+    assert settings._reshade_virtual_key(
+        Qt.Key.Key_Semicolon.value, Qt.KeyboardModifier.NoModifier
+    ) == 186
+    assert settings._reshade_virtual_key(
+        Qt.Key.Key_1.value, Qt.KeyboardModifier.KeypadModifier
+    ) == 97
 
 
 def test_mangohud_search_ignores_unavailable_categories() -> None:
@@ -842,6 +904,17 @@ def autosave_dialog(request, monkeypatch, tmp_path) -> tuple[QDialog, list[list[
     dialog.mangohud_original_values = {}
     dialog.vkbasalt_original_values = {}
     dialog.gamescope_original_values = {}
+    dialog.current_settings.update({
+        'PW_RESHADE_SCREENSHOT_KEY': '44,0,0,0',
+        'PW_RESHADE_OVERLAY_KEY': '36,0,0,0',
+    })
+    dialog.reshade_original_values = {**dialog.current_settings, 'PW_RESHADE_API': 'auto'}
+    dialog.reshade_exe_edit = QLineEdit(dialog)
+    dialog.reshade_renodx_combo = CustomComboBox(dialog)
+    dialog.reshade_api_combo = CustomComboBox(dialog)
+    dialog.reshade_api_combo.addItems(['Auto', 'Vulkan'])
+    dialog.reshade_font_combo = CustomComboBox(dialog)
+    dialog.reshade_screenshot_edit = QLineEdit(dialog)
     calls: list[list[str]] = []
     monkeypatch.setattr(dialog, '_collect_mangohud_changes', lambda: [])
     monkeypatch.setattr(dialog, '_collect_vkbasalt_changes', lambda: [])
@@ -849,6 +922,39 @@ def autosave_dialog(request, monkeypatch, tmp_path) -> tuple[QDialog, list[list[
     monkeypatch.setattr(QProcess, 'start', lambda _self, program, args: calls.append(args))
 
     return dialog, calls, user_conf
+
+
+@pytest.mark.parametrize('autosave_dialog', [False, True], indirect=True)
+def test_reshade_button_autosaves_without_main_checkbox(autosave_dialog: tuple) -> None:
+    from PySide6.QtCore import QProcess
+    from portprotonqt.dialogs.settings_dialog import ExeSettingsDialog
+
+    widget, calls, user_conf = autosave_dialog
+    dialog = cast(ExeSettingsDialog, widget)
+    dialog.theme = SimpleNamespace(ACTION_BUTTON_ACTIVE_STYLE='', ACTION_BUTTON_STYLE='')
+    dialog.search_edit = QLineEdit(dialog)
+    dialog.reshade_settings_group = QGroupBox(dialog)
+    dialog.reshade_enable_button = QPushButton(dialog)
+    dialog.reshade_enable_button.clicked.connect(dialog.toggle_reshade_enable)
+    dialog._connect_autosave()
+    dialog.reshade_api_combo.setCurrentText('Vulkan')
+
+    for value in ('1', '0'):
+        dialog.reshade_enable_button.click()
+        assert dialog.save_timer.isActive()
+        dialog.apply_changes()
+        expected = ['PW_USE_RESHADE', value] if user_conf else [f'PW_USE_RESHADE={value}']
+        if not user_conf and value == '1':
+            expected.append('PW_RESHADE_API=vulkan')
+        assert calls[-1][-len(expected):] == expected
+        process = dialog.user_conf_process if user_conf else dialog.save_process
+        process.finished.emit(0, QProcess.ExitStatus.NormalExit)
+        if user_conf and value == '1':
+            assert calls[-1][-2:] == ['PW_RESHADE_API', 'vulkan']
+            dialog.user_conf_process.finished.emit(0, QProcess.ExitStatus.NormalExit)
+        assert not dialog.saving
+        assert dialog.original_values['PW_USE_RESHADE'] == value
+    dialog.deleteLater()
 
 
 @pytest.mark.parametrize('autosave_dialog', [False, True], indirect=True)

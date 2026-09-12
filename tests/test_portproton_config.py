@@ -1,8 +1,9 @@
 """Tests for config/portproton.py — exec_line parsing, icon sanitization, launcher tail extraction."""
 import os
+import subprocess
 from pathlib import Path
 
-from pytest import MonkeyPatch
+from pytest import MonkeyPatch, mark
 
 from portprotonqt.config.portproton import (
     extract_exec_target_path,
@@ -192,3 +193,185 @@ class TestThemedLaunchIconNames:
 
     def test_reg_has_icon(self):
         assert "reg" in THEMED_LAUNCH_ICON_NAMES[".reg"]
+
+
+def test_run_after_batch_is_created_next_to_exe() -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text(
+        encoding="utf-8",
+    )
+
+    assert 'run_after_dir="$(dirname "${PW_EXE_FILE}")"' in helper
+    assert 'pw_exe_file_win="$("${WINELOADER}" winepath -w "${PW_EXE_FILE}"' in helper
+    assert "chcp 65001 >nul" in helper
+    assert 'start "" "%PW_RUN_AFTER_MAIN_PATH%" ${LAUNCH_PARAMETERS}' in helper
+    assert 'start "" "%PW_RUN_AFTER_SECOND_PATH%"' in helper
+    assert 'PW_RUN_AFTER_MAIN_PATH="${pw_exe_file_win}"' in helper
+    assert 'PW_RUN_AFTER_SECOND_PATH="${run_after_first_win}"' in helper
+    assert 'LAUNCH_PARAMETERS="" proxy_launch_parameters="" \\' in helper
+    assert 'pw_run "${PW_VD_TMP[@]}" "${run_after_bat}"' in helper
+
+
+def test_game_launch_marker_is_emitted_for_wine_and_proton() -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text(
+        encoding="utf-8",
+    )
+
+    marker = "printf '%s\\n' 'PORTPROTONQT_GAME_LAUNCH_STARTED'"
+    assert helper.count(marker) == 2
+
+
+def test_user_conf_get_without_name_lists_active_values(tmp_path: Path) -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text()
+    definition = helper.split("manage_user_conf_value () {", 1)[1].split(
+        "use_exiftool () {", 1
+    )[0]
+    user_conf = tmp_path / "user.conf"
+    user_conf.write_text(
+        '# comment\nexport PW_USE_ESYNC="1"\n# export PW_USE_FSYNC="1"\n',
+        encoding="utf-8",
+    )
+    script = "manage_user_conf_value () {" + definition + '\nmanage_user_conf_value get\n'
+
+    result = subprocess.run(
+        ["bash", "-c", script], capture_output=True, text=True,
+        env={"PATH": os.defpath, "USER_CONF": str(user_conf)}, check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == 'PW_USE_ESYNC="1"\n'
+
+
+@mark.parametrize("runtime,logging", [("0", "0"), ("0", "1"), ("1", "0"), ("1", "1")])
+def test_wine_exit_code_survives_log_output_and_wineserver_wait(
+    tmp_path: Path, runtime: str, logging: str,
+) -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text()
+    definition = helper.split("pw_run () {", 1)[1].split("export -f pw_run", 1)[0]
+    script = "pw_run () {" + definition + '''
+check_variables () { :; }
+pw_launch_wrapper () { return 37; }
+wait_wineserver () { return 0; }
+print_info () { :; }
+PATH_TO_GAME="$1"
+PW_TMPFS_PATH="$1"
+PW_LOG_FILE="$1/wine.log"
+PW_EXE_FILE="$1/game.exe"
+PW_USE_RUNTIME="$2"
+PW_LOG="$3"
+pw_run "$PW_EXE_FILE"
+exit $?
+'''
+    (tmp_path / "game.exe").touch()
+
+    result = subprocess.run(
+        ["bash", "-c", script, "bash", str(tmp_path), runtime, logging],
+        capture_output=True, text=True, env={"PATH": os.defpath}, check=False,
+    )
+
+    assert result.returncode == 37, result.stderr
+    assert result.stdout.count("PORTPROTONQT_GAME_EXIT_CODE=37") == 1
+
+
+def test_vk_gpu_info_uses_build_aux_binary() -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text(
+        encoding="utf-8",
+    )
+
+    assert '/../../../bin/vk_gpu_info"' in helper
+    assert "dev-scripts/vk_gpu_info" not in helper
+
+
+def test_reshade_prefers_directx_for_unity() -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text(
+        encoding="utf-8",
+    )
+
+    assert "source=$(echo \"$detect\" | grep '^SOURCE=' | cut -d= -f2-)" in helper
+    assert (
+        '[[ "${source##*/}" == UnityPlayer.dll && "$highest" != None ]] '
+        "&& vulkan=false"
+    ) in helper
+
+
+def test_reshade_and_optiscaler_are_mutually_exclusive() -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text(
+        encoding="utf-8",
+    )
+
+    assert (
+        '[[ "${PW_USE_RESHADE}" == "1" ]] && DISABLE_EDIT_DB_LIST+=" PW_USE_OPTISCALER"\n'
+        '    if [[ "${PW_USE_OPTISCALER}" == "1" ]] ; then\n'
+        '        DISABLE_EDIT_DB_LIST+=" PW_USE_RESHADE"\n'
+    ) in helper
+
+
+def test_reshade_repeated_link_does_not_create_nested_shaders(tmp_path: Path) -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text(
+        encoding="utf-8",
+    )
+    link_function = helper.split("try_force_link_dir () {", 1)[1].split("\n}", 1)[0]
+    shaders = tmp_path / "shaders"
+    shaders.mkdir()
+    game = tmp_path / "game"
+    game.mkdir()
+    script = f'try_force_link_dir () {{{link_function}\n}}\n'
+    link_call = helper.split('    [[ "$PW_USE_RESHADE" != 1 ]] && return 0', 1)[1]
+    link_call = link_call.split('    pw_specialk_set_ini_value', 1)[0]
+    script += f'root="$1"\nPATH_TO_GAME="$2"\n{link_call * 2}'
+
+    subprocess.run(
+        ["bash", "-c", script, "bash", str(tmp_path), str(game)],
+        check=True,
+    )
+
+    assert (game / "ReShade_shaders").resolve() == shaders
+    assert not (shaders / "shaders").exists()
+
+
+def test_reshade_disable_cleans_unreal_shipping_directory(tmp_path: Path) -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text(
+        encoding="utf-8",
+    )
+    sync_function = helper.split("pw_reshade_sync_files () {", 1)[1].split("\n}", 1)[0]
+    game_root = tmp_path / "game"
+    game_root.mkdir()
+    game_exe = game_root / "Praest.exe"
+    game_exe.touch()
+    game = game_root / "Praest" / "Binaries" / "Win64"
+    game.mkdir(parents=True)
+    runtime = tmp_path / "plugins" / "reshade_windows" / "reshade" / "6.8.0_Addon"
+    runtime.mkdir(parents=True)
+    reshade_dll = runtime / "ReShade32.dll"
+    reshade_dll.touch()
+    (game / "opengl32.dll").symlink_to(reshade_dll)
+    (game / "opengl32.dll.b").symlink_to(reshade_dll)
+    (game / "ReShadePreset.ini").write_text("[GENERAL]\n")
+    (game / "reshade_version").write_text("6.8.0_Addon\nopengl32.dll\n")
+    script = f'pw_reshade_sync_files () {{{sync_function}\n}}\n'
+    script += 'try_remove_file () { rm -f "$1"; }\npw_reshade_sync_files\n'
+
+    subprocess.run(
+        ["bash", "-c", script],
+        check=True,
+        env={
+            **os.environ,
+            "PW_EXE_FILE": str(game_exe),
+            "PW_PLUGINS_PATH": str(tmp_path / "plugins"),
+            "PW_USE_RESHADE": "0",
+            "PW_RESHADE_API": "",
+            "PW_RESHADE_EXE": "",
+            "PATH_TO_GAME": str(game),
+        },
+    )
+
+    assert not (game / "opengl32.dll").exists()
+    assert not (game / "opengl32.dll.b").exists()
+    assert not (game / "ReShadePreset.ini").exists()
+
+
+def test_ini_writer_matches_spaces_around_equals() -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text(
+        encoding="utf-8",
+    )
+
+    assert '^[[:space:]]*$key[[:space:]]*=' in helper
