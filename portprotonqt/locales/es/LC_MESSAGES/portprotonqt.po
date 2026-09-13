@@ -7,9 +7,9 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
-"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"Report-Msgid-Bugs-To: support@linux-gaming.ru\n"
 "POT-Creation-Date: 2026-03-22 13:50+0500\n"
-"PO-Revision-Date: 2026-08-11 19:26+0000\n"
+"PO-Revision-Date: 2026-09-10 15:44+0000\n"
 "Last-Translator: gallegonovato <gallegonovato@noreply.codeberg.org>\n"
 "Language-Team: Spanish <https://translate.codeberg.org/projects/portprotonqt/"
 "portprotonqt/es/>\n"
@@ -857,9 +857,8 @@ msgstr "min"
 msgid "sec."
 msgstr "s"
 
-#, fuzzy
 msgid "Pause Game"
-msgstr "Iniciar juego"
+msgstr "Pausar el juego"
 
 msgid "Exit"
 msgstr "Salir"
@@ -873,13 +872,11 @@ msgstr "Favoritos"
 msgid "Recent Games"
 msgstr "Juegos recientes"
 
-#, fuzzy
 msgid "Resume Game"
-msgstr "Juegos recientes"
+msgstr "Reanudar el juego"
 
-#, fuzzy
 msgid "Failed to pause game"
-msgstr "Error al detener el juego"
+msgstr "Error al pausar el juego"
 
 msgid "No recent games"
 msgstr "Sin juegos recientes"

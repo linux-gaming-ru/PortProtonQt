@@ -9,7 +9,7 @@ msgstr ""
 "Project-Id-Version: PortProtonQt 0.1.1\n"
 "Report-Msgid-Bugs-To: support@linux-gaming.ru\n"
 "POT-Creation-Date: 2026-06-18 23:41+0500\n"
-"PO-Revision-Date: 2026-09-02 20:25+0000\n"
+"PO-Revision-Date: 2026-09-11 12:20+0000\n"
 "Last-Translator: Rubin13 <rubin13@noreply.codeberg.org>\n"
 "Language-Team: German <https://translate.codeberg.org/projects/portprotonqt/"
 "portprotonqt/de/>\n"
@@ -258,21 +258,20 @@ msgstr "Desktop"
 msgid "Failed to save custom data: {error}"
 msgstr "Fehler beim Speichern der Benutzerdaten: {error}"
 
-#, fuzzy, python-brace-format
+#, python-brace-format
 msgid "Executable not found"
-msgstr "Ausführbare Datei nicht gefunden: {0}"
+msgstr "Ausführbare Datei nicht gefunden"
 
 #, python-brace-format
 msgid "Executable not found: {0}"
 msgstr "Ausführbare Datei nicht gefunden: {0}"
 
-#, fuzzy
 msgid "Select another executable"
-msgstr "Titelbilder ohne ausführbaren Dateien entfernen"
+msgstr "Wähle eine andere ausführbare Datei aus"
 
-#, fuzzy, python-brace-format
+#, python-brace-format
 msgid "Destination already exists: {0}"
-msgstr "Die Datei existiert bereits: {file_name}"
+msgstr "Die Datei existiert bereits: {0}"
 
 msgid "Game name and executable path are required"
 msgstr "Spielname und Ausführungspfad werden benötigt"
@@ -838,9 +837,8 @@ msgstr "Min."
 msgid "sec."
 msgstr "Sek."
 
-#, fuzzy
 msgid "Pause Game"
-msgstr "Spiel starten"
+msgstr "Spiel anhalten"
 
 msgid "Exit"
 msgstr "Exit"
@@ -854,13 +852,11 @@ msgstr "Favoriten"
 msgid "Recent Games"
 msgstr "Aktuelle Spiele"
 
-#, fuzzy
 msgid "Resume Game"
-msgstr "Aktuelle Spiele"
+msgstr "Spiel fortsetzen"
 
-#, fuzzy
 msgid "Failed to pause game"
-msgstr "Spiel konnte nicht gestoppt werden"
+msgstr "Spiel konnte nicht pausiert werden"
 
 msgid "No recent games"
 msgstr "Keine aktuellen Spiele"

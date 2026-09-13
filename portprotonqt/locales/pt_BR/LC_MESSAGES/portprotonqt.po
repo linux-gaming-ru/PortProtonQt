@@ -9,7 +9,7 @@ msgstr ""
 "Project-Id-Version: PortProtonQt 0.1.1\n"
 "Report-Msgid-Bugs-To: support@linux-gaming.ru\n"
 "POT-Creation-Date: 2026-06-04 10:32+0500\n"
-"PO-Revision-Date: 2026-08-28 22:26+0000\n"
+"PO-Revision-Date: 2026-09-09 00:26+0000\n"
 "Last-Translator: rogerio-mattos <rogerio-mattos@noreply.codeberg.org>\n"
 "Language-Team: Portuguese (Brazil) <https://translate.codeberg.org/projects/"
 "portprotonqt/portprotonqt/pt_BR/>\n"
@@ -177,13 +177,11 @@ msgstr "Importar"
 msgid "Update"
 msgstr "Atualizar"
 
-#, fuzzy
 msgid "Disable EOS Overlay"
-msgstr "Ativar overlay mangoapp"
+msgstr "Desativar sobreposição do EOS"
 
-#, fuzzy
 msgid "Enable EOS Overlay"
-msgstr "Ativar overlay mangoapp"
+msgstr "Ativar sobreposição do EOS"
 
 msgid "Open Game Folder"
 msgstr "Abrir Pasta do Jogo"
@@ -476,17 +474,14 @@ msgstr "Instalar dependências"
 msgid "32-bit dependencies are missing. Install them now?"
 msgstr "As dependências de 32 bits estão faltando. Instalá-las agora?"
 
-#, fuzzy
 msgid "Select Epic game folder"
-msgstr "Selecionar pasta do jogo da GOG"
+msgstr "elecionar pasta do jogo da Epic"
 
-#, fuzzy
 msgid "Another Epic operation is running"
-msgstr "Outra operação da GOG já está em execução"
+msgstr "Outra operação da Epic está em andamento"
 
-#, fuzzy
 msgid "Wine prefix not found"
-msgstr "Prefixo não encontrado"
+msgstr "Prefixo do Wine não encontrado"
 
 msgid "Game not found."
 msgstr "Jogo não encontrado."
@@ -2132,43 +2127,38 @@ msgstr "Atualizando biblioteca da GOG… {0}/{1}"
 msgid "Failed to refresh GOG library: {0}"
 msgstr "Falha ao atualizar a biblioteca da GOG: {0}"
 
-#, fuzzy
 msgid "Failed to log out of Epic account"
-msgstr "Falha ao sair da conta GOG"
+msgstr "Falha ao sair da conta da Epic"
 
-#, fuzzy
 msgid "Copy the authorization code to clipboard"
-msgstr "Copiar o link para a área de transferência"
+msgstr "Copiar o código de autorização para a área de transferência"
 
 msgid "Epic authorization…"
-msgstr ""
+msgstr "Autorização da Epic…"
 
-#, fuzzy, python-brace-format
+#, python-brace-format
 msgid "Epic login failed: {0}"
-msgstr "Falha no login da GOG: {0}"
+msgstr "Falha no login da Epic: {0}"
 
-#, fuzzy
 msgid "Epic account connected"
-msgstr "Conta GOG conectada"
+msgstr "Conta da Epic conectada"
 
-#, fuzzy
 msgid "Epic account not connected"
-msgstr "Conta GOG não conectada"
+msgstr "Conta Epic não conectada"
 
-#, fuzzy, python-brace-format
+#, python-brace-format
 msgid "Refreshing Epic library… {0}/{1}"
-msgstr "Atualizando biblioteca da GOG… {0}/{1}"
+msgstr "Atualizando biblioteca da Epic… {0}/{1}"
 
-#, fuzzy, python-brace-format
+#, python-brace-format
 msgid "Failed to refresh Epic library: {0}"
-msgstr "Falha ao atualizar a biblioteca da GOG: {0}"
+msgstr "Falha ao atualizar a biblioteca da Epic: {0}"
 
 msgid "Select installation folder"
 msgstr "Selecionar pasta de instalação"
 
-#, fuzzy
 msgid "Another download is running"
-msgstr "Baixando agora"
+msgstr "Outro download está em andamento"
 
 msgid "Another GOG operation is already running"
 msgstr "Outra operação da GOG já está em execução"
@@ -2306,7 +2296,7 @@ msgid "Hide Control Hints"
 msgstr "Ocultar dicas de controle"
 
 msgid "Force English language"
-msgstr ""
+msgstr "Forçar idioma inglês"
 
 msgid "Enable UI Sounds"
 msgstr "Ativar sons da interface"
@@ -2475,9 +2465,8 @@ msgstr "Dispositivos de reprodução"
 msgid "Output"
 msgstr "Saída"
 
-#, fuzzy
 msgid "Return to desktop"
-msgstr "Adicionar à Área de Trabalho"
+msgstr "Voltar para a área de trabalho"
 
 msgid "Logout"
 msgstr "Encerrar sessão"
