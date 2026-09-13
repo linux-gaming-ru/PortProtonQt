@@ -31,6 +31,7 @@
 - Обновлён перевод на Немецкий `https://translate.codeberg.org/projects/portprotonqt/portprotonqt/de/`
 - Обновлён перевод на Португальский (Бразилия) `https://translate.codeberg.org/projects/portprotonqt/portprotonqt/pt_BR/`
 - Обновлён перевод на Русский `https://translate.codeberg.org/projects/portprotonqt/portprotonqt/ru/`
+- Обновлён перевод на Испанский `https://translate.codeberg.org/projects/portprotonqt/portprotonqt/es/`
 - В AppImage добавлен Bash для предотвращения конфликтов Vulkan со Steam Runtime при использовании системного GameMode
 - Удалена ассоциация PortProtonQt с исполняемыми файлами Linux
 - MIME-тип образов MDS заменён на используемый libMirage `application/x-mds`
@@ -58,6 +59,7 @@
 - @rogerio-mattos
 - @Rubin13
 - @adem4ik
+- @gallegonovato
 
 ---
 
