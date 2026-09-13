@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import codecs
+import errno
 import fcntl
 import os
 import pty
@@ -14,6 +15,7 @@ from typing import Any
 
 from PySide6.QtCore import QMimeData, QSocketNotifier, Qt, QTimer
 from PySide6.QtGui import (
+    QCloseEvent,
     QColor,
     QFont,
     QFontDatabase,
@@ -28,7 +30,9 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QApplication, QMainWindow, QMenu, QPlainTextEdit
 
+from portprotonqt.input_manager.constants import SDL_GAMEPAD_BUTTON_SOUTH
 from portprotonqt.logger import get_logger
+from portprotonqt.native_gamepad import GamepadBackendError, SDLGamepad, find_gamepad
 from portprotonqt.theme_manager import ThemeManager
 
 logger = get_logger(__name__)
@@ -40,6 +44,7 @@ CONF_DEF_SIZE = (800, 260)
 CONF_FALLBACK_FONT_EXTRA = 6
 CONF_SCROLLBACK_LINES = 2000
 CONF_RENDER_INTERVAL_MS = 16
+CONF_GAMEPAD_POLL_INTERVAL_MS = 50
 
 XDG_DATA_HOME = os.getenv(
     "XDG_DATA_HOME", os.path.join(os.path.expanduser("~"), ".local", "share")
@@ -879,6 +884,9 @@ class TerminalWidget(QPlainTextEdit):
         self.app_theme = app_theme or load_current_theme()
         self.cmd_mode = cmd_mode
         self.child_pid: int | None = None
+        self.exit_code: int | None = None
+        self.gamepad: SDLGamepad | None = None
+        self.gamepad_a_pressed = False
         self.pty_fd: int | None = None
         self.notifier: QSocketNotifier | None = None
         self.ansi_colors = _theme_ansi_colors(theme)
@@ -907,6 +915,8 @@ class TerminalWidget(QPlainTextEdit):
         self.theme_manager = ThemeManager()
         self.child_timer = QTimer(self)
         self.child_timer.timeout.connect(self._check_child)
+        self.gamepad_timer = QTimer(self)
+        self.gamepad_timer.timeout.connect(self._poll_close_gamepad)
         self.render_timer = QTimer(self)
         self.render_timer.setSingleShot(True)
         self.render_timer.timeout.connect(self._render_screen)
@@ -1044,11 +1054,15 @@ class TerminalWidget(QPlainTextEdit):
         except BlockingIOError:
             return
         except OSError as e:
+            if e.errno == errno.EIO:
+                if self.notifier is not None:
+                    self.notifier.setEnabled(False)
+                return
             logger.warning("Terminal read failed: %s", e)
-            QApplication.quit()
             return
         if not data:
-            QApplication.quit()
+            if self.notifier is not None:
+                self.notifier.setEnabled(False)
             return
         text = self.output_decoder.decode(data)
         if self.cmd_mode:
@@ -1062,15 +1076,65 @@ class TerminalWidget(QPlainTextEdit):
         if self.child_pid is None:
             return
         try:
-            pid, _status = os.waitpid(self.child_pid, os.WNOHANG)
+            pid, status = os.waitpid(self.child_pid, os.WNOHANG)
         except ChildProcessError:
             pid = self.child_pid
+            status = 0
         if pid == 0:
             return
         self.child_pid = None
         self.child_timer.stop()
         self.viewport().setCursor(Qt.CursorShape.ArrowCursor)
-        QApplication.quit()
+        self._read_remaining_output()
+        self.exit_code = os.waitstatus_to_exitcode(status)
+        if self.exit_code == 0:
+            QApplication.exit(0)
+            return
+        self._start_close_gamepad()
+
+    def _start_close_gamepad(self) -> None:
+        try:
+            self.gamepad = find_gamepad()
+        except GamepadBackendError as e:
+            logger.debug("Failed to find terminal gamepad: %s", e)
+            return
+        if self.gamepad is None:
+            return
+        self.gamepad.update()
+        self.gamepad_a_pressed = bool(
+            self.gamepad.get_button(SDL_GAMEPAD_BUTTON_SOUTH)
+        )
+        self.gamepad_timer.start(CONF_GAMEPAD_POLL_INTERVAL_MS)
+
+    def _poll_close_gamepad(self) -> None:
+        if self.gamepad is None or not self.gamepad.connected():
+            self.gamepad_timer.stop()
+            return
+        self.gamepad.update()
+        pressed = bool(self.gamepad.get_button(SDL_GAMEPAD_BUTTON_SOUTH))
+        if pressed and not self.gamepad_a_pressed:
+            self.window().close()
+        self.gamepad_a_pressed = pressed
+
+    def _close_gamepad(self) -> None:
+        self.gamepad_timer.stop()
+        if self.gamepad is not None:
+            self.gamepad.close()
+            self.gamepad = None
+
+    def _read_remaining_output(self) -> None:
+        if self.pty_fd is None:
+            return
+        while True:
+            try:
+                data = os.read(self.pty_fd, 4096)
+            except OSError:
+                break
+            if not data:
+                break
+            self._append_output(self.output_decoder.decode(data))
+        if self.terminal_screen is not None:
+            self._render_screen()
 
     def _append_output(self, text: str) -> None:
         if self.terminal_screen is not None:
@@ -1197,6 +1261,12 @@ class TerminalWidget(QPlainTextEdit):
             self._write_pty(source.text())
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
+        if self.child_pid is None and event.key() in (
+            Qt.Key.Key_Return,
+            Qt.Key.Key_Enter,
+        ):
+            self.window().close()
+            return
         if self.cmd_mode and self._handle_cmd_key(event):
             return
         if self._handle_shortcut(event):
@@ -1783,6 +1853,12 @@ class MainWindow(QMainWindow):
         self.resize(*CONF_DEF_SIZE)
         if fullscreen:
             self.showFullScreen()
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        exit_code = self.terminal.exit_code or 0
+        self.terminal._close_gamepad()
+        event.accept()
+        QApplication.exit(exit_code)
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:

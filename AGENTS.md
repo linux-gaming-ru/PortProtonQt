@@ -412,6 +412,7 @@ tests/
 ├── test_base_config.py      # BaseConfig read/write, caching, versioning
 ├── test_cli.py              # normalize_launch_path, URL/resolution parsing
 ├── test_debug_env_utils.py  # Debug environment helpers, runtime variables
+├── test_easyterm.py         # Terminal final output, exit status, keyboard and gamepad closing
 ├── test_input_manager.py    # Gamepad input navigation and focus regressions
 ├── test_sound_manager.py    # UI sound playback, widget events, gamepad connection, theme sound files
 ├── test_main_window.py      # Main window data processing and callback regressions
