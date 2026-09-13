@@ -166,6 +166,26 @@ def test_gog_launch_checks_alt_i586_dependencies() -> None:
     window._finish_silent_launch.assert_called_once_with()
 
 
+def test_gog_support_setup_checks_alt_i586_dependencies() -> None:
+    window: Any = MainWindow.__new__(MainWindow)
+    window.gog_api = SimpleNamespace(
+        ensure_launch_parameters=lambda _app_id: None,
+        get_installed_path=lambda _app_id: Path("/games/game"),
+        get_launch_target=lambda _app_id: "/games/game/game.exe",
+        needs_support_setup=lambda _app_id: True,
+    )
+    window.start_sh = ["start.sh"]
+    window.game_processes = []
+    window._check_alt_i586_dependencies_before_launch = lambda: False
+    window._finish_silent_launch = MagicMock()
+    window._start_gog_support_setup = MagicMock()
+
+    window._launch_gog_game("123", play_sound=False)
+
+    window._start_gog_support_setup.assert_not_called()
+    window._finish_silent_launch.assert_called_once_with()
+
+
 def test_egs_launch_checks_alt_i586_dependencies() -> None:
     window: Any = MainWindow.__new__(MainWindow)
     window.egs_api = SimpleNamespace(
