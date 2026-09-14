@@ -3465,10 +3465,17 @@ start_portproton () {
 
     if [[ "${PW_USE_D7VK}" == "1" ]] ; then
         PATH_TO_D7VK_FILES="${PW_VULKAN_DIR}/d7vk-${D7VK_VAR_VER}"
-        print_info "D7VK ${D7VK_VAR_VER} in use"
+        D7VK_FILE="${PATH_TO_D7VK_FILES}/x32/ddraw.dll"
+        if [[ "$PW_USE_SUPPLIED_DXVK_VKD3D" == "2" ]] \
+        && [[ -f "${WINEDIR}/lib/wine/d7vk/i386-windows/ddraw.dll" ]] ; then
+            D7VK_FILE="${WINEDIR}/lib/wine/d7vk/i386-windows/ddraw.dll"
+            print_info "Bundled D7VK in use"
+        else
+            print_info "D7VK ${D7VK_VAR_VER} in use"
+        fi
         print_info "Try create symlink D7VK files..."
         try_force_link_file "${WINEDIR}/lib/wine/i386-windows/ddraw.dll" "${WINEPREFIX}/drive_c/windows/syswow64/ddraw_.dll"
-        try_force_link_file "${PATH_TO_D7VK_FILES}/x32/ddraw.dll" "${WINEPREFIX}/drive_c/windows/syswow64/ddraw.dll"
+        try_force_link_file "${D7VK_FILE}" "${WINEPREFIX}/drive_c/windows/syswow64/ddraw.dll"
         var_winedlloverride_update "ddraw=n,b"
     else
         try_force_link_file "${WINEDIR}/lib/wine/i386-windows/ddraw.dll" "${WINEPREFIX}/drive_c/windows/syswow64/ddraw.dll"
