@@ -32,10 +32,10 @@ jobs:
       options: --privileged --device /dev/fuse
     steps:
       - name: Prepare container
-        run: |
-          pacman-key --init
-          pacman -Sy --noconfirm archlinux-keyring
-          pacman -Syu --noconfirm --disable-download-timeout --needed git wget gnupg nodejs npm xorg-server-xvfb zsync patchelf
+        uses: https://git.linux-gaming.ru/actions/anylinux-setup-action@7278cbb7c3692fce7241d427614ef7984192f138 # v3
+
+      - name: Install CI dependencies
+        run: pacman -S --noconfirm --needed nodejs npm
 
       - uses: https://git.linux-gaming.ru/actions/checkout@v4
 
