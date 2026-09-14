@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
     QGridLayout,
+    QHBoxLayout,
     QLabel,
     QMenu,
     QTableWidget,
@@ -466,6 +467,7 @@ def test_live_theme_refreshes_auto_size_button_padding() -> None:
 
 def test_live_theme_rebuilds_library_when_layout_mode_changes() -> None:
     mixin = cast(Any, MainWindowThemeTabMixin())
+    mixin.refresh_autoinstall_layout = MagicMock()
     layout = object()
     manager = SimpleNamespace(
         gamesListLayout=layout,
@@ -480,6 +482,80 @@ def test_live_theme_rebuilds_library_when_layout_mode_changes() -> None:
     )
 
     manager.rebuild_library_layout.assert_called_once_with("grid")
+    mixin.refresh_autoinstall_layout.assert_called_once_with()
+
+
+def test_vertical_theme_rebuilds_autoinstall_layout() -> None:
+    window = cast(Any, AutoInstallMixin())
+    window.theme = SimpleNamespace(LIBRARY_LAYOUT_MODE="vertical")
+    window.autoInstallContainer = MagicMock()
+    window._set_autoinstall_container_layout = MagicMock()
+    window.auto_size_slider = MagicMock()
+    window.auto_size_slider.maximum.return_value = 250
+    window.autoInstallLoading = False
+    window._start_autoinstall_load = MagicMock()
+
+    window.refresh_autoinstall_layout()
+
+    window._set_autoinstall_container_layout.assert_called_once_with("vertical")
+    window.auto_size_slider.setVisible.assert_called_once_with(False)
+    assert window.auto_card_width == 250
+    assert window.autoInstallLoaded is False
+    window._start_autoinstall_load.assert_called_once_with()
+
+
+def test_vertical_autoinstall_uses_vertical_layout() -> None:
+    _application = QApplication.instance() or QApplication([])
+    window = cast(Any, AutoInstallMixin())
+    window.theme = SimpleNamespace(
+        GAME_CARD_VERTICAL={"layout_margins": (1, 2, 3, 4), "layout_spacing": 5}
+    )
+    window.autoInstallContainer = QWidget()
+    window.autoInstallScrollArea = MagicMock()
+
+    window._set_autoinstall_container_layout("vertical")
+
+    assert isinstance(window.autoInstallContainerLayout, QVBoxLayout)
+    assert window.autoInstallContainer.property("library_layout_mode") == "vertical"
+    assert window.autoInstallContainerLayout.spacing() == 5
+
+
+def test_horizontal_autoinstall_uses_horizontal_layout() -> None:
+    _application = QApplication.instance() or QApplication([])
+    window = cast(Any, AutoInstallMixin())
+    window.theme = SimpleNamespace(
+        GAME_CARD_HORIZONTAL={"layout_margins": (1, 2, 3, 4), "layout_spacing": 6}
+    )
+    window.autoInstallContainer = QWidget()
+    window.autoInstallScrollArea = MagicMock()
+
+    window._set_autoinstall_container_layout("horizontal")
+
+    assert isinstance(window.autoInstallContainerLayout, QHBoxLayout)
+    assert window.autoInstallContainer.property("library_layout_mode") == "horizontal"
+    assert window.autoInstallContainerLayout.spacing() == 6
+    window.autoInstallScrollArea.setVerticalScrollBarPolicy.assert_called_once_with(
+        Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+    )
+    window.autoInstallScrollArea.setHorizontalScrollBarPolicy.assert_called_once_with(
+        Qt.ScrollBarPolicy.ScrollBarAsNeeded
+    )
+
+
+def test_autoinstall_card_updates_its_background() -> None:
+    window = cast(Any, AutoInstallMixin())
+    card = SimpleNamespace(name="Game")
+    window.allAutoInstallCards = [card]
+    window.autoInstallBackgroundLabel = QLabel()
+    window.game_library_manager = SimpleNamespace(
+        render_library_background=MagicMock()
+    )
+
+    window._on_autoinstall_card_active("Game", True)
+
+    window.game_library_manager.render_library_background.assert_called_once_with(
+        window.autoInstallBackgroundLabel, card
+    )
 
 
 def test_library_background_is_removed_when_live_theme_has_no_config(
