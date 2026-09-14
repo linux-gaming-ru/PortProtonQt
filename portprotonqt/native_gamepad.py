@@ -72,6 +72,7 @@ class SDLGamepad:
 
     def update(self) -> bool:
         _library.portproton_gamepad_update(self.controller)
+        self.sdl_type = int(_library.portproton_gamepad_get_type(self.controller))
         active_instance_id = int(
             _library.portproton_gamepad_get_active_instance_id(self.controller)
         )

@@ -359,6 +359,8 @@ class GamepadRuntimeMixin(InputMixin):
                 return
             if active_changed:
                 self._reset_input_state()
+                self.gamepad_type = self._get_effective_gamepad_type(active_gamepad)
+                self._refresh_gamepad_ui()
                 logger.info(
                     "Active gamepad changed to SDL instance %s",
                     active_gamepad.active_instance_id,
