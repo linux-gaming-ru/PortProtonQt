@@ -28,12 +28,14 @@ _library.portproton_gamepad_close.argtypes = [_handle]
 _library.portproton_gamepad_close.restype = None
 _library.portproton_gamepad_connected.argtypes = [_handle]
 _library.portproton_gamepad_connected.restype = ctypes.c_bool
-_library.portproton_gamepad_update.argtypes = []
+_library.portproton_gamepad_update.argtypes = [_handle]
 _library.portproton_gamepad_update.restype = None
 _library.portproton_gamepad_get_button.argtypes = [_handle, ctypes.c_int]
 _library.portproton_gamepad_get_button.restype = ctypes.c_int
 _library.portproton_gamepad_get_axis.argtypes = [_handle, ctypes.c_int]
 _library.portproton_gamepad_get_axis.restype = ctypes.c_int16
+_library.portproton_gamepad_get_active_instance_id.argtypes = [_handle]
+_library.portproton_gamepad_get_active_instance_id.restype = ctypes.c_uint32
 _library.portproton_gamepad_get_name.argtypes = [_handle]
 _library.portproton_gamepad_get_name.restype = ctypes.c_char_p
 _library.portproton_gamepad_get_instance_id.argtypes = [_handle]
@@ -45,7 +47,7 @@ _library.portproton_gamepad_shutdown.restype = None
 
 
 class GamepadBackendError(RuntimeError):
-    """SDL failed while discovering the active gamepad."""
+    """SDL failed while discovering connected gamepads."""
 
 
 @dataclass
@@ -55,6 +57,7 @@ class SDLGamepad:
     path: str
     instance_id: int
     sdl_type: int
+    active_instance_id: int = 0
 
     def close(self) -> None:
         if self.controller:
@@ -67,8 +70,15 @@ class SDLGamepad:
     def connected(self) -> bool:
         return bool(_library.portproton_gamepad_connected(self.controller))
 
-    def update(self) -> None:
-        _library.portproton_gamepad_update()
+    def update(self) -> bool:
+        _library.portproton_gamepad_update(self.controller)
+        active_instance_id = int(
+            _library.portproton_gamepad_get_active_instance_id(self.controller)
+        )
+        if active_instance_id == self.active_instance_id:
+            return False
+        self.active_instance_id = active_instance_id
+        return True
 
     def get_button(self, button: int) -> int:
         return int(_library.portproton_gamepad_get_button(self.controller, button))
