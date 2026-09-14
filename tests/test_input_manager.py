@@ -91,6 +91,30 @@ def test_native_gamepad_result_preserves_python_interface(monkeypatch: MonkeyPat
     gamepad.close()
 
 
+def test_native_gamepad_update_passes_collection_handle(monkeypatch: MonkeyPatch) -> None:
+    updated_handles: list[int] = []
+    gamepad = SDLGamepad(42, "Gamepads", "sdl3-gamepad:7", 7, 1)
+    monkeypatch.setattr(native_gamepad._library, "portproton_gamepad_close", lambda _handle: None)
+    monkeypatch.setattr(
+        native_gamepad._library,
+        "portproton_gamepad_update",
+        updated_handles.append,
+    )
+    monkeypatch.setattr(
+        native_gamepad._library,
+        "portproton_gamepad_get_active_instance_id",
+        lambda _handle: 9,
+    )
+
+    changed = gamepad.update()
+
+    assert updated_handles == [42]
+    assert changed is True
+    assert gamepad.active_instance_id == 9
+    assert gamepad.update() is False
+    gamepad.close()
+
+
 def test_native_gamepad_reports_sdl_discovery_error(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setattr(native_gamepad._library, "portproton_gamepad_find", lambda: None)
     monkeypatch.setattr(

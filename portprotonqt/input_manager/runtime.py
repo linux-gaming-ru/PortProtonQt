@@ -175,7 +175,7 @@ class GamepadRuntimeMixin(InputMixin):
             keyboard.update_keyboard()
 
     def find_gamepad(self) -> SDLGamepad | None:
-        """Find the first SDL3 gamepad with a standardized mapping."""
+        """Open the SDL3 handle that combines all connected gamepads."""
         try:
             gamepad = find_gamepad()
             self._last_gamepad_error = None
@@ -353,10 +353,16 @@ class GamepadRuntimeMixin(InputMixin):
                 self._last_gamepad_check_time = current_time
             return
         try:
-            active_gamepad.update()
+            active_changed = active_gamepad.update()
             if not active_gamepad.connected():
                 self.gamepad_hotplug.emit('remove')
                 return
+            if active_changed:
+                self._reset_input_state()
+                logger.info(
+                    "Active gamepad changed to SDL instance %s",
+                    active_gamepad.active_instance_id,
+                )
             self._poll_button_events(active_gamepad, current_time)
             self._handle_pending_menu_fullscreen(current_time)
             self._poll_hat_events(active_gamepad, current_time)

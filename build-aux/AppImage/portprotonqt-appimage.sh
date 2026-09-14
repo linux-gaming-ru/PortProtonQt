@@ -2,7 +2,6 @@
 
 set -eu
 
-SHARUN="https://raw.githubusercontent.com/pkgforge-dev/Anylinux-AppImages/refs/heads/main/useful-tools/quick-sharun.sh"
 ARCH="$(uname -m)"
 VERSION="$(cat ~/version)"
 export ARCH VERSION
@@ -20,16 +19,12 @@ export OPTIMIZE_LAUNCH=1
 # Adjust comp settings to bypass oom-killer
 export DWARFS_COMP="zstd:level=15 -S22 -B5"
 
-# DEPLOY ALL LIBS
-wget --retry-connrefused --tries=30 "$SHARUN" -O ./quick-sharun
-chmod +x ./quick-sharun
-
 # Add udev rules
 mkdir -p ./AppDir/etc/udev/rules.d
 cp /usr/lib/udev/rules.d/60-portprotonqt.rules ./AppDir/etc/udev/rules.d
 
 # Add PortProton scripts
-# Copy manual because im to lazzy for wait ./quick-sharun strace 208 .ppdb
+# Copy manually to avoid tracing 208 .ppdb files with quick-sharun
 mkdir -p ./AppDir/share
 cp -r /usr/share/portproton ./AppDir/share
 
@@ -43,7 +38,7 @@ GAMEPAD_LIBRARY=$(find /usr/lib -type f \
 	-path '*/site-packages/portprotonqt/libportprotonqt_gamepad.so' \
 	-print -quit)
 test -n "$GAMEPAD_LIBRARY"
-./quick-sharun \
+quick-sharun \
 	/usr/bin/portprotonqt* \
 	/usr/bin/bash \
 	/usr/bin/update-desktop-database \
@@ -103,4 +98,4 @@ done
 rm -rf "$PYSIDE_DIR"/QtAsyncio
 
 # Turn AppDir into AppImage
-./quick-sharun --make-appimage
+quick-sharun --make-appimage
