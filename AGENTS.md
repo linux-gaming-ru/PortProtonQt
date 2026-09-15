@@ -302,6 +302,9 @@ Do not delete or disable caching or downloaders to satisfy this rule. Caching is
 - No heavy operations in paintEvent
 - Use methods instead of lambda for complex logic
 - Use QThread for long tasks
+- Retain every background worker that can outlive its caller in an owner field or collection until it finishes
+- Register window-owned workers and retained worker collections in the application shutdown path; cancel when supported and wait before interpreter exit
+- Add or update shutdown regression tests when adding or changing a background worker, including executor-backed workers
 
 ---
 
@@ -494,6 +497,7 @@ pre-commit run pytest
 - [ ] Prefer dedicated functions for subprocess calls when practical within task scope
 - [ ] No shared mutable global state (except logger and explicit cache/session infrastructure)
 - [ ] No blocking calls introduced in the UI thread
+- [ ] Background workers have explicit ownership and shutdown cleanup with regression coverage
 - [ ] **No hardcoded styles or constants (use theme constants)**
 - [ ] **New constants added to theme files only**
 

@@ -865,6 +865,10 @@ def main():
 
     if start_sh:
         worker = InitialCommandWorker(start_sh)
+        window.initialCommandWorker = worker
+        worker.finished.connect(
+            lambda: setattr(window, "initialCommandWorker", None)
+        )
         worker.start()
     else:
         logger.warning("PortProton start command not available, skipping initial command")

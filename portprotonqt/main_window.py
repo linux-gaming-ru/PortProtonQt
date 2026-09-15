@@ -284,6 +284,7 @@ class MainWindow(
         self._pending_log_exe: str | None = None
         self.appimageUpdateWorker: AppImageUpdateWorker | None = None
         self.gogdlUpdateWorker: QThread | None = None
+        self.initialCommandWorker: QThread | None = None
         self.compatibility_report_ready.connect(self._show_compatibility_report)
 
         self.game_library_manager = GameLibraryManager(self, self.theme, None)
