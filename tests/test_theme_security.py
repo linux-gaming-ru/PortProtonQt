@@ -40,6 +40,35 @@ class TestBuiltinThemes:
         assert check_theme_safety(str(theme_file))
 
 
+class TestCardShadowCompatibility:
+    def test_disabled_card_shadow_is_blocked(self, tmp_path: Path) -> None:
+        code = """
+color_shadow_card = "#00000000"
+shadow_blur_radius = 0
+shadow_offset = (0, 0)
+"""
+
+        is_safe, errors = _check(code, tmp_path)
+
+        assert not is_safe
+        assert any("Disabled card shadow" in error for error in errors)
+
+    @pytest.mark.parametrize(
+        "code",
+        [
+            'color_shadow_card = "#00000000"\nshadow_blur_radius = 20\nshadow_offset = (0, 0)\n',
+            'color_shadow_card = "#00000096"\nshadow_blur_radius = 0\nshadow_offset = (0, 0)\n',
+            'shadow_blur_radius = 0\nshadow_offset = (0, 0)\n',
+        ],
+    )
+    def test_individual_shadow_values_are_allowed(
+        self, tmp_path: Path, code: str,
+    ) -> None:
+        is_safe, _ = _check(code, tmp_path)
+
+        assert is_safe
+
+
 # === Forbidden modules ===
 
 

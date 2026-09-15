@@ -378,12 +378,16 @@ class GameLibraryManager:
         """Render the configured library background from the active cover."""
         if self.full_library_open or self.libraryBackgroundLabel is None:
             return
+        self.render_library_background(self.libraryBackgroundLabel, card)
+
+    def render_library_background(self, label: QLabel, card: GameCard) -> None:
+        """Render the configured library background on a target label."""
         pixmap = card.coverLabel.pixmap()
         if pixmap is None or pixmap.isNull():
             return
         library_config = getattr(self.theme, "LIBRARY_BACKGROUND", None)
         if not isinstance(library_config, dict):
-            remove_cover_background(self.libraryBackgroundLabel)
+            remove_cover_background(label)
             return
         backgrounds = dict(getattr(self.theme, "DETAIL_PAGE_BACKGROUNDS", {}))
         backgrounds.update(library_config.get("backgrounds", {}))
@@ -392,7 +396,7 @@ class GameLibraryManager:
             DETAIL_PAGE_BACKGROUNDS=backgrounds,
         )
         setup_cover_background(
-            self.libraryBackgroundLabel, pixmap, self.main_window, background_theme
+            label, pixmap, self.main_window, background_theme
         )
 
     def _collapse_library_filter_controls(self) -> None:

@@ -105,12 +105,18 @@ def test_native_gamepad_update_passes_collection_handle(monkeypatch: MonkeyPatch
         "portproton_gamepad_get_active_instance_id",
         lambda _handle: 9,
     )
+    monkeypatch.setattr(
+        native_gamepad._library,
+        "portproton_gamepad_get_type",
+        lambda _handle: SDL_GAMEPAD_TYPE_PS5,
+    )
 
     changed = gamepad.update()
 
     assert updated_handles == [42]
     assert changed is True
     assert gamepad.active_instance_id == 9
+    assert gamepad.sdl_type == SDL_GAMEPAD_TYPE_PS5
     assert gamepad.update() is False
     gamepad.close()
 
@@ -298,10 +304,10 @@ def test_horizontal_library_navigation_wraps_at_both_ends() -> None:
     )
     cards[-1].setFocus(Qt.FocusReason.OtherFocusReason)
 
-    assert manager._navigate_horizontal_library(cards, PAD_DPAD_X, 1)
+    assert manager._navigate_horizontal_library(cards, 0, PAD_DPAD_X, 1)
     assert QApplication.focusWidget() is cards[0]
 
-    assert manager._navigate_horizontal_library(cards, PAD_DPAD_X, -1)
+    assert manager._navigate_horizontal_library(cards, 0, PAD_DPAD_X, -1)
     assert QApplication.focusWidget() is cards[-1]
 
     tile = FullLibraryTile(_tile_theme())
@@ -311,17 +317,42 @@ def test_horizontal_library_navigation_wraps_at_both_ends() -> None:
     manager._parent.game_library_manager.layout_mode = "horizontal_top"
     manager._parent.game_library_manager.fullLibraryTile = tile
     navigable_cards = [*cards, tile]
-    assert manager._navigate_horizontal_library(navigable_cards, PAD_DPAD_X, 1)
+    assert manager._navigate_horizontal_library(navigable_cards, 0, PAD_DPAD_X, 1)
     assert QApplication.focusWidget() is tile
 
-    assert manager._navigate_horizontal_library(navigable_cards, PAD_DPAD_X, -1)
+    assert manager._navigate_horizontal_library(navigable_cards, 0, PAD_DPAD_X, -1)
     assert QApplication.focusWidget() is cards[-1]
 
-    assert manager._navigate_horizontal_library(navigable_cards, PAD_DPAD_X, 1)
+    assert manager._navigate_horizontal_library(navigable_cards, 0, PAD_DPAD_X, 1)
     assert QApplication.focusWidget() is tile
 
-    assert manager._navigate_horizontal_library(navigable_cards, PAD_DPAD_X, 1)
+    assert manager._navigate_horizontal_library(navigable_cards, 0, PAD_DPAD_X, 1)
     assert QApplication.focusWidget() is cards[0]
+
+
+def test_horizontal_autoinstall_navigation_uses_its_layout() -> None:
+    app = QApplication.instance() or QApplication([])
+    container = QWidget()
+    layout = QHBoxLayout(container)
+    cards: list[QWidget] = [QPushButton() for _index in range(3)]
+    for card in cards:
+        layout.addWidget(card)
+        card.show()
+    container.show()
+    app.processEvents()
+
+    manager = InputManager.__new__(InputManager)
+    manager._parent = cast(
+        MainWindowProtocol,
+        SimpleNamespace(
+            theme=SimpleNamespace(LIBRARY_LAYOUT_MODE="horizontal"),
+            autoInstallContainerLayout=layout,
+        ),
+    )
+    cards[0].setFocus(Qt.FocusReason.OtherFocusReason)
+
+    assert manager._navigate_horizontal_library(cards, 1, PAD_DPAD_X, 1)
+    assert QApplication.focusWidget() is cards[1]
 
 
 def test_full_library_tile_arrow_does_not_switch_tabs() -> None:
@@ -839,6 +870,37 @@ def test_gamepad_poll_reports_disconnected_device() -> None:
 
     assert updates == [True]
     assert actions == ["remove"]
+
+
+def test_gamepad_poll_refreshes_type_when_active_device_changes(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    refreshed: list[bool] = []
+    manager: Any = InputManager.__new__(InputManager)
+    manager.running = True
+    manager._gamepad_polling_suspended = False
+    manager.gamepad = SimpleNamespace(
+        update=lambda: True,
+        connected=lambda: True,
+        active_instance_id=7,
+        sdl_type=SDL_GAMEPAD_TYPE_PS5,
+    )
+    manager._reset_input_state = lambda: setattr(
+        manager, "gamepad_type", GamepadType.UNKNOWN,
+    )
+    manager._refresh_gamepad_ui = lambda: refreshed.append(True)
+    manager._poll_button_events = lambda *_args: None
+    manager._handle_pending_menu_fullscreen = lambda *_args: None
+    manager._poll_hat_events = lambda *_args: None
+    manager._poll_axis_events = lambda *_args: None
+    manager.last_update = 0.0
+    manager.update_interval = float("inf")
+    monkeypatch.setattr(input_runtime.gamepad_config, "get_gamepad_type", lambda: "auto")
+
+    manager._poll_gamepad()
+
+    assert manager.gamepad_type == GamepadType.PLAYSTATION
+    assert refreshed == [True]
 
 
 def test_suspend_gamepad_polling_sets_runtime_guard() -> None:

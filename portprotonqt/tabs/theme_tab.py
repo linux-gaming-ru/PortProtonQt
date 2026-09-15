@@ -483,6 +483,9 @@ class MainWindowThemeTabMixin(ThemeStoreMixin, _MainWindowTypingBase):
         new_mode = getattr(new_theme, "LIBRARY_LAYOUT_MODE", "grid")
         if old_mode == new_mode:
             return
+        refresh_autoinstall = getattr(self, "refresh_autoinstall_layout", None)
+        if callable(refresh_autoinstall):
+            refresh_autoinstall()
         manager = getattr(self, "game_library_manager", None)
         layout = getattr(manager, "gamesListLayout", None)
         if manager is None or layout is None:

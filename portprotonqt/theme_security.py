@@ -157,6 +157,7 @@ class ThemeSecurityChecker:
                 return False, self.errors
 
             self._check_top_level(tree, theme_file, allow_absolute_imports)
+            self._check_disabled_card_shadow(tree, theme_file)
             self._check_forbidden_patterns(tree, theme_file)
 
         except Exception as e:
@@ -237,6 +238,34 @@ class ThemeSecurityChecker:
 
             self._add_error(
                 f"Top-level {type(node).__name__} is forbidden in file {theme_file}"
+            )
+
+    def _check_disabled_card_shadow(
+        self, tree: ast.Module, theme_file: str,
+    ) -> None:
+        """Reject the card shadow combination that breaks Qt painting."""
+        values = {}
+        for node in tree.body:
+            if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+                continue
+            target = node.targets[0]
+            if not isinstance(target, ast.Name):
+                continue
+            if target.id not in {
+                "color_shadow_card", "shadow_blur_radius", "shadow_offset",
+            }:
+                continue
+            try:
+                values[target.id] = ast.literal_eval(node.value)
+            except (ValueError, TypeError):
+                continue
+        if values == {
+            "color_shadow_card": "#00000000",
+            "shadow_blur_radius": 0,
+            "shadow_offset": (0, 0),
+        }:
+            self._add_error(
+                f"Disabled card shadow breaks Qt painting in file {theme_file}"
             )
 
     def _check_import(

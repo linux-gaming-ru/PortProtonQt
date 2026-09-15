@@ -72,6 +72,7 @@ static void remove_disconnected(PortProtonGamepad *gamepads)
 
 static void update_gamepads(PortProtonGamepad *gamepads)
 {
+    SDL_PumpEvents();
     SDL_UpdateGamepads();
     remove_disconnected(gamepads);
     int count = 0;
@@ -213,6 +214,10 @@ uint32_t portproton_gamepad_get_instance_id(const PortProtonGamepad *gamepad)
 
 int portproton_gamepad_get_type(const PortProtonGamepad *gamepad)
 {
+    const GamepadEntry *active = get_active_gamepad(gamepad);
+    if (active != NULL) {
+        return active->sdl_type;
+    }
     return gamepad != NULL && gamepad->count > 0
         ? gamepad->entries[0].sdl_type : 0;
 }

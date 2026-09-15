@@ -60,6 +60,7 @@ class MainWindowProtocol(Protocol):
     current_exec_line: str | None
     current_add_game_dialog: AddGameDialog | None
     game_library_manager: Any  # GameLibraryManager - using Any to avoid circular import
+    theme: Any
     auto_size_slider: QSlider | None
 
 class MouseEmulationThread(QThread):
@@ -289,7 +290,7 @@ class InputManager(
             card for card in container.findChildren(AnimatedCard)
             if card.isVisible() and card.isEnabled()
         ]
-        if self._navigate_horizontal_library(game_cards, code, value):
+        if self._navigate_horizontal_library(game_cards, tab_index, code, value):
             return
         focused = QApplication.focusWidget()
         if game_cards and focused not in game_cards:
@@ -302,14 +303,21 @@ class InputManager(
                 self._parent.tabButtons[tab_index].setFocus(Qt.FocusReason.OtherFocusReason)
 
     def _navigate_horizontal_library(
-        self, cards: list[QWidget], code: int, value: int
+        self, cards: list[QWidget], tab_index: int, code: int, value: int
     ) -> bool:
-        manager = getattr(self._parent, "game_library_manager", None)
-        if getattr(manager, "layout_mode", "grid") not in {
+        if tab_index == 1:
+            mode = str(
+                getattr(self._parent.theme, "LIBRARY_LAYOUT_MODE", "grid")
+            ).lower()
+            layout = getattr(self._parent, "autoInstallContainerLayout", None)
+        else:
+            manager = getattr(self._parent, "game_library_manager", None)
+            mode = getattr(manager, "layout_mode", "grid")
+            layout = getattr(manager, "gamesListLayout", None)
+        if mode not in {
             "horizontal", "horizontal_top"
         }:
             return False
-        layout = getattr(manager, "gamesListLayout", None)
         if code != PAD_DPAD_X or value == 0 or layout is None:
             return False
         ordered_cards = []

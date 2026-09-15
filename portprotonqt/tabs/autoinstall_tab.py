@@ -4,7 +4,9 @@ from typing import TYPE_CHECKING, Any, cast
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
+    QGridLayout,
     QHBoxLayout,
+    QLabel,
     QLineEdit,
     QScroller,
     QSlider,
@@ -42,7 +44,18 @@ class MainWindowAutoInstallTabMixin(_MainWindowTypingBase):
         autoInstallPage = QWidget()
         autoInstallPage.setProperty("theme_style_name", "LIBRARY_WIDGET_STYLE")
         autoInstallPage.setStyleSheet(self.theme.LIBRARY_WIDGET_STYLE)
-        autoInstallLayout = QVBoxLayout(autoInstallPage)
+        library_background = getattr(self.theme, "LIBRARY_BACKGROUND", None)
+        stack_layout = QGridLayout(autoInstallPage)
+        if isinstance(library_background, dict):
+            stack_layout.setContentsMargins(*library_background["margins"])
+        else:
+            stack_layout.setContentsMargins(0, 0, 0, 0)
+        self.autoInstallBackgroundLabel = QLabel()
+        stack_layout.addWidget(self.autoInstallBackgroundLabel, 0, 0)
+        content_widget = QWidget()
+        content_widget.setStyleSheet(self.theme.TRANSPARENT_BACKGROUND_STYLE)
+        autoInstallLayout = QVBoxLayout(content_widget)
+        stack_layout.addWidget(content_widget, 0, 0)
         autoInstallLayout.setSpacing(15)
 
         searchWidget = QWidget()
@@ -90,8 +103,8 @@ class MainWindowAutoInstallTabMixin(_MainWindowTypingBase):
 
         self.autoInstallContainer = QWidget()
         self.autoInstallContainer.setStyleSheet(self.theme.LIST_WIDGET_STYLE)
-        self.autoInstallContainerLayout = FlowLayout(self.autoInstallContainer)
-        self.autoInstallContainer.setLayout(self.autoInstallContainerLayout)
+        auto_layout_mode = str(getattr(self.theme, "LIBRARY_LAYOUT_MODE", "grid")).lower()
+        self._set_autoinstall_container_layout(auto_layout_mode)
         self.autoInstallScrollArea.setWidget(self.autoInstallContainer)
 
         autoInstallLayout.addWidget(self.autoInstallScrollArea)
@@ -111,9 +124,11 @@ class MainWindowAutoInstallTabMixin(_MainWindowTypingBase):
         sliderLayout.addWidget(self.auto_size_slider)
         autoInstallLayout.addLayout(sliderLayout)
 
-        auto_layout_mode = str(getattr(self.theme, "LIBRARY_LAYOUT_MODE", "grid")).lower()
-        self.auto_size_slider.setVisible(auto_layout_mode != "list")
-        if auto_layout_mode == "list":
+        fixed_layout = auto_layout_mode in {
+            "list", "vertical", "horizontal", "horizontal_top",
+        }
+        self.auto_size_slider.setVisible(not fixed_layout)
+        if fixed_layout:
             self.auto_card_width = self.auto_size_slider.maximum()
             self.auto_size_slider.setValue(self.auto_card_width)
             self._gamepad_tooltip_map[self.auto_size_slider] = f"{self.auto_card_width} px"
@@ -129,6 +144,13 @@ class MainWindowAutoInstallTabMixin(_MainWindowTypingBase):
         def on_autoinstall_games_loaded(games: list[tuple]):
             self.autoInstallLoaded = True
             self.autoInstallLoading = False
+            auto_layout_mode = str(
+                getattr(self.theme, "LIBRARY_LAYOUT_MODE", "grid")
+            ).lower()
+            list_layout = auto_layout_mode in {"list", "vertical"}
+            self.autoInstallContainer.setProperty(
+                "library_layout_mode", auto_layout_mode
+            )
 
             # Clear
             while self.autoInstallContainerLayout.count():
@@ -169,7 +191,7 @@ class MainWindowAutoInstallTabMixin(_MainWindowTypingBase):
                 exe_name = game_tuple[13]
                 compact_cover = game_tuple[14] if len(game_tuple) > 14 else ""
                 full_cover = game_tuple[15] if len(game_tuple) > 15 else cover_path
-                if auto_layout_mode == "list":
+                if list_layout:
                     cover_path = compact_cover or full_cover
                 else:
                     cover_path = full_cover or compact_cover
@@ -184,6 +206,8 @@ class MainWindowAutoInstallTabMixin(_MainWindowTypingBase):
                     parent=self.autoInstallContainer,
                 )
                 card.autoinstall_exe_name = exe_name
+                card.hoverChanged.connect(self._on_autoinstall_card_active)
+                card.focusChanged.connect(self._on_autoinstall_card_active)
 
                 # Hide badges and favorite button
                 if hasattr(card, 'steamLabel'):
@@ -209,6 +233,74 @@ class MainWindowAutoInstallTabMixin(_MainWindowTypingBase):
         self._on_autoinstall_games_loaded = on_autoinstall_games_loaded
 
         self.stackedWidget.addWidget(autoInstallPage)
+
+    def _on_autoinstall_card_active(self, game_name: str, active: bool) -> None:
+        if not active:
+            return
+        for card in self.allAutoInstallCards:
+            if card.name != game_name:
+                continue
+            self.game_library_manager.render_library_background(
+                self.autoInstallBackgroundLabel, card
+            )
+            return
+
+    def _set_autoinstall_container_layout(self, mode: str) -> None:
+        old_layout = getattr(self, "autoInstallContainerLayout", None)
+        if old_layout is not None:
+            while old_layout.count():
+                item = old_layout.takeAt(0)
+                if item and item.widget():
+                    item.widget().deleteLater()
+            QWidget().setLayout(old_layout)
+        self.autoInstallContainer.setProperty("library_layout_mode", mode)
+        if mode == "vertical":
+            config = self.theme.GAME_CARD_VERTICAL
+            layout = QVBoxLayout()
+            layout.setContentsMargins(*config.get("layout_margins", (0, 0, 0, 0)))
+            layout.setSpacing(config.get("layout_spacing", 0))
+            layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        elif mode in {"horizontal", "horizontal_top"}:
+            config = self.theme.GAME_CARD_HORIZONTAL
+            layout = QHBoxLayout()
+            layout.setContentsMargins(*config["layout_margins"])
+            layout.setSpacing(config["layout_spacing"])
+            layout.setAlignment(
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+            )
+        else:
+            layout = FlowLayout()
+        self.autoInstallContainerLayout = layout
+        self.autoInstallContainer.setLayout(layout)
+        horizontal = mode in {"horizontal", "horizontal_top"}
+        vertical_policy = (
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+            if horizontal else Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
+        horizontal_policy = (
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+            if horizontal else Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.autoInstallScrollArea.setVerticalScrollBarPolicy(vertical_policy)
+        self.autoInstallScrollArea.setHorizontalScrollBarPolicy(horizontal_policy)
+
+    def refresh_autoinstall_layout(self) -> None:
+        """Rebuild auto-install cards after a live library layout change."""
+        if not hasattr(self, "autoInstallContainer"):
+            return
+        mode = str(getattr(self.theme, "LIBRARY_LAYOUT_MODE", "grid")).lower()
+        fixed_layout = mode in {
+            "list", "vertical", "horizontal", "horizontal_top",
+        }
+        self._set_autoinstall_container_layout(mode)
+        self.auto_size_slider.setVisible(not fixed_layout)
+        if fixed_layout:
+            self.auto_card_width = self.auto_size_slider.maximum()
+            self.auto_size_slider.setValue(self.auto_card_width)
+        if self.autoInstallLoading:
+            return
+        self.autoInstallLoaded = False
+        self._start_autoinstall_load()
 
     def _open_autoinstall_card_after_script_download(
         self,
@@ -315,11 +407,14 @@ class MainWindowAutoInstallTabMixin(_MainWindowTypingBase):
     def on_auto_slider_released(self):
         """Handles auto-install slider release to update card size."""
         auto_layout_mode = str(getattr(self.theme, "LIBRARY_LAYOUT_MODE", "grid")).lower()
+        fixed_layout = auto_layout_mode in {
+            "list", "vertical", "horizontal", "horizontal_top",
+        }
         if hasattr(self, 'auto_size_slider') and self.auto_size_slider:
-            if auto_layout_mode != "list":
+            if not fixed_layout:
                 self.auto_card_width = self.auto_size_slider.value()
             self._gamepad_tooltip_map[self.auto_size_slider] = f"{self.auto_card_width} px"
-            if auto_layout_mode != "list":
+            if not fixed_layout:
                 ui_config.set_auto_card_width(self.auto_card_width)
         if not hasattr(self, 'allAutoInstallCards'):
             return
