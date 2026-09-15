@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from queue import Queue
 import threading
-from types import SimpleNamespace
+from types import MethodType, SimpleNamespace
 from typing import Any, cast
 from unittest.mock import MagicMock
 
@@ -61,6 +61,7 @@ from portprotonqt.tabs.theme_store import THEME_STORE_ITEM, ThemeStoreMixin
 from portprotonqt.tabs.theme_tab import (
     MainWindowThemeTabMixin as ThemeMixin,
 )
+from portprotonqt.tabs.workers import MainWindowWorkersMixin
 from portprotonqt.tabs.wine_tab import MainWindowWineTabMixin as WineMixin
 
 def _tile_theme() -> Any:
@@ -72,6 +73,50 @@ def _tile_theme() -> Any:
         GAME_CARD_HORIZONTAL={},
         GAME_CARD_ANIMATION=GAME_CARD_ANIMATION,
     )
+
+
+@mark.parametrize(
+    "worker_name",
+    ("egs_library_worker", "gog_library_worker", "gog_metadata_worker"),
+)
+def test_shutdown_waits_for_store_library_workers(worker_name: str) -> None:
+    worker = MagicMock()
+    worker.isRunning.side_effect = [True, False]
+    input_manager = MagicMock()
+    window = SimpleNamespace(
+        input_manager=input_manager,
+        **{worker_name: worker},
+    )
+    window._stopWorkerThread = MethodType(
+        MainWindowWorkersMixin._stopWorkerThread, window
+    )
+    window._stopWorkerThreads = MethodType(
+        MainWindowWorkersMixin._stopWorkerThreads, window
+    )
+    window._stopWorker = MethodType(MainWindowWorkersMixin._stopWorker, window)
+
+    MainWindowWorkersMixin._stopBackgroundWorkers(cast(Any, window))
+
+    worker.requestInterruption.assert_called_once_with()
+    worker.wait.assert_called_once_with()
+    assert getattr(window, worker_name) is None
+    input_manager.cleanup.assert_called_once_with()
+
+
+def test_shutdown_waits_for_retained_theme_workers() -> None:
+    worker = MagicMock()
+    worker.isRunning.side_effect = [True, False]
+    window = SimpleNamespace(_imageWorkerPool=[worker])
+    window._stopWorker = MethodType(MainWindowWorkersMixin._stopWorker, window)
+
+    MainWindowWorkersMixin._stopWorkerThreads(
+        cast(Any, window), "_imageWorkerPool"
+    )
+
+    worker.cancel.assert_called_once_with()
+    worker.wait.assert_called_once_with()
+    assert window._imageWorkerPool == []
+
 
 def test_minimal_tray_contains_game_actions() -> None:
     _application = QApplication.instance() or QApplication([])

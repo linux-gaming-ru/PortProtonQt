@@ -121,7 +121,6 @@ def _archive_entry(archive, source_path: str, archive_path: str) -> bool:
         flags=READDISK_NO_XATTR,
         pathname=archive_path,
         recursive=False,
-        symlink_mode="physical",
     )
     return True
 

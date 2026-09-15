@@ -12,7 +12,10 @@ Covers all migration scenarios:
 """
 import os
 import shlex
+from pathlib import Path
+from unittest.mock import Mock
 
+from libarchive.flags import READDISK_NO_XATTR
 import pytest
 
 from portprotonqt.config.portproton import (
@@ -24,6 +27,7 @@ from portprotonqt.config.portproton import (
 )
 from portprotonqt.scripts_utils.prefix_backup import (
     is_legacy_squashfs_backup,
+    _archive_entry,
     _prefix_path,
     _backup_path,
     _safe_entry_path,
@@ -396,6 +400,21 @@ class TestBackupPath:
         final, part = _backup_path("/backups", "../../etc/passwd")
         assert "passwd" in final
         assert final.endswith(BACKUP_EXTENSION)
+
+
+class TestArchiveEntry:
+    def test_add_files_compatible_with_libarchive_5_1(self, tmp_path: Path) -> None:
+        source = tmp_path / "file.txt"
+        source.write_text("content")
+        archive = Mock()
+
+        assert _archive_entry(archive, str(source), "file.txt") is True
+        archive.add_files.assert_called_once_with(
+            str(source),
+            flags=READDISK_NO_XATTR,
+            pathname="file.txt",
+            recursive=False,
+        )
 
 
 class TestSafeEntryPath:
