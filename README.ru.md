@@ -65,13 +65,16 @@ PortProtonQt использует код и зависимости от след
 
 - [Icoextract](https://github.com/jlu5/icoextract) — библиотека для извлечения иконок, лицензия [MIT](https://github.com/jlu5/icoextract/blob/master/LICENSE).
 - [HowLongToBeat Python API](https://github.com/ScrappyCocco/HowLongToBeat-PythonAPI) — библиотека для взаимодействия с HowLongToBeat, лицензия [MIT](https://github.com/ScrappyCocco/HowLongToBeat-PythonAPI/blob/master/LICENSE.md).
-- [iat](https://sourceforge.net/projects/iat.berlios) — библиотека для конвертации mdf и nrg в iso, лицензия GPLv3
+- [Iso9660 Analyzer Tool (IAT)](https://sourceforge.net/projects/iat.berlios/) — библиотека для конвертации mdf и nrg в iso, лицензия GPLv2
+- [heroic-gogdl](https://github.com/Heroic-Games-Launcher/heroic-gogdl) — модуль загрузки игр GOG, лицензия [GPLv3](https://github.com/Heroic-Games-Launcher/heroic-gogdl/blob/main/LICENSE).
+- [Legendary](https://github.com/Heroic-Games-Launcher/legendary) — альтернатива Epic Games Launcher, лицензия [GPLv3](https://github.com/Heroic-Games-Launcher/legendary/blob/master/LICENSE).
 - [pyte](https://github.com/selectel/pyte) — разбор ANSI escape-кодов, лицензия [LGPLv3](https://github.com/selectel/pyte?tab=LGPL-3.0-1-ov-file)
 - [gjs-osk](https://github.com/Vishram1123/gjs-osk) — основа данных раскладок виртуальной клавиатуры, лицензия GPLv3.
 - [omikuji](https://github.com/omikuji-launcher/omikuji) — источник вдохновения и материалов для процедурных фонов детальной страницы, лицензия [GPLv3](https://github.com/omikuji-launcher/omikuji/blob/master/LICENSE).
 - [Bottles](https://github.com/bottlesdevs/Bottles) — источник правил анализа совместимости, лицензия GPL-3.0-only.
 
-Полный текст лицензий см. в файле [LICENSE](LICENSE).
+Условия лицензии PortProtonQt приведены в файле [LICENSE](LICENSE). Лицензии
+сторонних проектов приведены в файле [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES).
 
 > [!WARNING]
 > **Будьте осторожны!** Если вы берёте тему не из официального репозитория или надёжного источника, убедитесь, что в её файле `styles.py` нет вредоносного или нежелательного кода. Поскольку `styles.py` — это обычный Python-файл, он может содержать любые инструкции. Всегда проверяйте содержимое чужих тем перед использованием.
