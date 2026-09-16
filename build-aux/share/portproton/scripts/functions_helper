@@ -2592,21 +2592,16 @@ pw_enable_gamemode_basic () {
     if check_flatpak ; then
         export GAMEMODERUN=1
         PW_GAMEMODERUN_SLR="gamemoderun"
-    elif command -v gamemoderun &>/dev/null ; then
-        export GAMEMODERUN=1
-        PW_GAMEMODERUN_SLR="gamemoderun"
-        if command -v gamemoded &>/dev/null && ! pw_is_process_active gamemoded ; then
-            gamemoded &>/dev/null &
-            sleep 0.1
-        fi
     else
         export GAMEMODERUN=1
-        if [[ -n "${PW_LD_PRELOAD}" ]]; then
-            export PW_LD_PRELOAD="${PW_LD_PRELOAD}:libgamemodeauto.so.0"
-        else
-            export PW_LD_PRELOAD="libgamemodeauto.so.0"
-        fi
-        if ! pw_is_process_active gamemoded ; then
+        local GAMEMODEAUTO_NAME="libgamemodeauto.so.0"
+        export PW_LD_PRELOAD="${GAMEMODEAUTO_NAME}${PW_LD_PRELOAD:+:$PW_LD_PRELOAD}"
+        if command -v gamemoderun &>/dev/null ; then
+            if command -v gamemoded &>/dev/null && ! pw_is_process_active gamemoded ; then
+                gamemoded &>/dev/null &
+                sleep 0.1
+            fi
+        elif ! pw_is_process_active gamemoded ; then
             env LD_LIBRARY_PATH="${PW_PLUGINS_PATH}/portable/lib/lib64:${PW_PLUGINS_PATH}/portable/lib/lib32" \
                 "${PW_PLUGINS_PATH}/portable/bin/gamemoded" &>/dev/null &
             sleep 0.1
