@@ -672,7 +672,7 @@ class TestGetSteamInstalledGames:
         with patch("portprotonqt.steam_api.utils.get_steam_home", return_value=None):
             assert get_steam_installed_games() == []
 
-    def test_excludes_soundtracks_and_keeps_native_games(self, tmp_path: Path):
+    def test_keeps_games_and_related_apps_without_soundtracks_or_tools(self, tmp_path: Path):
         steam_dir = tmp_path / "Steam"
         steamapps = steam_dir / "steamapps"
         steamapps.mkdir(parents=True)
@@ -680,6 +680,20 @@ class TestGetSteamInstalledGames:
             (10, "Windows Game", "game", "windows"),
             (20, "Game Soundtrack", "music", "windows"),
             (30, "Linux Game", "game", "windows,linux"),
+            (40, "Game Demo", "demo", "windows"),
+            (50, "Game Mod", "mod", "windows"),
+            (60, "Application", "application", "windows"),
+            (70, "Dedicated Server", "tool", "windows"),
+            (80, "Game Beta", "beta", "windows"),
+        )
+        excluded_types = (
+            "invalid", "deprected", "dlc", "guide", "driver", "config",
+            "hardware", "franchise", "video", "plugin", "series", "comic",
+            "shortcut", "depotonly",
+        )
+        apps += tuple(
+            (appid, app_type, app_type, "windows")
+            for appid, app_type in enumerate(excluded_types, start=100)
         )
         for appid, name, _, _ in apps:
             (steamapps / f"appmanifest_{appid}.acf").write_text(
@@ -698,7 +712,7 @@ class TestGetSteamInstalledGames:
         ):
             games = get_steam_installed_games()
 
-        assert {game[1] for game in games} == {10, 30}
+        assert {game[1] for game in games} == {10, 30, 40, 50, 60, 80}
 
     def test_keeps_games_when_appinfo_is_unreadable(self, tmp_path: Path):
         steam_dir = tmp_path / "Steam"

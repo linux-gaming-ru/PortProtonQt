@@ -501,9 +501,9 @@ def _load_steam_app_metadata(
 
 
 def _is_steam_game(common: dict) -> bool:
-    """Return whether Steam metadata describes a game."""
+    """Return whether Steam metadata describes a game or related application."""
     app_type = str(common.get("type", "")).lower()
-    return app_type == "game"
+    return app_type in {"game", "demo", "mod", "application", "beta"}
 
 
 def get_steam_installed_games() -> list[tuple[str, int, int, int]]:
