@@ -233,6 +233,8 @@ class EGSAPI:
         games = []
         for game in raw_games:
             metadata = game.get("metadata", {})
+            if metadata.get("mainGameItem"):
+                continue
             release_info = metadata.get("releaseInfo", [])
             mobile_only = bool(release_info) and all(
                 info.get("platform")

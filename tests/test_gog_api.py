@@ -248,6 +248,7 @@ def test_get_game_loads_localized_product_description(
 ) -> None:
     gamesdb_response = Mock()
     gamesdb_response.json.return_value = {
+        "type": "game",
         "game": {
             "title": {"*": "Game"},
             "visible_in_library": True,
@@ -270,6 +271,26 @@ def test_get_game_loads_localized_product_description(
     assert game["description"] == expected
     assert game["steam_appid"] == "358180"
     assert request.call_args_list[1].kwargs["params"]["locale"] == "fr-FR"
+
+
+@pytest.mark.parametrize("entry_type", ["game", "mod", "dlc", "pack", None])
+def test_get_game_filters_library_types(
+    monkeypatch: pytest.MonkeyPatch, entry_type: str | None
+) -> None:
+    response = Mock()
+    response.json.return_value = {
+        "type": entry_type,
+        "game": {"title": {"*": "Game"}, "visible_in_library": True},
+    }
+    request = Mock(return_value=response)
+    monkeypatch.setattr("portprotonqt.gog_api.requests.get", request)
+
+    game = GOGAPI()._get_game(
+        {"platform_id": "gog", "external_id": "123"}, "token"
+    )
+
+    assert bool(game) == (entry_type in {"game", "mod"})
+    assert request.call_count == (2 if game else 1)
 
 
 def test_is_authenticated_requires_token_and_user_id(monkeypatch) -> None:

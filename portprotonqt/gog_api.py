@@ -630,7 +630,7 @@ class GOGAPI:
         response.raise_for_status()
         data = response.json()
         game = data.get("game", {})
-        if not game.get("visible_in_library", True):
+        if data.get("type") not in {"game", "mod"} or not game.get("visible_in_library", True):
             return {}
         steam_release = next(
             (
