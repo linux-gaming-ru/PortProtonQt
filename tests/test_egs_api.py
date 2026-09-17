@@ -65,6 +65,7 @@ def test_normalize_game_uses_epic_metadata() -> None:
         "description": "Description",
         "cover": "cover.jpg",
         "namespace": "test-namespace",
+        "folder_name": "TestGame",
         "description_locale": "",
         "description_preference": "",
         "description_cache_version": 0,

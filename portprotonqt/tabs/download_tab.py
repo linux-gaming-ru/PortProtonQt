@@ -172,6 +172,27 @@ class GOGSupportWorker(QThread):
             self.failed.emit(self.error)
 
 
+class GOGRepairWorker(QThread):
+    """Restore an imported game's manifest outside the UI thread."""
+
+    def __init__(self, api: GOGAPI, game: dict) -> None:
+        super().__init__()
+        self.api = api
+        self.game = game
+        self.error = ""
+
+    def run(self) -> None:
+        try:
+            app_id = str(self.game["app_id"])
+            install_path = self.api.get_installed_path(app_id)
+            if install_path is None:
+                raise OSError(f"GOG installation not found: {app_id}")
+            self.api.prepare_repair_manifest(app_id, install_path)
+        except Exception as error:
+            logger.exception("Failed to prepare GOG repair")
+            self.error = str(error)
+
+
 class MainWindowDownloadTabMixin(_MainWindowTypingBase):
     """Add account actions and the shared downloads page."""
 
@@ -181,6 +202,8 @@ class MainWindowDownloadTabMixin(_MainWindowTypingBase):
     def createGOGDownloadsTab(self) -> None:
         self.gog_process = None
         self.egs_process = None
+        self.gog_repair_worker = None
+        self.egs_install_importing = False
         self.gog_download_queue = []
         self.gog_download_output = ""
         self.egs_download_output = ""
@@ -574,6 +597,8 @@ class MainWindowDownloadTabMixin(_MainWindowTypingBase):
         self.egs_library_worker = None
 
     def _install_gog_game(self, game: dict) -> None:
+        if getattr(self, "gog_repair_worker", None) is not None:
+            return
         if self.gog_process is not None:
             self.gog_download_queue.append(game)
             self._append_download_row(self.downloadQueuedTable, game, _("Install"))
@@ -595,6 +620,13 @@ class MainWindowDownloadTabMixin(_MainWindowTypingBase):
         if not selected_paths:
             return
         install_path = Path(selected_paths[0])
+        game_path = self.gog_api.find_install_path(app_id, install_path)
+        if game_path is not None:
+            self.gog_api.save_installed_game(
+                app_id, {"install_path": str(game_path), "title": str(game["title"])}
+            )
+            self._repair_gog_game(game)
+            return
         manifest_path = (
             self.gog_api.config_dir / "heroic_gogdl" / "manifests" / app_id
         )
@@ -640,24 +672,52 @@ class MainWindowDownloadTabMixin(_MainWindowTypingBase):
         if not selected_paths:
             return
         install_path = Path(selected_paths[0])
+        folder_name = Path(str(game.get("folder_name") or app_id)).name
         try:
-            command = self.egs_api.build_command([
+            game_path = install_path
+            child_path = install_path / folder_name
+            if child_path.is_dir() and not any(path.is_file() for path in install_path.iterdir()):
+                game_path = child_path
+            existing_game = game_path.is_dir() and any(game_path.iterdir())
+            arguments = [
                 "install", app_id, "--base-path", str(install_path),
                 "--platform", "Windows", "--skip-sdl", "--skip-dlcs", "-y",
-            ])
+            ]
+            if existing_game:
+                arguments = [
+                    "import", app_id, str(game_path), "--platform", "Windows",
+                    "--skip-dlcs", "--disable-check", "-y",
+                ]
+                installed = self.egs_api.load_installed()
+                if app_id in installed:
+                    if installed[app_id].get("install_path") != str(game_path):
+                        installed[app_id]["install_path"] = str(game_path)
+                        self.egs_api._save_json(self.egs_api.config_dir / "installed.json", installed)
+                    arguments = [
+                        "repair", app_id, "--repair-and-update", "--skip-sdl", "-y",
+                    ]
+            command = self.egs_api.build_command(arguments)
         except OSError as error:
             self.egsAccountStatus.setText(str(error))
             return
+        self.egs_install_importing = arguments[0] == "import"
         self._start_egs_download(game, install_path, command)
 
     def _repair_gog_game(self, game: dict) -> None:
-        if self.gog_process is not None:
+        if self.gog_process is not None or getattr(self, "gog_repair_worker", None) is not None:
             self.gogAccountStatus.setText(_("Another GOG operation is already running"))
             return
         app_id = str(game["app_id"])
         install_path = self.gog_api.get_installed_path(app_id)
         if install_path is None:
             self.gogAccountStatus.setText(_("GOG installation not found"))
+            return
+        manifest_path = self.gog_api.config_dir / "heroic_gogdl" / "manifests" / app_id
+        if not manifest_path.is_file():
+            worker = GOGRepairWorker(self.gog_api, game)
+            worker.finished.connect(self._on_gog_repair_prepared)
+            self.gog_repair_worker = worker
+            worker.start()
             return
         support_path = (
             self.gog_api.config_dir / "heroic_gogdl" / "gog-support" / app_id
@@ -673,6 +733,16 @@ class MainWindowDownloadTabMixin(_MainWindowTypingBase):
             self.gogAccountStatus.setText(str(error))
             return
         self._start_gog_download(game, install_path, command, _("Repair"))
+
+    def _on_gog_repair_prepared(self) -> None:
+        worker = self.gog_repair_worker
+        self.gog_repair_worker = None
+        if worker is None or worker.isInterruptionRequested():
+            return
+        if worker.error:
+            self.gogAccountStatus.setText(worker.error)
+            return
+        self._repair_gog_game(worker.game)
 
     def _import_gog_game(self, game: dict) -> None:
         selected_paths: list[str] = []
@@ -1056,6 +1126,35 @@ class MainWindowDownloadTabMixin(_MainWindowTypingBase):
     ) -> None:
         game = self.egs_active_game
         app_id = str(game["app_id"])
+        if self.egs_install_importing:
+            self.egs_install_importing = False
+            imported = app_id in self.egs_api.load_installed()
+            no_game_files = "No files belonging to" in self.egs_download_output
+            if code == 0 and (imported or no_game_files):
+                process = self.egs_process
+                self.egs_process = None
+                self._clear_egs_data_lock()
+                if process is not None:
+                    process.deleteLater()
+                try:
+                    arguments = [
+                        "repair", app_id, "--repair-and-update", "--skip-sdl", "-y",
+                    ]
+                    if not imported:
+                        arguments = [
+                            "install", app_id, "--base-path", str(self.egs_active_install_path),
+                            "--platform", "Windows", "--skip-sdl", "--skip-dlcs", "-y",
+                        ]
+                    command = self.egs_api.build_command(arguments)
+                except OSError as error:
+                    logger.error("Failed to start Epic repair: %s", error)
+                    self.egs_download_output = str(error)
+                    code = 1
+                else:
+                    self._start_egs_download(game, self.egs_active_install_path, command)
+                    return
+            else:
+                code = 1
         self.downloadActiveHeading.setVisible(False)
         self.downloadActiveCard.setVisible(False)
         completed_action = _("Installed") if code == 0 else _("Failed")

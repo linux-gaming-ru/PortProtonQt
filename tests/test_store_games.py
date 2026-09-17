@@ -215,6 +215,9 @@ def test_gog_playtime_updates_live_by_launch_target() -> None:
 
 def test_repair_gog_game_uses_repair_command(tmp_path: Path) -> None:
     install_path = tmp_path / "Game"
+    manifest_path = tmp_path / "gogdl/heroic_gogdl/manifests/123"
+    manifest_path.parent.mkdir(parents=True)
+    manifest_path.write_text("{}")
     started: list[tuple] = []
     api = SimpleNamespace(
         config_dir=tmp_path / "gogdl",
@@ -249,6 +252,7 @@ def test_install_gog_game_uses_support_path(
     api = SimpleNamespace(
         config_dir=tmp_path / "gogdl",
         get_install_path=lambda _app_id, _title: selected_path,
+        find_install_path=lambda _app_id, _path: None,
         is_game_installed=lambda _app_id: False,
         build_command=lambda arguments: ["gogdl", *arguments],
     )
@@ -316,6 +320,156 @@ def test_cancel_gog_download_terminates_then_kills(monkeypatch: MonkeyPatch) -> 
 
     process.terminate.assert_called_once()
     process.kill.assert_called_once()
+
+
+@mark.parametrize("select_parent", [False, True])
+def test_install_gog_existing_game_imports_and_repairs(
+    tmp_path: Path, monkeypatch: MonkeyPatch, select_parent: bool
+) -> None:
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    game_path = tmp_path / "Games/Game"
+    game_path.mkdir(parents=True)
+    (game_path / "goggame-123.info").write_text("{}")
+    (game_path / "Game.exe").write_bytes(b"existing")
+    explorer = MagicMock()
+    explorer.file_signal.file_selected.connect.side_effect = lambda callback: callback(
+        str(game_path.parent if select_parent else game_path)
+    )
+    monkeypatch.setattr(download_tab_module, "FileExplorer", lambda *_args, **_kwargs: explorer)
+    api = GOGAPI()
+    api.games_dir = game_path.parent
+    window = SimpleNamespace(
+        gog_process=None, gog_download_queue=[], theme=object(), gog_api=api,
+        _repair_gog_game=MagicMock(), _start_gog_download=MagicMock(),
+    )
+    game = {"app_id": "123", "title": "Game"}
+
+    GOGMixin._install_gog_game(cast(Any, window), game)
+
+    assert api.load_installed()["123"]["install_path"] == str(game_path)
+    window._repair_gog_game.assert_called_once_with(game)
+    window._start_gog_download.assert_not_called()
+    assert (game_path / "Game.exe").read_bytes() == b"existing"
+
+
+@mark.parametrize("scenario", [
+    (False, False, "DOOM64"), (True, False, "DOOM64"), (True, True, "DOOM64"),
+    (False, False, "DOOM64_test"), (False, True, "DOOM64_test"),
+])
+def test_install_egs_existing_game_uses_import_or_repair(
+    tmp_path: Path, monkeypatch: MonkeyPatch, scenario: tuple[bool, bool, str]
+) -> None:
+    select_parent, registered, folder_name = scenario
+    game_path = tmp_path / "Epic" / folder_name
+    game_path.mkdir(parents=True)
+    (game_path / "Game.exe").write_bytes(b"existing")
+    if folder_name == "DOOM64_test":
+        (game_path / "DOOM64").mkdir()
+    explorer = MagicMock()
+    explorer.file_signal.file_selected.connect.side_effect = lambda callback: callback(
+        str(game_path.parent if select_parent else game_path)
+    )
+    monkeypatch.setattr(download_tab_module, "FileExplorer", lambda *_args, **_kwargs: explorer)
+    game = {"app_id": "doom64", "title": "DOOM 64", "folder_name": "DOOM64"}
+    installed = {"doom64": {"install_path": str(tmp_path / "Epic/DOOM64")}} if registered else {}
+    api = SimpleNamespace(
+        games_dir=game_path.parent, load_library=lambda: [game],
+        load_installed=lambda: installed, config_dir=tmp_path / "legendary", _save_json=MagicMock(),
+        build_command=lambda arguments: ["legendary", *arguments],
+    )
+    window = SimpleNamespace(
+        gog_process=None, egs_process=None, theme=object(), egs_api=api,
+        _start_egs_download=MagicMock(),
+    )
+
+    GOGMixin._install_egs_download(cast(Any, window), "doom64")
+
+    command = window._start_egs_download.call_args.args[2]
+    assert command == ([
+        "legendary", "repair", "doom64", "--repair-and-update", "--skip-sdl", "-y",
+    ] if registered else [
+        "legendary", "import", "doom64", str(game_path), "--platform", "Windows",
+        "--skip-dlcs", "--disable-check", "-y",
+    ])
+    assert window.egs_install_importing is (not registered)
+    assert (game_path / "Game.exe").read_bytes() == b"existing"
+    if registered:
+        assert installed["doom64"]["install_path"] == str(game_path)
+    if registered and folder_name == "DOOM64_test":
+        api._save_json.assert_called_once_with(api.config_dir / "installed.json", installed)
+
+
+@mark.parametrize("imported", [True, False])
+def test_egs_install_import_completion_starts_repair(tmp_path: Path, imported: bool) -> None:
+    game = {"app_id": "Game"}
+    process = SimpleNamespace(deleteLater=MagicMock())
+    window = SimpleNamespace(
+        egs_active_game=game, egs_install_importing=True, egs_process=process,
+        egs_download_output="" if imported else "No files belonging to Game found",
+        egs_active_install_path=tmp_path,
+        egs_api=SimpleNamespace(
+            load_installed=lambda: {"Game": {}} if imported else {},
+            build_command=lambda arguments: ["legendary", *arguments],
+        ),
+        _clear_egs_data_lock=MagicMock(), _start_egs_download=MagicMock(),
+    )
+
+    GOGMixin._on_egs_download_finished(
+        cast(Any, window), 0, download_tab_module.QProcess.ExitStatus.NormalExit
+    )
+
+    window._start_egs_download.assert_called_once_with(game, tmp_path, [
+        "legendary", "repair", "Game", "--repair-and-update", "--skip-sdl", "-y",
+    ] if imported else [
+        "legendary", "install", "Game", "--base-path", str(tmp_path),
+        "--platform", "Windows", "--skip-sdl", "--skip-dlcs", "-y",
+    ])
+    process.deleteLater.assert_called_once()
+    window._clear_egs_data_lock.assert_called_once()
+    assert not window.egs_install_importing
+
+@mark.parametrize("error", ["", "metadata failed"])
+def test_gog_repair_preparation_callback_releases_worker(error: str) -> None:
+    game = {"app_id": "123"}
+    worker = SimpleNamespace(game=game, error=error, isInterruptionRequested=lambda: False)
+    window = SimpleNamespace(
+        gog_repair_worker=worker, _repair_gog_game=MagicMock(),
+        gogAccountStatus=SimpleNamespace(setText=MagicMock()),
+    )
+
+    GOGMixin._on_gog_repair_prepared(cast(Any, window))
+
+    assert window.gog_repair_worker is None
+    if error:
+        window._repair_gog_game.assert_not_called()
+        window.gogAccountStatus.setText.assert_called_once_with(error)
+    else:
+        window._repair_gog_game.assert_called_once_with(game)
+
+
+def test_gog_repair_prepares_manifest_in_retained_worker(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    worker = MagicMock()
+    factory = MagicMock(return_value=worker)
+    monkeypatch.setattr(download_tab_module, "GOGRepairWorker", factory)
+    game = {"app_id": "123"}
+    window = SimpleNamespace(
+        gog_process=None, gog_repair_worker=None,
+        gog_api=SimpleNamespace(
+            config_dir=tmp_path, get_installed_path=lambda _app_id: tmp_path,
+        ),
+        _on_gog_repair_prepared=MagicMock(), _start_gog_download=MagicMock(),
+    )
+
+    GOGMixin._repair_gog_game(cast(Any, window), game)
+
+    assert window.gog_repair_worker is worker
+    factory.assert_called_once_with(window.gog_api, game)
+    worker.finished.connect.assert_called_once_with(window._on_gog_repair_prepared)
+    worker.start.assert_called_once()
+    window._start_gog_download.assert_not_called()
+
 
 def test_import_gog_game_saves_selected_installation(
     tmp_path: Path, monkeypatch: MonkeyPatch

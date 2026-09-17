@@ -461,6 +461,9 @@ class EGSAPI:
             "description": str(metadata.get("description", "")),
             "cover": cover,
             "namespace": str(metadata.get("namespace", "")),
+            "folder_name": str(metadata.get("customAttributes", {}).get(
+                "FolderName", {}
+            ).get("value") or game.get("app_name") or game.get("appName") or ""),
             "description_locale": "",
             "description_preference": "",
             "description_cache_version": 0,
