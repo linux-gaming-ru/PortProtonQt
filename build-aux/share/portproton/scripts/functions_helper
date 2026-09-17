@@ -3229,7 +3229,7 @@ start_portproton () {
     # DGVOODOO2 enable:
     if [[ "${PW_DGVOODOO2}" == "1" ]] \
     && [[ "${PW_USE_SPECIALK}" != "1" ]] \
-    && [[ "${PW_USE_D7VK}" != "1" ]] \
+    && [[ "${PW_USE_D7VK}" != "1" ]]
     then
         if [[ ! -f "${PW_VULKAN_DIR}/dgvoodoo2-${DGV2_VER}/dgVoodoo.conf" ]] ; then
             print_info "Download and install DGVOODOO2 v.${DGV2_VER}"
