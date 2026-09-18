@@ -1016,6 +1016,17 @@ class GameLibraryManager:
         self.update_game_grid()
         self._update_missing_exe_button()
 
+        detail_manager = getattr(self.main_window, "detail_page_manager", None)
+        source = getattr(detail_manager, "_current_detail_source", None)
+        if detail_manager and source and source[0] == "game" and detail_manager._detail_page_active:
+            detail_data = source[1]
+            if (detail_data.get("name"), detail_data.get("exec_line")) == old_key:
+                detail_data.update(
+                    name=game_data[0], description=game_data[1],
+                    cover_path=game_data[2], exec_line=game_data[5],
+                )
+                detail_manager._reopen_current_detail_page()
+
     def remove_game_incremental(self, game_name: str, exec_line: str):
         """Remove a single game without full reload."""
         key = (game_name, exec_line)

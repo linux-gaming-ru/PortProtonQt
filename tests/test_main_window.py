@@ -2401,3 +2401,40 @@ def test_egs_library_progress_shows_game_count(monkeypatch: MonkeyPatch) -> None
     GOGMixin._on_egs_library_progress(cast(Any, window), 7, 12)
 
     assert values == ["Refreshing Epic library… 7/12"]
+
+
+@mark.parametrize("source_kind, active, current_name, refresh", [
+    ("game", True, "Old", True),
+    ("game", True, "Other", False),
+    ("game", False, "Old", False),
+    ("autoinstall", True, "Old", False),
+])
+def test_replace_game_refreshes_matching_detail_page(
+    source_kind: str, active: bool, current_name: str, refresh: bool,
+) -> None:
+    detail_data = {"name": current_name, "exec_line": "old.exe", "appid": "42"}
+    detail_manager = SimpleNamespace(
+        _current_detail_source=(source_kind, detail_data),
+        _detail_page_active=active,
+        _reopen_current_detail_page=MagicMock(),
+    )
+    manager: Any = GameLibraryManager.__new__(GameLibraryManager)
+    manager.main_window = SimpleNamespace(detail_page_manager=detail_manager)
+    manager.games = [("Old", "", "", "42", "", "old.exe")]
+    manager.filtered_games = list(manager.games)
+    manager.game_card_cache = {}
+    manager.update_game_grid = MagicMock()
+    manager._update_missing_exe_button = MagicMock()
+    updated = ("New", "Description", "cover.png", "42", "", "new.exe")
+
+    manager.replace_game_incremental("Old", "old.exe", updated)
+
+    assert manager.games == [updated]
+    assert detail_manager._reopen_current_detail_page.call_count == int(refresh)
+    if refresh:
+        assert detail_data == {
+            "name": "New", "description": "Description", "cover_path": "cover.png",
+            "exec_line": "new.exe", "appid": "42",
+        }
+    else:
+        assert detail_data == {"name": current_name, "exec_line": "old.exe", "appid": "42"}
