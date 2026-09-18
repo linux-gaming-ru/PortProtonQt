@@ -832,14 +832,8 @@ class MainWindowDownloadTabMixin(_MainWindowTypingBase):
             if result != QDialog.DialogCode.Accepted:
                 return
             selected = [dlc for checkbox, dlc in checkboxes if checkbox.isChecked() and (source == "gog" or not dlc.get("installed"))]
-        elif game.get("_dlc_only"):
-            QMessageBox.information(self, "DLC", f"DLC: {_('No')}")
-            return
         game = {**game, "_dlcs": selected}
-        if game.get("_dlc_only"):
-            if selected:
-                self._install_store_dlcs(source, game)
-        elif source == "gog":
+        if source == "gog":
             self._install_gog_game(game)
         else:
             self.egs_selected_dlc_game = game
@@ -868,28 +862,6 @@ class MainWindowDownloadTabMixin(_MainWindowTypingBase):
         assert layout is not None
         layout.addWidget(checkbox)
         return row, checkbox
-
-    def _install_store_dlcs(self, source: str, game: dict) -> None:
-        app_id = str(game["app_id"])
-        try:
-            if source == "egs":
-                install_path = Path(self.egs_api.load_installed()[app_id]["install_path"])
-                self.egs_install_importing = False
-                self._start_next_egs_dlc(game, install_path)
-                return
-            install_path = self.gog_api.get_installed_path(app_id)
-            if install_path is None:
-                raise OSError(f"GOG installation not found: {app_id}")
-            support_path = self.gog_api.config_dir / "heroic_gogdl" / "gog-support" / app_id
-            command = self.gog_api.build_command([
-                "update", app_id, "--path", str(install_path), "--support", str(support_path),
-                "--platform", "windows", "--with-dlcs", "--dlcs",
-                ",".join(dlc["app_id"] for dlc in game["_dlcs"]),
-            ])
-            self._start_gog_download(game, install_path, command, _("Install"))
-        except Exception as error:
-            logger.exception("Failed to start DLC installation for %s", app_id)
-            QMessageBox.warning(self, _("Error"), str(error))
 
     def _start_next_egs_dlc(self, game: dict, install_path: Path) -> None:
         dlc = game["_dlcs"][0]

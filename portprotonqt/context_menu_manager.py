@@ -502,10 +502,6 @@ class ContextMenuManager:
                 "cover": game_card.cover_path,
             }
             if game_card.exec_line.startswith("gog://launch/"):
-                dlc_action = menu.addAction(self._get_safe_icon("update"), "DLC")
-                dlc_action.triggered.connect(
-                    lambda: self.parent._select_store_dlcs("gog", {**game, "_dlc_only": True})
-                )
                 repair_action = menu.addAction(
                     self._get_safe_icon("update"), _("Repair")
                 )
@@ -564,11 +560,6 @@ class ContextMenuManager:
         if game_card.game_source == "egs":
             app_id = str(game_card.appid)
             if game_card.exec_line.startswith("egs://launch/"):
-                dlc_action = menu.addAction(self._get_safe_icon("update"), "DLC")
-                dlc_action.triggered.connect(lambda: self.parent._select_store_dlcs("egs", {
-                    "app_id": app_id, "title": game_card.name,
-                    "cover": game_card.cover_path, "_dlc_only": True,
-                }))
                 desktop_dir = QStandardPaths.writableLocation(
                     QStandardPaths.StandardLocation.DesktopLocation
                 )

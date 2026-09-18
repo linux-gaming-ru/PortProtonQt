@@ -117,25 +117,6 @@ def test_epic_success_starts_dlc_after_import_and_base_install(tmp_path: Path) -
     next_dlc.assert_called_once_with(game, tmp_path)
 
 
-def test_gog_dlc_update_keeps_selected_installed_expansions(tmp_path: Path) -> None:
-    commands, started = [], []
-    game = {"app_id": "111", "title": "Base", "_dlcs": [
-        {"app_id": "222", "installed": True}, {"app_id": "333"},
-    ]}
-    window = SimpleNamespace(
-        gog_api=SimpleNamespace(
-            config_dir=tmp_path, get_installed_path=lambda _app_id: tmp_path,
-            build_command=lambda args: commands.append(args) or args,
-        ), _start_gog_download=lambda *args: started.append(args),
-    )
-
-    GOGMixin._install_store_dlcs(cast(Any, window), "gog", game)
-
-    assert commands[0][0:2] == ["update", "111"]
-    assert commands[0][-3:] == ["--with-dlcs", "--dlcs", "222,333"]
-    assert started[0][1] == tmp_path
-
-
 @mark.parametrize("source", ("gog", "egs"))
 @mark.parametrize("accepted", (True, False))
 def test_dlc_picker_preserves_installed_and_respects_cancel(
@@ -155,8 +136,9 @@ def test_dlc_picker_preserves_installed_and_respects_cancel(
     images = []
     monkeypatch.setattr(download_tab_module, "load_pixmap_async", lambda *args, **kwargs: images.append(args))
     started = []
-    window._install_store_dlcs = lambda *args: started.append(args)
-    game = {"app_id": "base", "title": "Base", "_dlc_only": True}
+    window._install_gog_game = lambda game: started.append(("gog", game))
+    window._install_egs_download = lambda app_id: started.append(("egs", window.egs_selected_dlc_game))
+    game = {"app_id": "base", "title": "Base"}
     dlcs = [{"app_id": "old", "title": "Old", "installed": True},
             {"app_id": "new", "title": "New", "installed": False}]
 
@@ -991,14 +973,38 @@ def test_egs_maintenance_uses_legendary_commands() -> None:
 
     MainWindow._repair_egs_game(window, "Game")
     MainWindow._update_egs_game(window, "Game")
-    MainWindow._delete_egs_game(window, "Game")
 
     calls = start_operation.call_args_list
     assert calls[0].args[1] == ["repair", "Game", "--skip-sdl", "-y"]
     assert calls[1].args[1] == [
         "update", "Game", "--platform", "Windows", "--skip-sdl", "-y",
     ]
-    assert calls[2].args[1] == ["uninstall", "Game", "-y"]
+
+
+@mark.parametrize("confirm", (True, False))
+def test_egs_deletion_requires_confirmation(monkeypatch: MonkeyPatch, confirm: bool) -> None:
+    box = MagicMock()
+    buttons = main_window_module.QMessageBox.StandardButton
+    box.exec.return_value = buttons.Yes if confirm else buttons.No
+    factory = MagicMock(return_value=box)
+    factory.Icon = main_window_module.QMessageBox.Icon
+    factory.StandardButton = buttons
+    monkeypatch.setattr(main_window_module, "QMessageBox", factory)
+    monkeypatch.setattr(main_window_module, "_", lambda text: text)
+    start_operation = MagicMock()
+    window = cast(MainWindow, SimpleNamespace(
+        _start_egs_operation=start_operation,
+        egs_api=SimpleNamespace(load_installed=lambda: {"Game": {"title": "Epic Game"}}),
+    ))
+
+    MainWindow._delete_egs_game(window, "Game")
+
+    box.setDefaultButton.assert_called_once_with(buttons.No)
+    box.setText.assert_called_once_with("Delete 'Epic Game' and all files in its installation folder?")
+    if confirm:
+        start_operation.assert_called_once_with("Game", ["uninstall", "Game", "-y"], "Delete")
+    else:
+        start_operation.assert_not_called()
 
 def test_egs_operation_is_sent_to_visible_downloads() -> None:
     game = {"app_id": "Game", "title": "Epic Game", "cover": "cover"}

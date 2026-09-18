@@ -2614,6 +2614,23 @@ class MainWindow(
         )
 
     def _delete_egs_game(self, app_id: str) -> None:
+        game = self.egs_api.load_installed().get(app_id, {})
+        message_box = QMessageBox(self)
+        message_box.setIcon(QMessageBox.Icon.Question)
+        message_box.setWindowTitle(_("Confirm Deletion"))
+        message_box.setText(
+            _("Delete '{0}' and all files in its installation folder?").format(
+                game.get("title") or app_id
+            )
+        )
+        message_box.setStandardButtons(
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        message_box.setDefaultButton(QMessageBox.StandardButton.No)
+        message_box.setButtonText(QMessageBox.StandardButton.Yes, _("Yes"))
+        message_box.setButtonText(QMessageBox.StandardButton.No, _("No"))
+        if message_box.exec() != QMessageBox.StandardButton.Yes:
+            return
         self._start_egs_operation(
             app_id, ["uninstall", app_id, "-y"], _("Delete")
         )
