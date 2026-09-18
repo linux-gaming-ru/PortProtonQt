@@ -141,12 +141,14 @@ class GameLibraryManager:
         if self.layout_mode in {"horizontal", "horizontal_top"}:
             layout_config = self.theme.GAME_CARD_HORIZONTAL
             self.gamesListLayout = QHBoxLayout(self.gamesListWidget)
+            self.gamesListLayout.setAlignment(Qt.AlignmentFlag.AlignLeft)
             self.gamesListLayout.setContentsMargins(*layout_config["layout_margins"])
             self.gamesListLayout.setSpacing(layout_config["layout_spacing"])
             scrollArea.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         elif self.layout_mode == "vertical":
             layout_config = self.theme.GAME_CARD_VERTICAL
             self.gamesListLayout = QVBoxLayout(self.gamesListWidget)
+            self.gamesListLayout.setAlignment(Qt.AlignmentFlag.AlignTop)
             self.gamesListLayout.setContentsMargins(
                 *layout_config.get("layout_margins", (0, 0, 0, 0))
             )
@@ -224,11 +226,13 @@ class GameLibraryManager:
         if layout_mode in {"horizontal", "horizontal_top"}:
             layout_config = self.theme.GAME_CARD_HORIZONTAL
             self.gamesListLayout = QHBoxLayout()
+            self.gamesListLayout.setAlignment(Qt.AlignmentFlag.AlignLeft)
             self.gamesListLayout.setContentsMargins(*layout_config["layout_margins"])
             self.gamesListLayout.setSpacing(layout_config["layout_spacing"])
         elif layout_mode == "vertical":
             layout_config = self.theme.GAME_CARD_VERTICAL
             self.gamesListLayout = QVBoxLayout()
+            self.gamesListLayout.setAlignment(Qt.AlignmentFlag.AlignTop)
             self.gamesListLayout.setContentsMargins(
                 *layout_config.get("layout_margins", (0, 0, 0, 0))
             )

@@ -668,7 +668,8 @@ def test_auto_hide_scroll_area_tracks_horizontal_overflow() -> None:
     assert scroll_area._h_is_visible is True
     assert scroll_area._h_hide_timer.isActive()
 
-def test_vertical_library_uses_column_layout() -> None:
+@mark.parametrize("layout_mode", ["vertical", "horizontal", "horizontal_top"])
+def test_vertical_library_uses_column_layout(layout_mode: str) -> None:
     _application = QApplication.instance() or QApplication([])
     manager: Any = GameLibraryManager.__new__(GameLibraryManager)
     manager.gamesListWidget = QWidget()
@@ -682,6 +683,7 @@ def test_vertical_library_uses_column_layout() -> None:
     manager.theme = SimpleNamespace(
         LIBRARY_LAYOUT_MODE="vertical",
         GAME_CARD_VERTICAL={"layout_margins": (1, 2, 3, 4), "layout_spacing": 5},
+        GAME_CARD_HORIZONTAL={"layout_margins": (1, 2, 3, 4), "layout_spacing": 5},
     )
     manager.fullLibraryTile = None
     manager.full_library_open = False
@@ -693,11 +695,58 @@ def test_vertical_library_uses_column_layout() -> None:
     manager.games = []
     manager.set_games = MagicMock()
 
-    manager.rebuild_library_layout("vertical")
+    manager.rebuild_library_layout(layout_mode)
 
-    assert isinstance(manager.gamesListLayout, QVBoxLayout)
+    expected_layout = QVBoxLayout if layout_mode == "vertical" else QHBoxLayout
+    expected_alignment = (
+        Qt.AlignmentFlag.AlignTop if layout_mode == "vertical" else Qt.AlignmentFlag.AlignLeft
+    )
+    assert isinstance(manager.gamesListLayout, expected_layout)
+    assert manager.gamesListLayout.alignment() == expected_alignment
     assert manager.gamesListLayout.contentsMargins().left() == 1
     assert manager.gamesListLayout.spacing() == 5
+
+
+@mark.parametrize("layout_mode", ["vertical", "horizontal"])
+def test_library_search_keeps_results_packed(
+    layout_mode: str, monkeypatch: MonkeyPatch,
+) -> None:
+    application = QApplication.instance() or QApplication([])
+    config = {"layout_margins": (0, 0, 0, 0), "layout_spacing": 5}
+    theme = SimpleNamespace(
+        LIBRARY_LAYOUT_MODE=layout_mode, GAME_CARD_VERTICAL=config,
+        GAME_CARD_HORIZONTAL=config, LIBRARY_WIDGET_STYLE="", LIST_WIDGET_STYLE="",
+        SCROLL_STYLE="", SLIDER_SIZE_STYLE="", TRANSPARENT_BACKGROUND_STYLE="",
+    )
+    main_window: Any = SimpleNamespace(
+        createSearchWidget=lambda: (QWidget(), QLabel()),
+        on_slider_released=lambda: None,
+    )
+    monkeypatch.setattr(GameLibraryManager, "_create_library_header", lambda _self: QWidget())
+    manager = GameLibraryManager(main_window, theme, None)
+    manager.create_games_library_widget()
+    manager.force_update_cards_library = MagicMock()
+    manager.load_visible_images = MagicMock()
+    content = manager.gamesListWidget
+    assert content is not None
+    content.setFixedSize(600, 600)
+    cards = [QWidget(content) for _ in range(4)]
+    for index, card in enumerate(cards):
+        card.setFixedSize(50, 50)
+        cast(Any, card).set_animated_cover_paused = MagicMock()
+        manager.game_card_cache[(str(index), "")] = card
+        assert manager.gamesListLayout is not None
+        manager.gamesListLayout.addWidget(card)
+    manager.gamesLibraryWidget.show()
+    for indices in ([1, 3], [], [0, 1, 2, 3]):
+        manager.filtered_games = [(str(index), "", "", "", "", "") for index in indices]
+        manager._update_search_results()
+        application.processEvents()
+        visible_cards = [card for card in cards if card.isVisible()]
+        assert visible_cards == [cards[index] for index in indices]
+        positions = [card.y() if layout_mode == "vertical" else card.x() for card in visible_cards]
+        assert positions == [index * 55 for index in range(len(indices))]
+    manager.gamesLibraryWidget.close()
 
 def test_full_library_tile_accepts_async_cover_result() -> None:
     application = QApplication.instance() or QApplication([])
