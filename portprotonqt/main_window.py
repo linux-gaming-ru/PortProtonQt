@@ -2583,7 +2583,7 @@ class MainWindow(
             None,
         )
         if game:
-            self._install_gog_game(game)
+            self._select_store_dlcs("gog", game)
 
     def _handle_egs_game(self, exec_line: str, button=None) -> None:
         action, app_id = exec_line.removeprefix("egs://").split("/", 1)
@@ -2595,7 +2595,12 @@ class MainWindow(
         self._install_egs_game(app_id)
 
     def _install_egs_game(self, app_id: str) -> None:
-        self._install_egs_download(app_id)
+        game = next(
+            (item for item in self.egs_api.load_library()
+             if str(item.get("app_id", "")) == app_id),
+            {"app_id": app_id, "title": app_id, "cover": ""},
+        )
+        self._select_store_dlcs("egs", game)
 
     def _repair_egs_game(self, app_id: str) -> None:
         self._start_egs_operation(
@@ -2609,6 +2614,23 @@ class MainWindow(
         )
 
     def _delete_egs_game(self, app_id: str) -> None:
+        game = self.egs_api.load_installed().get(app_id, {})
+        message_box = QMessageBox(self)
+        message_box.setIcon(QMessageBox.Icon.Question)
+        message_box.setWindowTitle(_("Confirm Deletion"))
+        message_box.setText(
+            _("Delete '{0}' and all files in its installation folder?").format(
+                game.get("title") or app_id
+            )
+        )
+        message_box.setStandardButtons(
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        message_box.setDefaultButton(QMessageBox.StandardButton.No)
+        message_box.setButtonText(QMessageBox.StandardButton.Yes, _("Yes"))
+        message_box.setButtonText(QMessageBox.StandardButton.No, _("No"))
+        if message_box.exec() != QMessageBox.StandardButton.Yes:
+            return
         self._start_egs_operation(
             app_id, ["uninstall", app_id, "-y"], _("Delete")
         )

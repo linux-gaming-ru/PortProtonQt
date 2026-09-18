@@ -7,6 +7,7 @@ import re
 import shutil
 import subprocess
 import time
+import zlib
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -31,6 +32,9 @@ GOG_USER_TIMEOUT = 15
 GOG_METADATA_WORKERS = 4
 GOG_SETUP_MARKER_VERSION = 1
 GOG_SETUP_TIMEOUT = 600
+GOG_REPAIR_METADATA_TIMEOUT = 30
+GOG_COMPRESSED_MANIFEST_VERSION = 2
+GOG_BUILDS_API_VERSION = 2
 GOG_PRODUCT_LOCALES = {
     "bg": "bg-BG", "cs": "cs-CZ", "da": "da-DK", "de": "de-DE",
     "el": "el-GR", "en": "en-US", "es": "es-ES", "fi": "fi-FI",
@@ -390,6 +394,53 @@ class GOGAPI:
             logger.warning("Failed to inspect GOG installation path %s: %s", parent, error)
             return None
 
+    def prepare_repair_manifest(self, app_id: str, install_path: Path) -> None:
+        """Restore gogdl metadata before verifying an imported Windows game."""
+        manifest_path = self.config_dir / "heroic_gogdl" / "manifests" / app_id
+        if manifest_path.is_file():
+            return
+        info = self._load_json(install_path / f"goggame-{app_id}.info", {})
+        build_info = self._load_json(install_path / f"goggame-{app_id}.id", {})
+        build_id = build_info.get("buildId") or info.get("buildId")
+        credentials = self.get_credentials()
+        response = requests.get(
+            f"https://content-system.gog.com/products/{app_id}/os/windows/builds",
+            params={"generation": GOG_COMPRESSED_MANIFEST_VERSION, "_version": GOG_BUILDS_API_VERSION},
+            headers={"Authorization": f"Bearer {credentials.get('access_token', '')}"},
+            timeout=GOG_REPAIR_METADATA_TIMEOUT,
+        )
+        response.raise_for_status()
+        builds = response.json().get("items", [])
+        build = next((item for item in builds if (
+            str(item.get("build_id")) == str(build_id) if build_id
+            else not item.get("branch")
+        )), None)
+        if build is None and build_id:
+            build = next((item for item in builds if not item.get("branch") and item.get("urls")), None)
+            if build:
+                logger.warning(
+                    "GOG build %s for %s is unavailable; verifying against build %s",
+                    build_id, app_id, build.get("build_id"),
+                )
+        if not build or not build.get("urls"):
+            raise OSError(f"GOG build not found for installed game {app_id}")
+        response = requests.get(build["urls"][0]["url"], timeout=GOG_REPAIR_METADATA_TIMEOUT)
+        response.raise_for_status()
+        data = response.content
+        if build.get("generation") == GOG_COMPRESSED_MANIFEST_VERSION:
+            data = zlib.decompress(data)
+        manifest = orjson.loads(data)
+        manifest["HGLPlatform"] = "windows"
+        manifest["HGLInstallLanguage"] = (
+            info.get("language") or next(iter(info.get("languages", [])), "en-US")
+        )
+        manifest["HGLdlcs"] = [
+            {"id": path.stem.removeprefix("goggame-")}
+            for path in install_path.glob("goggame-*.info")
+            if path.stem != f"goggame-{app_id}"
+        ]
+        self._save_json(manifest_path, manifest)
+
     def get_launch_target(self, app_id: str) -> str | None:
         """Return the primary executable from gogdl installation metadata."""
         primary, install_path = self._get_primary_task(app_id)
@@ -630,7 +681,7 @@ class GOGAPI:
         response.raise_for_status()
         data = response.json()
         game = data.get("game", {})
-        if not game.get("visible_in_library", True):
+        if data.get("type") not in {"game", "mod"} or not game.get("visible_in_library", True):
             return {}
         steam_release = next(
             (

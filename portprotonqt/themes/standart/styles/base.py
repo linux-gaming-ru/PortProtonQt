@@ -70,6 +70,25 @@ DOWNLOADS_SECTION_STYLE = f"""
     }}
 """
 
+STORE_DLC_LIST_STYLE = f"""
+    QWidget#storeDlcList {{
+        background: {color_surface_elevated};
+        border: {border_none};
+        border-radius: {border_radius_small};
+    }}
+"""
+
+STORE_DLC_ROW_STYLE = f"""
+    QWidget#storeDlcRow {{
+        background: transparent;
+        border: {border_none};
+    }}
+    QWidget#storeDlcRow QLabel, QWidget#storeDlcRow QCheckBox {{
+        background: transparent;
+        color: {color_text};
+    }}
+"""
+
 DOWNLOADS_TABLE_STYLE = f"""
     QTableWidget {{
         background: {color_surface_elevated};

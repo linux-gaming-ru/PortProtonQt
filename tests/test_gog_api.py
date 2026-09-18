@@ -1,4 +1,5 @@
 import os
+import zlib
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -8,6 +9,84 @@ import pytest
 
 from portprotonqt.gog_api import GOGAPI, GOGDL_UPDATE_INTERVAL, GOG_PRODUCT_LOCALES
 from portprotonqt.localization import LOCALE_MAP
+
+
+@pytest.mark.parametrize("generation", [1, 2])
+def test_prepare_repair_manifest_restores_imported_build(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, generation: int
+) -> None:
+    api = GOGAPI()
+    api.config_dir = tmp_path / "gogdl"
+    game_path = tmp_path / "game"
+    game_path.mkdir()
+    (game_path / "goggame-123.info").write_bytes(orjson.dumps({
+        "buildId": "old", "languages": ["fr-FR"],
+    }))
+    (game_path / "goggame-123.id").write_bytes(orjson.dumps({"buildId": "installed"}))
+    (game_path / "goggame-456.info").write_text("{}")
+    manifest_data = orjson.dumps({"version": generation, "buildId": "installed"})
+    builds_response = Mock()
+    builds_response.json.return_value = {"items": [
+        {"build_id": "other", "branch": None, "urls": [{"url": "other"}]},
+        {"build_id": "installed", "generation": generation,
+         "urls": [{"url": "https://content-system.gog.com/manifest"}]},
+    ]}
+    manifest_response = Mock()
+    manifest_response.content = zlib.compress(manifest_data) if generation == 2 else manifest_data
+    request = Mock(side_effect=[builds_response, manifest_response])
+    monkeypatch.setattr(api, "get_credentials", lambda: {"access_token": "token"})
+    monkeypatch.setattr("portprotonqt.gog_api.requests.get", request)
+
+    api.prepare_repair_manifest("123", game_path)
+
+    manifest_path = api.config_dir / "heroic_gogdl/manifests/123"
+    assert orjson.loads(manifest_path.read_bytes()) == {
+        "version": generation, "buildId": "installed", "HGLPlatform": "windows",
+        "HGLInstallLanguage": "fr-FR", "HGLdlcs": [{"id": "456"}],
+    }
+    assert request.call_args.args[0] == "https://content-system.gog.com/manifest"
+    assert request.call_args_list[0].kwargs["params"] == {"generation": 2, "_version": 2}
+
+
+def test_prepare_repair_manifest_uses_public_build_when_installed_build_is_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    api = GOGAPI()
+    api.config_dir = tmp_path / "gogdl"
+    (tmp_path / "goggame-123.info").write_bytes(orjson.dumps({"buildId": "removed"}))
+    builds_response = Mock()
+    builds_response.json.return_value = {"items": [
+        {"build_id": "private", "branch": "beta", "urls": [{"url": "private"}]},
+        {"build_id": "public", "branch": None, "generation": 2,
+         "urls": [{"url": "https://content-system.gog.com/public"}]},
+    ]}
+    manifest_response = Mock()
+    manifest_response.content = zlib.compress(orjson.dumps({"version": 2, "buildId": "public"}))
+    request = Mock(side_effect=[builds_response, manifest_response])
+    monkeypatch.setattr(api, "get_credentials", lambda: {"access_token": "token"})
+    monkeypatch.setattr("portprotonqt.gog_api.requests.get", request)
+
+    api.prepare_repair_manifest("123", tmp_path)
+
+    manifest = orjson.loads((api.config_dir / "heroic_gogdl/manifests/123").read_bytes())
+    assert manifest["buildId"] == "public"
+    assert request.call_args.args[0] == "https://content-system.gog.com/public"
+
+
+def test_prepare_repair_manifest_rejects_unavailable_build(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    api = GOGAPI()
+    api.config_dir = tmp_path / "gogdl"
+    response = Mock()
+    response.json.return_value = {"items": []}
+    monkeypatch.setattr(api, "get_credentials", lambda: {"access_token": "token"})
+    monkeypatch.setattr("portprotonqt.gog_api.requests.get", lambda *_args, **_kwargs: response)
+
+    with pytest.raises(OSError, match="GOG build not found"):
+        api.prepare_repair_manifest("123", tmp_path)
+
+    assert not (api.config_dir / "heroic_gogdl/manifests/123").exists()
 
 
 def test_default_games_directory_is_user_games_folder() -> None:
@@ -248,6 +327,7 @@ def test_get_game_loads_localized_product_description(
 ) -> None:
     gamesdb_response = Mock()
     gamesdb_response.json.return_value = {
+        "type": "game",
         "game": {
             "title": {"*": "Game"},
             "visible_in_library": True,
@@ -270,6 +350,26 @@ def test_get_game_loads_localized_product_description(
     assert game["description"] == expected
     assert game["steam_appid"] == "358180"
     assert request.call_args_list[1].kwargs["params"]["locale"] == "fr-FR"
+
+
+@pytest.mark.parametrize("entry_type", ["game", "mod", "dlc", "pack", None])
+def test_get_game_filters_library_types(
+    monkeypatch: pytest.MonkeyPatch, entry_type: str | None
+) -> None:
+    response = Mock()
+    response.json.return_value = {
+        "type": entry_type,
+        "game": {"title": {"*": "Game"}, "visible_in_library": True},
+    }
+    request = Mock(return_value=response)
+    monkeypatch.setattr("portprotonqt.gog_api.requests.get", request)
+
+    game = GOGAPI()._get_game(
+        {"platform_id": "gog", "external_id": "123"}, "token"
+    )
+
+    assert bool(game) == (entry_type in {"game", "mod"})
+    assert request.call_count == (2 if game else 1)
 
 
 def test_is_authenticated_requires_token_and_user_id(monkeypatch) -> None:

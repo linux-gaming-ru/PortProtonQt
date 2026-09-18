@@ -65,18 +65,26 @@ def test_normalize_game_uses_epic_metadata() -> None:
         "description": "Description",
         "cover": "cover.jpg",
         "namespace": "test-namespace",
+        "folder_name": "TestGame",
         "description_locale": "",
         "description_preference": "",
         "description_cache_version": 0,
     }
 
 
-def test_refresh_library_skips_mobile_only_games(
+def test_refresh_library_skips_mobile_only_games_and_dlcs(
     tmp_path: Path, monkeypatch: MonkeyPatch,
 ) -> None:
     api = EGSAPI()
     api.library_path = tmp_path / "library.json"
     games = [
+        {
+            "app_name": "GameDLC",
+            "metadata": {
+                "mainGameItem": {"id": "base-game"},
+                "releaseInfo": [{"platform": ["Windows"]}],
+            },
+        },
         {
             "app_name": "MobileGame",
             "app_title": "Mobile Game",
