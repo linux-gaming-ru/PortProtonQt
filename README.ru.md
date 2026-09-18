@@ -5,7 +5,7 @@
 <div align="center">
   <img src="build-aux/share/icons/hicolor/scalable/apps/ru.linux_gaming.PortProtonQt.svg" width="64">
   <h1 align="center">PortProtonQt</h1>
-  <a href="https://git.linux-gaming.ru/Linux-Gaming/PortProtonQt/releases"><img src="https://img.shields.io/badge/%D0%97%D0%B0%D0%B3%D1%80%D1%83%D0%B7%D0%BA%D0%B8-10488-green?style=flat-square" alt="Всего загрузок"></a>
+  <a href="https://git.linux-gaming.ru/Linux-Gaming/PortProtonQt/releases"><img src="https://img.shields.io/badge/%D0%97%D0%B0%D0%B3%D1%80%D1%83%D0%B7%D0%BA%D0%B8-12.8k-green?style=flat-square" alt="Всего загрузок"></a>
   <p align="center">Современный и удобный интерфейс для управления и запуска игр из PortProton, Steam, Epic Games Store и GOG. Объединяет библиотеки в одном месте и упрощает запуск Windows-игр на Linux.</p>
 </div>
 
