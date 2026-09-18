@@ -22,6 +22,7 @@ class MainWindowWorkersMixin:
             "gog_library_worker": None,
             "gog_metadata_worker": None,
             "gog_repair_worker": None,
+            "store_dlc_worker": None,
             "gog_auth_worker": None,
             "gog_account_worker": None,
             "themeStoreListWorker": None,

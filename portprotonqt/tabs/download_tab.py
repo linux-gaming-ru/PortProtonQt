@@ -7,12 +7,18 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+import orjson
+import requests
+from shiboken6 import isValid
 
 from PySide6.QtCore import QProcess, QProcessEnvironment, QThread, QTimer, QUrl, Signal
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtGui import QDesktopServices, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
+    QCheckBox,
+    QDialog,
+    QDialogButtonBox,
     QFrame,
     QHeaderView,
     QHBoxLayout,
@@ -20,6 +26,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QProgressBar,
     QPushButton,
+    QScrollArea,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -27,9 +34,10 @@ from PySide6.QtWidgets import (
 )
 
 from portprotonqt.dialogs.file_explorer import FileExplorer
+from portprotonqt.config.cache import CacheManager
 from portprotonqt.egs_api import EGSAPI, EGS_LOGIN_URL
 from portprotonqt.gog_api import GOGAPI, GOG_LOGIN_URL
-from portprotonqt.image_utils import load_pixmap_async
+from portprotonqt.image_utils import load_pixmap_async, round_corners
 from portprotonqt.localization import _
 from portprotonqt.logger import get_logger
 from portprotonqt.sound_manager import SoundManager
@@ -39,6 +47,9 @@ GOG_CANCEL_KILL_TIMEOUT_MS = 3000
 GOG_LOGIN_TIMEOUT_MS = 300000
 EGS_LOGIN_TIMEOUT_MS = 300000
 MIB_PER_GIB = 1024.0
+STORE_INFO_TIMEOUT_SECONDS = 120
+STORE_DLC_ART_TIMEOUT_SECONDS = 15
+STORE_DLC_CACHE_TTL_SECONDS = 300
 
 
 def _format_download_size(size_mib: float) -> str:
@@ -191,6 +202,116 @@ class GOGRepairWorker(QThread):
         except Exception as error:
             logger.exception("Failed to prepare GOG repair")
             self.error = str(error)
+
+
+class StoreDLCWorker(QThread):
+    """Read owned, installable store DLC outside the UI thread."""
+
+    loaded = Signal(list)
+    failed = Signal(str)
+
+    def __init__(self, api: GOGAPI | EGSAPI, app_id: str) -> None:
+        super().__init__()
+        self.api = api
+        self.app_id = app_id
+
+    def run(self) -> None:
+        try:
+            epic = isinstance(self.api, EGSAPI)
+            arguments = ["info", self.app_id, "--platform", "Windows" if epic else "windows"]
+            if epic:
+                arguments.append("--json")
+            environment = os.environ.copy()
+            environment["LEGENDARY_CONFIG_PATH" if epic else "GOGDL_CONFIG_PATH"] = str(self.api.config_dir)
+            cache = CacheManager()
+            cache_name = f"store-dlc-{'egs' if epic else 'gog'}-{self.app_id}"
+            data = self._load_epic_dlc_info() if epic else cache.load_json(cache_name) if cache.is_fresh(cache_name, STORE_DLC_CACHE_TTL_SECONDS) else None
+            if data is None:
+                result = subprocess.run(
+                    self.api.build_command(arguments), env=environment, capture_output=True,
+                    timeout=STORE_INFO_TIMEOUT_SECONDS, check=True,
+                )
+                data = orjson.loads(result.stdout)
+                cache.save_json(cache_name, data)
+            entries = data.get("game", {}).get("owned_dlc", []) if epic else data.get("dlcs", [])
+            installed = set(self.api.load_installed()) if epic else set()
+            if isinstance(self.api, GOGAPI):
+                install_path = self.api.get_installed_path(self.app_id)
+                if install_path is not None:
+                    installed = {path.stem.removeprefix("goggame-") for path in install_path.glob("goggame-*.info")}
+                    installed.discard(self.app_id)
+                    self.api.prepare_repair_manifest(self.app_id, install_path)
+            dlcs = []
+            for entry in entries:
+                if epic and not any("Windows" in release.get("platform", []) for release in entry.get("installable", [])):
+                    continue
+                app_id = str(entry.get("app_name" if epic else "id", ""))
+                if not app_id or app_id.startswith("-") or (not epic and not app_id.isdecimal()):
+                    continue
+                dlcs.append({"app_id": app_id, "title": str(entry.get("title") or app_id), "installed": app_id in installed})
+            if not epic:
+                known = {dlc["app_id"] for dlc in dlcs}
+                dlcs.extend({"app_id": app_id, "title": app_id, "installed": True} for app_id in sorted(installed - known))
+            covers = self._load_dlc_covers() if dlcs else {}
+            for dlc in dlcs:
+                if covers.get(dlc["app_id"]):
+                    dlc["cover"] = covers[dlc["app_id"]]
+            if not self.isInterruptionRequested():
+                self.loaded.emit(dlcs)
+        except Exception as error:
+            logger.exception("Failed to load store DLC for %s", self.app_id)
+            if not self.isInterruptionRequested():
+                self.failed.emit(str(error))
+
+    def _load_epic_dlc_info(self) -> dict | None:
+        assets = self.api._load_json(self.api.config_dir / "assets.json", None)
+        data = self.api._load_json(self.api.config_dir / "metadata" / f"{self.app_id}.json", None)
+        if not isinstance(assets, dict) or not isinstance(data, dict):
+            return None
+        owned = {asset.get("app_name") or asset.get("appName") for asset in assets.get("Windows", [])}
+        dlcs = []
+        for entry in data.get("metadata", {}).get("dlcItemList", []):
+            for release in entry.get("releaseInfo", []):
+                app_id = release.get("appId")
+                if app_id in owned and "Windows" in release.get("platform", []):
+                    dlcs.append({"app_name": app_id, "title": entry.get("title", app_id), "installable": [release]})
+                    owned.remove(app_id)
+        return {"game": {"owned_dlc": dlcs}}
+
+    def _load_dlc_covers(self) -> dict[str, str]:
+        if isinstance(self.api, EGSAPI):
+            data = self.api._load_json(self.api.config_dir / "metadata" / f"{self.app_id}.json", {})
+            covers = {}
+            for entry in data.get("metadata", {}).get("dlcItemList", []):
+                images = entry.get("keyImages", [])
+                cover = next((image.get("url", "") for image in images
+                              if image.get("type") in {"DieselGameBox", "OfferImageWide", "Thumbnail"}), "")
+                cover = cover or next((image.get("url", "") for image in images), "")
+                for release in entry.get("releaseInfo", []):
+                    if release.get("appId"):
+                        covers[str(release["appId"])] = str(cover)
+            return covers
+        cache = CacheManager()
+        cache_name = f"store-dlc-art-gog-{self.app_id}"
+        data = cache.load_json(cache_name)
+        if data is None:
+            try:
+                response = requests.get(
+                    f"https://api.gog.com/products/{self.app_id}?expand=expanded_dlcs",
+                    timeout=STORE_DLC_ART_TIMEOUT_SECONDS,
+                )
+                response.raise_for_status()
+                data = response.json()
+                cache.save_json(cache_name, data)
+            except requests.RequestException as error:
+                logger.warning("Failed to load GOG DLC covers: %s", error)
+                return {}
+        covers = {}
+        for entry in data.get("expanded_dlcs", []):
+            images = entry.get("images", {})
+            cover = images.get("logo2x") or images.get("logo") or images.get("icon") or ""
+            covers[str(entry.get("id", ""))] = f"https:{cover}" if cover.startswith("//") else cover
+        return covers
 
 
 class MainWindowDownloadTabMixin(_MainWindowTypingBase):
@@ -645,12 +766,140 @@ class MainWindowDownloadTabMixin(_MainWindowTypingBase):
                 [
                     "download", app_id, "--path", str(install_path),
                     "--support", str(support_path), "--platform", "windows",
+                    *(["--with-dlcs", "--dlcs", ",".join(dlc["app_id"] for dlc in game["_dlcs"])]
+                      if game.get("_dlcs") else ["--skip-dlcs"] if "_dlcs" in game else []),
                 ]
             )
         except FileNotFoundError as error:
             self.gogAccountStatus.setText(str(error))
             return
         self._start_gog_download(game, install_path, command, _("Install"))
+
+    def _select_store_dlcs(self, source: str, game: dict) -> None:
+        if (getattr(self, "store_dlc_worker", None) is not None
+                or self.gog_process is not None or self.egs_process is not None):
+            QMessageBox.warning(self, _("Error"), _("Another download is running"))
+            return
+        api = self.egs_api if source == "egs" else self.gog_api
+        worker = StoreDLCWorker(api, str(game["app_id"]))
+        worker.loaded.connect(lambda dlcs: self._on_store_dlcs_loaded(source, game, dlcs))
+        worker.failed.connect(lambda error: QMessageBox.warning(self, _("Error"), error))
+        worker.finished.connect(self._on_store_dlc_worker_finished)
+        self.store_dlc_worker = worker
+        worker.start()
+
+    def _on_store_dlc_worker_finished(self) -> None:
+        worker = self.store_dlc_worker
+        self.store_dlc_worker = None
+        if worker is not None:
+            worker.deleteLater()
+
+    def _on_store_dlcs_loaded(self, source: str, game: dict, dlcs: list[dict]) -> None:
+        selected = []
+        if dlcs:
+            dialog = QDialog(self)
+            dialog.setWindowTitle(f"{game['title']} — DLC")
+            dialog.setMinimumWidth(self.theme.storeDlcDialogWidth)
+            dialog.setStyleSheet(self.theme.MESSAGE_BOX_STYLE)
+            layout = QVBoxLayout(dialog)
+            scroll = QScrollArea(dialog)
+            scroll.setFrameShape(QFrame.Shape.NoFrame)
+            scroll.setWidgetResizable(True)
+            scroll.setMinimumHeight(min(len(dlcs), self.theme.storeDlcVisibleRows) * self.theme.storeDlcRowHeight)
+            content = QWidget()
+            content.setObjectName("storeDlcList")
+            content.setStyleSheet(self.theme.STORE_DLC_LIST_STYLE)
+            rows = QVBoxLayout(content)
+            checkboxes = []
+            for dlc in dlcs:
+                row, checkbox = self._create_store_dlc_row(dlc, str(game.get("cover", "")))
+                rows.addWidget(row)
+                checkboxes.append((checkbox, dlc))
+            scroll.setWidget(content)
+            scroll.setStyleSheet(self.theme.SCROLL_STYLE)
+            layout.addWidget(scroll)
+            buttons = QDialogButtonBox(
+                QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+            )
+            buttons.button(QDialogButtonBox.StandardButton.Ok).setText(_("Install"))
+            buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(_("Cancel"))
+            buttons.setStyleSheet(self.theme.ACTION_BUTTON_STYLE)
+            buttons.accepted.connect(dialog.accept)
+            buttons.rejected.connect(dialog.reject)
+            layout.addWidget(buttons)
+            result = dialog.exec()
+            dialog.deleteLater()
+            if result != QDialog.DialogCode.Accepted:
+                return
+            selected = [dlc for checkbox, dlc in checkboxes if checkbox.isChecked() and (source == "gog" or not dlc.get("installed"))]
+        elif game.get("_dlc_only"):
+            QMessageBox.information(self, "DLC", f"DLC: {_('No')}")
+            return
+        game = {**game, "_dlcs": selected}
+        if game.get("_dlc_only"):
+            if selected:
+                self._install_store_dlcs(source, game)
+        elif source == "gog":
+            self._install_gog_game(game)
+        else:
+            self.egs_selected_dlc_game = game
+            self._install_egs_download(str(game["app_id"]))
+
+    def _create_store_dlc_row(self, dlc: dict, fallback_cover: str) -> tuple[QWidget, QCheckBox]:
+        row, details = self._create_download_game_cell({**dlc, "cover": dlc.get("cover") or fallback_cover})
+        details.hide()
+        row.setObjectName("storeDlcRow")
+        row.setStyleSheet(self.theme.STORE_DLC_ROW_STYLE)
+        row.setMinimumHeight(self.theme.storeDlcRowHeight)
+        cover = row.findChild(QLabel, "downloadGameCover")
+        if cover is not None:
+            cover.setFixedSize(*self.theme.storeDlcCoverSize)
+            cover.setScaledContents(True)
+        title = row.findChild(QLabel, "downloadGameTitle")
+        if title is not None:
+            title.setWordWrap(True)
+        checkbox = QCheckBox()
+        checkbox.setAccessibleName(dlc["title"])
+        checkbox.setStyleSheet(self.theme.CHECKBOX_STYLE)
+        checkbox.setFixedWidth(checkbox.sizeHint().width())
+        checkbox.setChecked(bool(dlc.get("installed")))
+        checkbox.setEnabled(not dlc.get("installed", False))
+        layout = row.layout()
+        assert layout is not None
+        layout.addWidget(checkbox)
+        return row, checkbox
+
+    def _install_store_dlcs(self, source: str, game: dict) -> None:
+        app_id = str(game["app_id"])
+        try:
+            if source == "egs":
+                install_path = Path(self.egs_api.load_installed()[app_id]["install_path"])
+                self.egs_install_importing = False
+                self._start_next_egs_dlc(game, install_path)
+                return
+            install_path = self.gog_api.get_installed_path(app_id)
+            if install_path is None:
+                raise OSError(f"GOG installation not found: {app_id}")
+            support_path = self.gog_api.config_dir / "heroic_gogdl" / "gog-support" / app_id
+            command = self.gog_api.build_command([
+                "update", app_id, "--path", str(install_path), "--support", str(support_path),
+                "--platform", "windows", "--with-dlcs", "--dlcs",
+                ",".join(dlc["app_id"] for dlc in game["_dlcs"]),
+            ])
+            self._start_gog_download(game, install_path, command, _("Install"))
+        except Exception as error:
+            logger.exception("Failed to start DLC installation for %s", app_id)
+            QMessageBox.warning(self, _("Error"), str(error))
+
+    def _start_next_egs_dlc(self, game: dict, install_path: Path) -> None:
+        dlc = game["_dlcs"][0]
+        command = self.egs_api.build_command([
+            "install", dlc["app_id"], "--base-path", str(install_path.parent),
+            "--game-folder", install_path.name, "--platform", "Windows",
+            "--skip-sdl", "--skip-dlcs", "-y",
+        ])
+        game = {**game, "_dlcs": game["_dlcs"][1:]}
+        self._start_egs_download(game, install_path, command)
 
     def _install_egs_download(self, app_id: str) -> None:
         if self.gog_process is not None or self.egs_process is not None:
@@ -661,6 +910,10 @@ class MainWindowDownloadTabMixin(_MainWindowTypingBase):
              if str(item.get("app_id", "")) == app_id),
             {"app_id": app_id, "title": app_id, "cover": ""},
         )
+        selected_game = getattr(self, "egs_selected_dlc_game", None)
+        if selected_game is not None and str(selected_game["app_id"]) == app_id:
+            game = selected_game
+            self.egs_selected_dlc_game = None
         selected_paths: list[str] = []
         explorer = FileExplorer(
             self, theme=self.theme, initial_path=str(self.egs_api.games_dir),
@@ -722,11 +975,18 @@ class MainWindowDownloadTabMixin(_MainWindowTypingBase):
         support_path = (
             self.gog_api.config_dir / "heroic_gogdl" / "gog-support" / app_id
         )
+        if "_dlcs" in game:
+            selected = {dlc["app_id"] for dlc in game["_dlcs"]}
+            selected.update(path.stem.removeprefix("goggame-") for path in install_path.glob("goggame-*.info"))
+            selected.discard(app_id)
+            game = {**game, "_dlcs": [{"app_id": dlc_id} for dlc_id in sorted(selected)]}
         try:
             command = self.gog_api.build_command(
                 [
                     "repair", app_id, "--path", str(install_path),
                     "--support", str(support_path), "--platform", "windows",
+                    *(["--with-dlcs", "--dlcs", ",".join(dlc["app_id"] for dlc in game["_dlcs"])]
+                      if game.get("_dlcs") else ["--skip-dlcs"] if "_dlcs" in game else []),
                 ]
             )
         except FileNotFoundError as error:
@@ -910,6 +1170,8 @@ class MainWindowDownloadTabMixin(_MainWindowTypingBase):
         process = self.gog_process or self.egs_process
         if process is None:
             return
+        if self.egs_process is not None:
+            self.egs_active_game.pop("_dlcs", None)
         self.downloadCancelButton.setEnabled(False)
         self.downloadActiveDetails.setText(_("Cancel"))
         process.terminate()
@@ -959,18 +1221,24 @@ class MainWindowDownloadTabMixin(_MainWindowTypingBase):
         layout.setContentsMargins(*self.theme.downloadsCellMargins)
         layout.setSpacing(self.theme.downloadsCellSpacing)
         cover = QLabel()
+        cover.setObjectName("downloadGameCover")
         cover_width, cover_height = self.theme.downloadsCoverSize
         cover.setFixedSize(cover_width, cover_height)
         layout.addWidget(cover)
         text_layout = QVBoxLayout()
         title = QLabel(str(game["title"]))
+        title.setObjectName("downloadGameTitle")
         details = QLabel(_("Waiting…"))
         details.setStyleSheet(self.theme.CONTENT_STYLE)
         text_layout.addWidget(title)
         text_layout.addWidget(details)
         layout.addLayout(text_layout)
+        def set_cover(pixmap: QPixmap) -> None:
+            if isValid(cover):
+                cover.setPixmap(round_corners(pixmap, self.theme.downloadsCoverRadius))
+
         load_pixmap_async(
-            str(game.get("cover", "")), cover_width, cover_height, cover.setPixmap,
+            str(game.get("cover", "")), cover_width, cover_height, set_cover,
             app_name=f"download-{game['app_id']}",
         )
         return widget, details
@@ -1155,6 +1423,21 @@ class MainWindowDownloadTabMixin(_MainWindowTypingBase):
                     return
             else:
                 code = 1
+        if code == 0 and game.get("_dlcs"):
+            process = self.egs_process
+            self.egs_process = None
+            self._clear_egs_data_lock()
+            if process is not None:
+                process.deleteLater()
+            try:
+                install_path = Path(self.egs_api.load_installed()[app_id]["install_path"])
+                self._start_next_egs_dlc(game, install_path)
+            except Exception as error:
+                logger.exception("Failed to start Epic DLC installation")
+                self.egs_download_output = str(error)
+                code = 1
+            else:
+                return
         self.downloadActiveHeading.setVisible(False)
         self.downloadActiveCard.setVisible(False)
         completed_action = _("Installed") if code == 0 else _("Failed")

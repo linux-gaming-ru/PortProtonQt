@@ -7,7 +7,9 @@ from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import MagicMock
 
+import orjson
 from pytest import MonkeyPatch, mark
+from shiboken6 import delete
 
 from portprotonqt.config import game_config
 from portprotonqt.egs_api import EGSAPI
@@ -17,6 +19,236 @@ from portprotonqt.tabs.download_tab import MainWindowDownloadTabMixin
 from portprotonqt.tabs.download_tab import MainWindowDownloadTabMixin as GOGMixin
 import portprotonqt.main_window as main_window_module
 import portprotonqt.tabs.download_tab as download_tab_module
+
+
+@mark.parametrize("source", ("gog", "egs"))
+def test_store_dlc_worker_filters_and_preserves_installed(
+    tmp_path: Path, monkeypatch: MonkeyPatch, source: str
+) -> None:
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    api = EGSAPI() if source == "egs" else GOGAPI()
+    monkeypatch.setattr(api, "build_command", lambda arguments: [source, *arguments])
+    monkeypatch.setattr(api, "load_installed", lambda: {"owned": {}})
+    install_path = tmp_path / "game"
+    install_path.mkdir()
+    (install_path / "goggame-111.info").write_text("{}")
+    (install_path / "goggame-222.info").write_text("{}")
+    if source == "gog":
+        monkeypatch.setattr(api, "get_installed_path", lambda _app_id: install_path)
+        monkeypatch.setattr(api, "prepare_repair_manifest", MagicMock())
+    data = {"dlcs": [{"id": "222", "title": "Expansion"}, {"id": "--bad"}],
+            "game": {"owned_dlc": [
+                {"app_name": "owned", "title": "Expansion", "installable": [{"platform": ["Windows"]}]},
+                {"app_name": "linux", "installable": [{"platform": ["Linux"]}]},
+                {"app_name": "unlock", "installable": []},
+                {"app_name": "--bad", "installable": [{"platform": ["Windows"]}]},
+            ]}}
+    commands = []
+    monkeypatch.setattr(download_tab_module.subprocess, "run", lambda command, **kwargs: (
+        commands.append((command, kwargs)) or SimpleNamespace(stdout=orjson.dumps(data))
+    ))
+    cache = MagicMock()
+    cache.is_fresh.return_value = False
+    monkeypatch.setattr(download_tab_module, "CacheManager", lambda: cache)
+    worker = download_tab_module.StoreDLCWorker(api, "111")
+    monkeypatch.setattr(worker, "_load_dlc_covers", lambda: {})
+    results = []
+    worker.loaded.connect(results.append)
+
+    worker.run()
+
+    assert results == [[{"app_id": "owned" if source == "egs" else "222",
+                         "title": "Expansion", "installed": True}]]
+    assert commands[0][1]["check"] is True
+    assert commands[0][1]["timeout"] == download_tab_module.STORE_INFO_TIMEOUT_SECONDS
+    cache.save_json.assert_called_once_with(f"store-dlc-{source}-111", data)
+
+
+def test_store_dlc_worker_failure_does_not_continue_install(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    api = GOGAPI()
+    monkeypatch.setattr(api, "build_command", MagicMock(side_effect=FileNotFoundError("gogdl")))
+    worker = download_tab_module.StoreDLCWorker(api, "111")
+    loaded, errors = [], []
+    worker.loaded.connect(loaded.append)
+    worker.failed.connect(errors.append)
+
+    worker.run()
+
+    assert loaded == []
+    assert errors == ["gogdl"]
+
+
+def test_epic_dlc_uses_base_game_folder_and_remaining_queue(tmp_path: Path) -> None:
+    commands, started = [], []
+    game = {"app_id": "base", "title": "Base", "_dlcs": [
+        {"app_id": "first", "title": "First"}, {"app_id": "second", "title": "Second"},
+    ]}
+    window = SimpleNamespace(
+        egs_api=SimpleNamespace(build_command=lambda args: commands.append(args) or args),
+        _start_egs_download=lambda *args: started.append(args),
+    )
+    install_path = tmp_path / "Base"
+
+    GOGMixin._start_next_egs_dlc(cast(Any, window), game, install_path)
+
+    assert commands == [["install", "first", "--base-path", str(tmp_path),
+                         "--game-folder", "Base", "--platform", "Windows",
+                         "--skip-sdl", "--skip-dlcs", "-y"]]
+    assert started[0][0]["_dlcs"] == [{"app_id": "second", "title": "Second"}]
+    assert len(game["_dlcs"]) == 2
+
+
+def test_epic_success_starts_dlc_after_import_and_base_install(tmp_path: Path) -> None:
+    game = {"app_id": "base", "_dlcs": [{"app_id": "dlc"}]}
+    process, next_dlc = MagicMock(), MagicMock()
+    window = SimpleNamespace(
+        egs_active_game=game, egs_install_importing=False, egs_process=process,
+        egs_api=SimpleNamespace(load_installed=lambda: {"base": {"install_path": str(tmp_path)}}),
+        _clear_egs_data_lock=MagicMock(), _start_next_egs_dlc=next_dlc,
+    )
+
+    GOGMixin._on_egs_download_finished(cast(Any, window), 0, cast(Any, None))
+
+    process.deleteLater.assert_called_once_with()
+    window._clear_egs_data_lock.assert_called_once_with()
+    next_dlc.assert_called_once_with(game, tmp_path)
+
+
+def test_gog_dlc_update_keeps_selected_installed_expansions(tmp_path: Path) -> None:
+    commands, started = [], []
+    game = {"app_id": "111", "title": "Base", "_dlcs": [
+        {"app_id": "222", "installed": True}, {"app_id": "333"},
+    ]}
+    window = SimpleNamespace(
+        gog_api=SimpleNamespace(
+            config_dir=tmp_path, get_installed_path=lambda _app_id: tmp_path,
+            build_command=lambda args: commands.append(args) or args,
+        ), _start_gog_download=lambda *args: started.append(args),
+    )
+
+    GOGMixin._install_store_dlcs(cast(Any, window), "gog", game)
+
+    assert commands[0][0:2] == ["update", "111"]
+    assert commands[0][-3:] == ["--with-dlcs", "--dlcs", "222,333"]
+    assert started[0][1] == tmp_path
+
+
+@mark.parametrize("source", ("gog", "egs"))
+@mark.parametrize("accepted", (True, False))
+def test_dlc_picker_preserves_installed_and_respects_cancel(
+    monkeypatch: MonkeyPatch, source: str, accepted: bool
+) -> None:
+    application = download_tab_module.QApplication.instance() or download_tab_module.QApplication([])
+    window: Any = download_tab_module.QWidget()
+    window.theme = SimpleNamespace(
+        MESSAGE_BOX_STYLE="", CHECKBOX_STYLE="", SCROLL_STYLE="", ACTION_BUTTON_STYLE="",
+        storeDlcDialogWidth=480, storeDlcVisibleRows=3, downloadsTableRowHeight=68,
+        downloadsCellMargins=(8, 6, 8, 6), downloadsCellSpacing=10,
+        downloadsCoverSize=(72, 48), CONTENT_STYLE="", STORE_DLC_ROW_STYLE="",
+        STORE_DLC_LIST_STYLE="", storeDlcCoverSize=(56, 36), storeDlcRowHeight=52,
+    )
+    window._create_download_game_cell = lambda game: GOGMixin._create_download_game_cell(window, game)
+    window._create_store_dlc_row = lambda dlc, cover: GOGMixin._create_store_dlc_row(window, dlc, cover)
+    images = []
+    monkeypatch.setattr(download_tab_module, "load_pixmap_async", lambda *args, **kwargs: images.append(args))
+    started = []
+    window._install_store_dlcs = lambda *args: started.append(args)
+    game = {"app_id": "base", "title": "Base", "_dlc_only": True}
+    dlcs = [{"app_id": "old", "title": "Old", "installed": True},
+            {"app_id": "new", "title": "New", "installed": False}]
+
+    def choose(dialog: Any) -> Any:
+        checkboxes = dialog.findChildren(download_tab_module.QCheckBox)
+        assert checkboxes[0].isChecked() and not checkboxes[0].isEnabled()
+        checkboxes[1].setChecked(True)
+        return (download_tab_module.QDialog.DialogCode.Accepted if accepted
+                else download_tab_module.QDialog.DialogCode.Rejected)
+
+    monkeypatch.setattr(download_tab_module.QDialog, "exec", choose)
+
+    GOGMixin._on_store_dlcs_loaded(window, source, game, dlcs)
+
+    assert application is not None
+    if accepted:
+        assert started == [(source, {**game, "_dlcs": dlcs if source == "gog" else dlcs[1:]})]
+    else:
+        assert started == []
+    assert len(images) == 2
+    window.deleteLater()
+
+
+@mark.parametrize("source", ("gog", "egs"))
+def test_dlc_covers_use_store_metadata(tmp_path: Path, monkeypatch: MonkeyPatch, source: str) -> None:
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    api = EGSAPI() if source == "egs" else GOGAPI()
+    data = {"metadata": {"dlcItemList": [{
+        "keyImages": [{"type": "Thumbnail", "url": "https://example.com/dlc.jpg"}],
+        "releaseInfo": [{"appId": "222", "platform": ["Windows"]}],
+    }]}, "expanded_dlcs": [{"id": 222, "images": {"logo2x": "//example.com/dlc.jpg"}}]}
+    monkeypatch.setattr(api, "_load_json", lambda *_args: data)
+    cache = MagicMock()
+    cache.load_json.return_value = None
+    monkeypatch.setattr(download_tab_module, "CacheManager", lambda: cache)
+    response = MagicMock()
+    response.json.return_value = data
+    get = MagicMock(return_value=response)
+    monkeypatch.setattr(download_tab_module.requests, "get", get)
+
+    worker = download_tab_module.StoreDLCWorker(api, "111")
+
+    assert worker._load_dlc_covers() == {"222": "https://example.com/dlc.jpg"}
+    if source == "gog":
+        response.raise_for_status.assert_called_once_with()
+        cache.save_json.assert_called_once_with("store-dlc-art-gog-111", data)
+    else:
+        get.assert_not_called()
+
+
+def test_download_cover_callback_ignores_closed_dlc_row(monkeypatch: MonkeyPatch) -> None:
+    application = download_tab_module.QApplication.instance() or download_tab_module.QApplication([])
+    callbacks = []
+    monkeypatch.setattr(download_tab_module, "load_pixmap_async", lambda *args, **kwargs: callbacks.append(args[3]))
+    window = SimpleNamespace(theme=SimpleNamespace(
+        downloadsCellMargins=(8, 6, 8, 6), downloadsCellSpacing=10,
+        downloadsCoverSize=(72, 48), CONTENT_STYLE="",
+    ))
+    row, _details = GOGMixin._create_download_game_cell(cast(Any, window), {"app_id": "dlc", "title": "DLC"})
+
+    delete(row)
+    callbacks[0](download_tab_module.QPixmap())
+
+    assert application is not None
+
+
+def test_epic_dlc_list_uses_owned_local_windows_assets_without_network(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    api = EGSAPI()
+    metadata_dir = api.config_dir / "metadata"
+    metadata_dir.mkdir(parents=True)
+    (api.config_dir / "assets.json").write_bytes(orjson.dumps({"Windows": [{"app_name": "owned"}]}))
+    (metadata_dir / "base.json").write_bytes(orjson.dumps({"metadata": {"dlcItemList": [
+        {"title": "Expansion", "releaseInfo": [{"appId": "owned", "platform": ["Windows"]}]},
+        {"title": "Not purchased", "releaseInfo": [{"appId": "other", "platform": ["Windows"]}]},
+        {"title": "Linux", "releaseInfo": [{"appId": "owned", "platform": ["Linux"]}]},
+    ]}}))
+    monkeypatch.setattr(api, "load_installed", lambda: {})
+    network = MagicMock(side_effect=AssertionError("Unexpected network request"))
+    monkeypatch.setattr(download_tab_module.subprocess, "run", network)
+    monkeypatch.setattr(download_tab_module.requests, "get", network)
+    monkeypatch.setattr(download_tab_module, "CacheManager", MagicMock())
+    worker = download_tab_module.StoreDLCWorker(api, "base")
+    results = []
+    worker.loaded.connect(results.append)
+
+    worker.run()
+
+    assert results == [[{"app_id": "owned", "title": "Expansion", "installed": False}]]
+    network.assert_not_called()
 
 
 @mark.parametrize(("source", "app_id"), (("gog", "123"), ("egs", "ABC")))
@@ -213,8 +445,12 @@ def test_gog_playtime_updates_live_by_launch_target() -> None:
     assert changed
     assert games[0][11] == 120
 
-def test_repair_gog_game_uses_repair_command(tmp_path: Path) -> None:
+@mark.parametrize("select_dlcs", (False, True))
+def test_repair_gog_game_uses_repair_command(tmp_path: Path, select_dlcs: bool) -> None:
     install_path = tmp_path / "Game"
+    install_path.mkdir()
+    (install_path / "goggame-123.info").write_text("{}")
+    (install_path / "goggame-222.info").write_text("{}")
     manifest_path = tmp_path / "gogdl/heroic_gogdl/manifests/123"
     manifest_path.parent.mkdir(parents=True)
     manifest_path.write_text("{}")
@@ -231,12 +467,16 @@ def test_repair_gog_game_uses_repair_command(tmp_path: Path) -> None:
         _start_gog_download=lambda *arguments: started.append(arguments),
     )
 
-    GOGMixin._repair_gog_game(cast(Any, window), {"app_id": "123", "title": "Game"})
+    game: dict[str, Any] = {"app_id": "123", "title": "Game"}
+    if select_dlcs:
+        game["_dlcs"] = [{"app_id": "333"}]
+    GOGMixin._repair_gog_game(cast(Any, window), game)
 
     assert started[0][2] == [
         "gogdl", "repair", "123", "--path", str(install_path),
         "--support", str(tmp_path / "gogdl/heroic_gogdl/gog-support/123"),
         "--platform", "windows",
+        *(["--with-dlcs", "--dlcs", "222,333"] if select_dlcs else []),
     ]
 
 def test_install_gog_game_uses_support_path(
@@ -308,6 +548,7 @@ def test_cancel_gog_download_terminates_then_kills(monkeypatch: MonkeyPatch) -> 
     )
     window = SimpleNamespace(
         gog_process=process,
+        egs_process=None,
         downloadCancelButton=SimpleNamespace(setEnabled=MagicMock()),
         downloadActiveDetails=SimpleNamespace(setText=MagicMock()),
         _kill_gog_process=lambda active: GOGMixin._kill_gog_process(

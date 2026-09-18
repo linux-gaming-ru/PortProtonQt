@@ -77,7 +77,7 @@ def _tile_theme() -> Any:
 
 @mark.parametrize(
     "worker_name",
-    ("egs_library_worker", "gog_library_worker", "gog_metadata_worker", "gog_repair_worker"),
+    ("egs_library_worker", "gog_library_worker", "gog_metadata_worker", "gog_repair_worker", "store_dlc_worker"),
 )
 def test_shutdown_waits_for_store_library_workers(worker_name: str) -> None:
     worker = MagicMock()
