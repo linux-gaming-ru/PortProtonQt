@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PortProtonQt 0.1.1\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-09-11 12:18+0500\n"
+"POT-Creation-Date: 2026-09-20 13:25+0500\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -165,6 +165,9 @@ msgstr ""
 msgid "Import"
 msgstr ""
 
+msgid "Edit Shortcut"
+msgstr ""
+
 msgid "Update"
 msgstr ""
 
@@ -175,9 +178,6 @@ msgid "Enable EOS Overlay"
 msgstr ""
 
 msgid "Open Game Folder"
-msgstr ""
-
-msgid "Edit Shortcut"
 msgstr ""
 
 msgid "Remove from Steam"
@@ -253,10 +253,6 @@ msgid "Executable not found: {0}"
 msgstr ""
 
 msgid "Select another executable"
-msgstr ""
-
-#, python-brace-format
-msgid "Destination already exists: {0}"
 msgstr ""
 
 msgid "Game name and executable path are required"
@@ -456,6 +452,10 @@ msgid "Install dependencies"
 msgstr ""
 
 msgid "32-bit dependencies are missing. Install them now?"
+msgstr ""
+
+#, python-brace-format
+msgid "Delete '{0}' and all files in its installation folder?"
 msgstr ""
 
 msgid "Select Epic game folder"
@@ -1466,6 +1466,15 @@ msgstr ""
 msgid "Round corners (px)"
 msgstr ""
 
+msgid "Font scale"
+msgstr ""
+
+msgid "Font size"
+msgstr ""
+
+msgid "Font"
+msgstr ""
+
 msgid "Top-left"
 msgstr ""
 
@@ -1775,6 +1784,9 @@ msgstr ""
 msgid "Layout and limiter"
 msgstr ""
 
+msgid "Fonts"
+msgstr ""
+
 msgid "Presets"
 msgstr ""
 
@@ -1858,9 +1870,6 @@ msgid "Set"
 msgstr ""
 
 msgid "Libraries"
-msgstr ""
-
-msgid "Fonts"
 msgstr ""
 
 msgid "Winetricks not found. Please try again."
@@ -2066,10 +2075,6 @@ msgid "Select GOG game folder"
 msgstr ""
 
 msgid "Selected folder is not this GOG game"
-msgstr ""
-
-#, python-brace-format
-msgid "Delete '{0}' and all files in its installation folder?"
 msgstr ""
 
 msgid "Starting"

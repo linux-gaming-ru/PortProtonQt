@@ -169,6 +169,9 @@ msgstr "删除"
 msgid "Import"
 msgstr ""
 
+msgid "Edit Shortcut"
+msgstr "编辑快捷方式"
+
 msgid "Update"
 msgstr "更新"
 
@@ -182,9 +185,6 @@ msgstr "启用 mangoapp 叠加层"
 
 msgid "Open Game Folder"
 msgstr "打开游戏文件夹"
-
-msgid "Edit Shortcut"
-msgstr "编辑快捷方式"
 
 msgid "Remove from Steam"
 msgstr "从 Steam 移除"
@@ -262,10 +262,6 @@ msgstr "找不到可执行文件：{0}"
 #, fuzzy
 msgid "Select another executable"
 msgstr "删除没有可执行文件的卡片"
-
-#, fuzzy, python-brace-format
-msgid "Destination already exists: {0}"
-msgstr "文件已存在：{file_name}"
 
 msgid "Game name and executable path are required"
 msgstr "游戏名称和可执行文件路径为必填项"
@@ -464,6 +460,10 @@ msgstr "安装依赖"
 
 msgid "32-bit dependencies are missing. Install them now?"
 msgstr "缺少 32 位依赖项。现在安装吗?"
+
+#, python-brace-format
+msgid "Delete '{0}' and all files in its installation folder?"
+msgstr ""
 
 #, fuzzy
 msgid "Select Epic game folder"
@@ -1515,6 +1515,18 @@ msgstr "背景不透明度"
 msgid "Round corners (px)"
 msgstr "圆角（像素）"
 
+#, fuzzy
+msgid "Font scale"
+msgstr "字体"
+
+#, fuzzy
+msgid "Font size"
+msgstr "字体"
+
+#, fuzzy
+msgid "Font"
+msgstr "字体"
+
 msgid "Top-left"
 msgstr "左上角"
 
@@ -1824,6 +1836,9 @@ msgstr "VRAM 使用量"
 msgid "Layout and limiter"
 msgstr "布局和限制器"
 
+msgid "Fonts"
+msgstr "字体"
+
 msgid "Presets"
 msgstr "预设"
 
@@ -1908,9 +1923,6 @@ msgstr "设置"
 
 msgid "Libraries"
 msgstr "库"
-
-msgid "Fonts"
-msgstr "字体"
 
 msgid "Winetricks not found. Please try again."
 msgstr "未找到 Winetricks。请重试。"
@@ -2130,10 +2142,6 @@ msgid "Select GOG game folder"
 msgstr "删除文件夹"
 
 msgid "Selected folder is not this GOG game"
-msgstr ""
-
-#, python-brace-format
-msgid "Delete '{0}' and all files in its installation folder?"
 msgstr ""
 
 #, fuzzy

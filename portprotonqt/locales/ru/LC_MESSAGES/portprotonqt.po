@@ -175,6 +175,9 @@ msgstr "Удалить"
 msgid "Import"
 msgstr "Импорт"
 
+msgid "Edit Shortcut"
+msgstr "Редактировать ярлык"
+
 msgid "Update"
 msgstr "Обновить"
 
@@ -186,9 +189,6 @@ msgstr "Включить наложение EOS"
 
 msgid "Open Game Folder"
 msgstr "Открыть папку с игрой"
-
-msgid "Edit Shortcut"
-msgstr "Редактировать ярлык"
 
 msgid "Remove from Steam"
 msgstr "Удалить из Steam"
@@ -267,10 +267,6 @@ msgstr "Исполняемый файл не найден: {0}"
 
 msgid "Select another executable"
 msgstr "Выбрать другой исполняемый файл"
-
-#, python-brace-format
-msgid "Destination already exists: {0}"
-msgstr "Назначение уже существует: {0}"
 
 msgid "Game name and executable path are required"
 msgstr "Требуются название игры и путь к исполняемому файлу"
@@ -471,6 +467,10 @@ msgstr "Установить зависимости"
 
 msgid "32-bit dependencies are missing. Install them now?"
 msgstr "Отсутствуют 32-битные зависимости. Установить их сейчас?"
+
+#, python-brace-format
+msgid "Delete '{0}' and all files in its installation folder?"
+msgstr "Удалить «{0}» и все файлы в папке установки?"
 
 msgid "Select Epic game folder"
 msgstr "Выберите папку игры Epic"
@@ -1562,6 +1562,18 @@ msgstr "Прозрачность фона"
 msgid "Round corners (px)"
 msgstr "Скругление углов (пикс)"
 
+#, fuzzy
+msgid "Font scale"
+msgstr "Шрифты"
+
+#, fuzzy
+msgid "Font size"
+msgstr "Шрифты"
+
+#, fuzzy
+msgid "Font"
+msgstr "Шрифты"
+
 msgid "Top-left"
 msgstr "Слева сверху"
 
@@ -1871,6 +1883,9 @@ msgstr "Использование видеопамяти"
 msgid "Layout and limiter"
 msgstr "Компоновка и ограничения"
 
+msgid "Fonts"
+msgstr "Шрифты"
+
 msgid "Presets"
 msgstr "Профили"
 
@@ -1958,9 +1973,6 @@ msgstr "Выбор"
 
 msgid "Libraries"
 msgstr "Библиотеки"
-
-msgid "Fonts"
-msgstr "Шрифты"
 
 msgid "Winetricks not found. Please try again."
 msgstr "Winetricks не найден. Повторите попытку."
@@ -2164,10 +2176,6 @@ msgstr "Выберите папку игры GOG"
 
 msgid "Selected folder is not this GOG game"
 msgstr "Выбранная папка не является этой игрой GOG"
-
-#, python-brace-format
-msgid "Delete '{0}' and all files in its installation folder?"
-msgstr "Удалить «{0}» и все файлы в папке установки?"
 
 msgid "Starting"
 msgstr "Запуск"
