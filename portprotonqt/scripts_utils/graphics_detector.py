@@ -81,6 +81,9 @@ def resolve_graphics_executable(file_path: str) -> Path:
     path = Path(file_path).expanduser().resolve()
     if not path.is_file():
         raise FileNotFoundError(f"File not found: {path}")
+    unity_player = path.parent / "UnityPlayer.dll"
+    if unity_player.is_file():
+        return unity_player
     if path.stat().st_size < UNREAL_BOOTSTRAPPER_MAX_SIZE:
         patterns = (
             "*/Binaries/Win64/*-Win64-Shipping.exe",
