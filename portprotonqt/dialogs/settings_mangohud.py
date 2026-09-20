@@ -3,6 +3,7 @@
 import configparser
 import os
 import re
+import subprocess
 from pathlib import Path
 from typing import Any, cast
 
@@ -151,7 +152,13 @@ MANGOHUD_VALUE_SPECS = [
      'options': [f'{i / 10:.1f}' for i in range(11)]},
     {'key': 'round_corners', 'label': _("Round corners (px)"), 'type': 'combo',
      'options': [str(i) for i in range(16)]},
+    {'key': 'font_scale', 'label': _("Font scale"), 'type': 'combo',
+     'options': ['', '0.5', '0.75', '1.0', '1.25', '1.5', '2.0']},
+    {'key': 'font_size', 'label': _("Font size"), 'type': 'line'},
+    {'key': 'font_file', 'label': _("Font"), 'type': 'combo', 'options': []},
 ]
+
+MANGOHUD_FONT_KEYS = {'font_scale', 'font_size', 'font_file'}
 
 MANGOHUD_VALUE_OPTION_TRANSLATIONS = {
     'position': {
@@ -391,6 +398,7 @@ class MangoHudSettingsMixin:
         self.mangohud_presets_group = None
         self.mangohud_toggle_group = None
         self.mangohud_values_group = None
+        self.mangohud_fonts_group = None
         self.mangohud_fps_group = None
         self.mangohud_extra_group = None
         self.mangohud_action_buttons = []
@@ -412,6 +420,7 @@ class MangoHudSettingsMixin:
         self._add_mangohud_presets_group(layout)
         self._add_mangohud_toggle_group(layout)
         self._add_mangohud_values_group(layout)
+        self._add_mangohud_fonts_group(layout)
         self._add_mangohud_fps_group(layout)
         self._add_mangohud_extra_group(layout)
         layout.addStretch()
@@ -433,6 +442,8 @@ class MangoHudSettingsMixin:
         gpu_count = sum(1 for _text, value in self.mangohud_gpu_options if value.isdigit())
 
         for spec in MANGOHUD_VALUE_SPECS:
+            if spec['key'] in MANGOHUD_FONT_KEYS:
+                continue
             if spec['key'] == 'fps_limit_method':
                 continue
             if spec['key'] == 'gpu_list' and gpu_count < 2:
@@ -441,8 +452,32 @@ class MangoHudSettingsMixin:
 
         parent_layout.addWidget(group)
 
+    def _add_mangohud_fonts_group(self, parent_layout):
+        """Add MangoHud font controls."""
+        group = QGroupBox(_("Fonts"))
+        group.setStyleSheet(self.theme.QGROUP_BOX_STYLE)
+        form = QFormLayout(group)
+        form.setVerticalSpacing(self.theme.exeSettingsGroupBoxElementVerticalSpacing)
+        form.setHorizontalSpacing(self.theme.exeSettingsGroupBoxElementHorizontalSpacing)
+        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+        self.mangohud_fonts_group = group
+
+        for spec in MANGOHUD_VALUE_SPECS:
+            if spec['key'] in MANGOHUD_FONT_KEYS:
+                form.addRow(spec['label'], self._create_mangohud_value_widget(spec))
+
+        parent_layout.addWidget(group)
+
     def _create_mangohud_value_widget(self, spec):
         """Create a MangoHud value widget."""
+        if spec['type'] == 'line':
+            widget = QLineEdit()
+            widget.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+            widget.installEventFilter(cast(QWidget, self))
+            widget.setStyleSheet(self.theme.ADDGAME_INPUT_STYLE)
+            self.mangohud_widgets[spec['key']] = widget
+            return widget
+
         widget = CustomComboBox(theme=self.theme)
         widget.view().window().setWindowFlags(
             Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint
@@ -457,6 +492,10 @@ class MangoHudSettingsMixin:
         if spec['key'] == 'gpu_list':
             gpu_options = self.mangohud_gpu_options or self._get_mangohud_gpu_options()
             for text, value in gpu_options:
+                widget.addItem(text, value)
+        elif spec['key'] == 'font_file':
+            widget.addItem(placeholder_text, '')
+            for text, value in self._get_mangohud_font_options():
                 widget.addItem(text, value)
         else:
             value_translations = MANGOHUD_VALUE_OPTION_TRANSLATIONS.get(spec['key'], {})
@@ -474,6 +513,30 @@ class MangoHudSettingsMixin:
             widget.setCurrentIndex(0)
         self.mangohud_widgets[spec['key']] = widget
         return widget
+
+    def _get_mangohud_font_options(self) -> list[tuple[str, str]]:
+        """Get installed font names and files from fontconfig."""
+        try:
+            result = subprocess.run(
+                ['fc-list', '--format=%{family[0]} %{style[0]}\t%{file}\n'],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=3,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            logger.warning("Failed to list system fonts: %s", exc)
+            return []
+        if result.returncode != 0:
+            logger.warning("fc-list failed with exit code %s", result.returncode)
+            return []
+
+        fonts = set()
+        for line in result.stdout.splitlines():
+            name, separator, path = line.partition('\t')
+            if separator and path.lower().endswith(('.ttf', '.otf')):
+                fonts.add((name.strip(), path.strip()))
+        return sorted(fonts, key=lambda font: font[0].lower())
 
     def _add_mangohud_presets_group(self, parent_layout):
         """Add preset buttons for common MangoHud layouts."""
@@ -866,6 +929,8 @@ class MangoHudSettingsMixin:
             self.mangohud_presets_group.setVisible(config_visible)
         if self.mangohud_values_group is not None:
             self.mangohud_values_group.setVisible(config_visible)
+        if self.mangohud_fonts_group is not None:
+            self.mangohud_fonts_group.setVisible(config_visible)
         if self.mangohud_fps_group is not None:
             self.mangohud_fps_group.setVisible(config_visible)
         if self.mangohud_extra_group is not None:
@@ -1065,6 +1130,9 @@ class MangoHudSettingsMixin:
         if widget is None:
             return
         text = value if isinstance(value, str) else ''
+        if isinstance(widget, QLineEdit):
+            widget.setText(text)
+            return
         index = widget.findData(text)
         if text and index < 0:
             widget.addItem(text, text)
@@ -1179,10 +1247,13 @@ class MangoHudSettingsMixin:
         if widget is None:
             return ''
 
-        current_data = widget.currentData()
-        value = '' if current_data is None else str(current_data).strip()
-        if not value and current_data is None:
-            value = widget.currentText().strip()
+        if isinstance(widget, QLineEdit):
+            value = widget.text().strip()
+        else:
+            current_data = widget.currentData()
+            value = '' if current_data is None else str(current_data).strip()
+            if not value and current_data is None:
+                value = widget.currentText().strip()
         if not value:
             return ''
         parsed_original, _raw_tokens = self._parse_mangohud_config(
