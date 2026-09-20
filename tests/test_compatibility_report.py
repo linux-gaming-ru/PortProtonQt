@@ -432,6 +432,15 @@ def test_find_graphics_executable_uses_renpy_runtime(tmp_path: Path) -> None:
     assert result == runtime
 
 
+def test_resolve_graphics_executable_uses_unity_player(tmp_path: Path) -> None:
+    launcher = tmp_path / "game.exe"
+    unity_player = tmp_path / "UnityPlayer.dll"
+    launcher.touch()
+    unity_player.touch()
+
+    assert resolve_graphics_executable(str(launcher)) == unity_player
+
+
 def test_resolve_graphics_executable_uses_unreal_shipping_binary(
     tmp_path: Path,
 ) -> None:
