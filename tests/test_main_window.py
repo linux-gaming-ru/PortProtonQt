@@ -35,6 +35,7 @@ from portprotonqt.detail_pages import DetailPageManager
 from portprotonqt.game_card import GameCard, SourceCorner
 from portprotonqt.game_library_manager import FullLibraryTile, GameLibraryManager
 from portprotonqt.main_window import MainWindow
+from portprotonqt.search_utils import SearchOptimizer, search_index
 from portprotonqt.tray_manager import TrayManager
 from portprotonqt.themes.standart.styles.constants import GAME_CARD_ANIMATION
 from portprotonqt.portproton_api import remove_empty_custom_data_dirs
@@ -2139,6 +2140,20 @@ def test_installed_filter_reuses_loaded_store_games(monkeypatch: MonkeyPatch) ->
     assert manager.games == [installed, uninstalled]
     assert manager.filtered_games == [installed, uninstalled]
     window.loadGames.assert_not_called()
+
+
+def test_incremental_game_add_updates_search_index() -> None:
+    game = ("New Game", "", "", "", "", "/games/new.exe")
+    manager = GameLibraryManager.__new__(GameLibraryManager)
+    manager.games = []
+    manager.filtered_games = []
+    manager.search_optimizer = SearchOptimizer()
+    manager.update_game_grid = MagicMock()
+    manager._update_missing_exe_button = MagicMock()
+
+    manager.add_game_incremental(game)
+
+    assert search_index(manager.search_optimizer, "new") == [game]
 
 def test_gog_account_state_detects_saved_auth(
     tmp_path: Path, monkeypatch: MonkeyPatch
