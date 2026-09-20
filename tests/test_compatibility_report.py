@@ -4,7 +4,10 @@ from types import SimpleNamespace
 from pytest import MonkeyPatch
 
 from portprotonqt import compatibility_report as compatibility
-from portprotonqt.scripts_utils.graphics_detector import resolve_graphics_executable
+from portprotonqt.scripts_utils.graphics_detector import (
+    analyze_executable,
+    resolve_graphics_executable,
+)
 
 
 class FakePE:
@@ -453,6 +456,24 @@ def test_resolve_graphics_executable_uses_unreal_shipping_binary(
     result = resolve_graphics_executable(str(launcher))
 
     assert result == shipping
+
+
+def test_graphics_detector_uses_kex_renderer_config(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    executable = tmp_path / "DOOM64_x64.exe"
+    executable.touch()
+    config = (
+        tmp_path / "prefix/drive_c/users/steamuser/Saved Games/Nightdive Studios/DOOM 64"
+        / "kexengine.cfg"
+    )
+    config.parent.mkdir(parents=True)
+    config.write_text('seta r_rhirenderfamily "vulkan"\n', encoding="utf-8")
+    monkeypatch.setenv("WINEPREFIX", str(tmp_path / "prefix"))
+
+    result = analyze_executable(str(executable))
+
+    assert result["uses_vulkan"] is True
 
 
 def test_dxvk_suggestion_only_appears_for_wined3d() -> None:

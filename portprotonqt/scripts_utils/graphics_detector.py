@@ -1,3 +1,5 @@
+import os
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -67,6 +69,11 @@ def analyze_executable(file_path: str) -> dict[str, Any]:
     if analysis_path.suffix.lower() in {".exe", ".dll"}:
         _add_pe_imports(analysis_path, directx, opengl)
     _add_file_signatures(analysis_path, directx, opengl, vulkan)
+    engine_family = _read_engine_render_family(analysis_path)
+    if engine_family == "vulkan":
+        vulkan.add("Vulkan")
+    elif engine_family == "opengl":
+        opengl.add("OpenGL")
 
     return {
         "highest_directx": _highest_directx(list(directx)),
@@ -74,6 +81,31 @@ def analyze_executable(file_path: str) -> dict[str, Any]:
         "uses_vulkan": bool(vulkan),
         "source": str(analysis_path),
     }
+
+
+def _read_engine_render_family(executable: Path) -> str | None:
+    """Read a renderer choice from the active Wine prefix engine config."""
+    wineprefix = os.getenv("WINEPREFIX")
+    if not wineprefix:
+        return None
+    config_root = Path(wineprefix) / "drive_c" / "users"
+    try:
+        config_paths = config_root.glob("*/Saved Games/**/kexengine.cfg")
+        for config_path in config_paths:
+            game_name = re.sub(r"[^a-z0-9]", "", config_path.parent.name.lower())
+            executable_name = re.sub(
+                r"[^a-z0-9]", "", executable.parent.name.lower()
+            )
+            executable_stem = re.sub(r"[^a-z0-9]", "", executable.stem.lower())
+            if game_name not in executable_name and game_name not in executable_stem:
+                continue
+            for line in config_path.read_text(errors="ignore").splitlines():
+                match = re.match(r'\s*seta\s+r_rhirenderfamily\s+"?([^"\s]+)', line)
+                if match:
+                    return match.group(1).lower()
+    except OSError:
+        return None
+    return None
 
 
 def resolve_graphics_executable(file_path: str) -> Path:
