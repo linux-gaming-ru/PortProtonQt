@@ -652,6 +652,7 @@ class MainWindowLibraryTabMixin(_MainWindowTypingBase):
                 entry = parse_desktop_entry(desktop_path)
                 if not entry:
                     return
+                self._known_portproton_desktops.add(desktop_path)
                 description = entry.get("Comment", "")
                 exec_line = entry.get("Exec", exe_path)
                 cover_for_shortcut = dialog.last_cover_path if dialog.last_cover_path else user_cover
@@ -692,11 +693,6 @@ class MainWindowLibraryTabMixin(_MainWindowTypingBase):
                     steam_desc = steam_info.get("description", "")
                     if steam_desc and steam_desc != final_desc:
                         final_desc = steam_desc
-
-                    # Use Steam name as fallback if better
-                    steam_name = steam_info.get("name", "")
-                    if steam_name and steam_name != final_name:
-                        final_name = steam_name
 
                     # Build full game_data tuple with all Steam data
                     game_data = (
