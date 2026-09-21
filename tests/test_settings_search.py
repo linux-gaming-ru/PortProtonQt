@@ -1,5 +1,6 @@
 """Tests for searching MangoHud, vkBasalt, and Gamescope settings."""
 
+import subprocess
 from types import SimpleNamespace
 from typing import cast
 
@@ -36,6 +37,35 @@ def test_mangohud_search_ignores_unavailable_categories() -> None:
     settings.mangohud_category_groups = {}
 
     settings._filter_mangohud_settings("fps")
+
+
+def test_mangohud_parser_recognizes_font_settings() -> None:
+    settings = MangoHudSettingsMixin()
+
+    parsed, raw_tokens = settings._parse_mangohud_config(
+        "font_scale=1.25,font_size=28,font_file=/usr/share/fonts/test.ttf"
+    )
+
+    assert parsed["font_scale"] == "1.25"
+    assert parsed["font_size"] == "28"
+    assert parsed["font_file"] == "/usr/share/fonts/test.ttf"
+    assert raw_tokens == []
+
+
+def test_mangohud_font_options_use_fc_list(monkeypatch: pytest.MonkeyPatch) -> None:
+    output = (
+        "Noto Sans Regular\t/usr/share/fonts/NotoSans.ttf\n"
+        "Bitmap Regular\t/usr/share/fonts/misc.pcf.gz\n"
+    )
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args, 0, output, ""),
+    )
+
+    assert MangoHudSettingsMixin()._get_mangohud_font_options() == [
+        ("Noto Sans Regular", "/usr/share/fonts/NotoSans.ttf")
+    ]
 
 
 def test_gamescope_search_ignores_unavailable_categories() -> None:

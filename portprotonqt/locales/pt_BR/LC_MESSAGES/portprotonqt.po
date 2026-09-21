@@ -174,6 +174,9 @@ msgstr "Excluir"
 msgid "Import"
 msgstr "Importar"
 
+msgid "Edit Shortcut"
+msgstr "Editar Atalho"
+
 msgid "Update"
 msgstr "Atualizar"
 
@@ -185,9 +188,6 @@ msgstr "Ativar sobreposição do EOS"
 
 msgid "Open Game Folder"
 msgstr "Abrir Pasta do Jogo"
-
-msgid "Edit Shortcut"
-msgstr "Editar Atalho"
 
 msgid "Remove from Steam"
 msgstr "Remover da Steam"
@@ -269,10 +269,6 @@ msgstr "Executável não encontrado: {0}"
 #, fuzzy
 msgid "Select another executable"
 msgstr "Excluir atalhos sem executável"
-
-#, fuzzy, python-brace-format
-msgid "Destination already exists: {0}"
-msgstr "A pasta já existe: {file_name}"
 
 msgid "Game name and executable path are required"
 msgstr "O nome do jogo e o caminho do executável são obrigatórios"
@@ -473,6 +469,10 @@ msgstr "Instalar dependências"
 
 msgid "32-bit dependencies are missing. Install them now?"
 msgstr "As dependências de 32 bits estão faltando. Instalá-las agora?"
+
+#, python-brace-format
+msgid "Delete '{0}' and all files in its installation folder?"
+msgstr "Excluir '{0}' e todos os arquivos da sua pasta de instalação?"
 
 msgid "Select Epic game folder"
 msgstr "elecionar pasta do jogo da Epic"
@@ -1566,6 +1566,18 @@ msgstr "Opacidade do fundo"
 msgid "Round corners (px)"
 msgstr "Cantos arredondados (px)"
 
+#, fuzzy
+msgid "Font scale"
+msgstr "Fontes"
+
+#, fuzzy
+msgid "Font size"
+msgstr "Fontes"
+
+#, fuzzy
+msgid "Font"
+msgstr "Fontes"
+
 msgid "Top-left"
 msgstr "Superior esquerdo"
 
@@ -1875,6 +1887,9 @@ msgstr "Uso de VRAM"
 msgid "Layout and limiter"
 msgstr "Layout e limitador"
 
+msgid "Fonts"
+msgstr "Fontes"
+
 msgid "Presets"
 msgstr "Predefinições"
 
@@ -1963,9 +1978,6 @@ msgstr "Definir"
 
 msgid "Libraries"
 msgstr "Bibliotecas"
-
-msgid "Fonts"
-msgstr "Fontes"
 
 msgid "Winetricks not found. Please try again."
 msgstr "Winetricks não encontrado. Tente novamente."
@@ -2171,10 +2183,6 @@ msgstr "Selecionar pasta do jogo da GOG"
 
 msgid "Selected folder is not this GOG game"
 msgstr "A pasta selecionada não corresponde a este jogo da GOG"
-
-#, python-brace-format
-msgid "Delete '{0}' and all files in its installation folder?"
-msgstr "Excluir '{0}' e todos os arquivos da sua pasta de instalação?"
 
 msgid "Starting"
 msgstr "Iniciando"

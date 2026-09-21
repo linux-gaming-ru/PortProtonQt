@@ -176,6 +176,9 @@ msgstr "Borrar"
 msgid "Import"
 msgstr "Importar"
 
+msgid "Edit Shortcut"
+msgstr "Editar acceso directo"
+
 msgid "Update"
 msgstr "Actualizar"
 
@@ -187,9 +190,6 @@ msgstr ""
 
 msgid "Open Game Folder"
 msgstr "Abrir la carpeta del juego"
-
-msgid "Edit Shortcut"
-msgstr "Editar acceso directo"
 
 msgid "Remove from Steam"
 msgstr "Eliminar de Steam"
@@ -269,10 +269,6 @@ msgstr "No se ha encontrado el archivo ejecutable: {0}"
 #, fuzzy
 msgid "Select another executable"
 msgstr "Ruta al ejecutable:"
-
-#, fuzzy, python-brace-format
-msgid "Destination already exists: {0}"
-msgstr "El archivo ya existe: {file_name}"
 
 msgid "Game name and executable path are required"
 msgstr ""
@@ -476,6 +472,10 @@ msgstr "Instalar las dependencias"
 
 msgid "32-bit dependencies are missing. Install them now?"
 msgstr "Faltan algunas dependencias de 32 bits. ¿Las instalas ahora?"
+
+#, python-brace-format
+msgid "Delete '{0}' and all files in its installation folder?"
+msgstr ""
 
 #, fuzzy
 msgid "Select Epic game folder"
@@ -1569,6 +1569,17 @@ msgstr ""
 msgid "Round corners (px)"
 msgstr ""
 
+#, fuzzy
+msgid "Font scale"
+msgstr "Local"
+
+#, fuzzy
+msgid "Font size"
+msgstr "Tamaño"
+
+msgid "Font"
+msgstr ""
+
 msgid "Top-left"
 msgstr ""
 
@@ -1878,6 +1889,9 @@ msgstr ""
 msgid "Layout and limiter"
 msgstr ""
 
+msgid "Fonts"
+msgstr ""
+
 msgid "Presets"
 msgstr ""
 
@@ -1961,9 +1975,6 @@ msgid "Set"
 msgstr ""
 
 msgid "Libraries"
-msgstr ""
-
-msgid "Fonts"
 msgstr ""
 
 msgid "Winetricks not found. Please try again."
@@ -2172,10 +2183,6 @@ msgid "Select GOG game folder"
 msgstr "Borrar la carpeta"
 
 msgid "Selected folder is not this GOG game"
-msgstr ""
-
-#, python-brace-format
-msgid "Delete '{0}' and all files in its installation folder?"
 msgstr ""
 
 #, fuzzy

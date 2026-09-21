@@ -990,6 +990,7 @@ class GameLibraryManager:
         """Add a single game without full reload."""
         self.games.append(game_data)
         self.filtered_games.append(game_data)  # Assume no filter active; adjust if needed
+        self._build_search_indices(self.games)
         self.dirty = True
         self.update_game_grid()
         self._update_missing_exe_button()
