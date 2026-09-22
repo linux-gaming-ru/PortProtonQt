@@ -454,6 +454,8 @@ def _compatibility_suggestions(
     )
     if uses_directx_8_11 and environment.get("PW_VULKAN_USE") == "0":
         suggestions.append("Switch from WineD3D to DXVK for DirectX 8-11.")
+    if environment.get("PW_USE_OPTISCALER") == "1":
+        suggestions.append("Temporarily disable OptiScaler in the game settings and retry to check for a conflict.")
     if _uses_integrated_gpu(environment):
         suggestions.append("Use the discrete GPU.")
     runtimes = findings.get("Runtimes", [])

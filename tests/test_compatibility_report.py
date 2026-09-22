@@ -532,6 +532,15 @@ def test_dxvk_suggestion_only_appears_for_wined3d() -> None:
     assert "Switch from WineD3D to DXVK for DirectX 8-11." in wined3d
 
 
+@mark.parametrize("enabled", ["1", "0", ""])
+def test_optiscaler_suggestion_only_appears_when_enabled(enabled: str) -> None:
+    suggestions = compatibility._compatibility_suggestions(
+        {}, "DirectX 11", "", {"PW_USE_OPTISCALER": enabled}
+    )
+
+    assert any("disable OptiScaler" in suggestion for suggestion in suggestions) == (enabled == "1")
+
+
 def test_runtime_suggestions_use_portproton_components() -> None:
     findings = {
         "Runtimes": ["Mono", "Visual C++ 2015-2022"],
