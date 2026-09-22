@@ -14,6 +14,7 @@ from typing import Any
 
 import orjson
 import pefile
+import psutil
 
 from portprotonqt.debug_utils import (
     get_portproton_env,
@@ -98,14 +99,44 @@ class CompatibilityLaunch:
     duration: float
 
 
-def is_suspected_crash(duration: float, stopped_by_user: bool, executable: str) -> bool:
-    """Return whether an executable closed too soon after launch."""
+def is_suspected_crash(
+    duration: float, stopped_by_user: bool, executable: str, exit_code: int | None = None
+) -> bool:
+    """Prefer Wine's command status; use short runtime only when it is unknown."""
     always_report = os.getenv(COMPATIBILITY_ALWAYS_REPORT_ENV) == "1"
     return (
-        (always_report or (not stopped_by_user and duration < CRASH_THRESHOLD_SECONDS))
+        (always_report or (not stopped_by_user and (
+            exit_code != 0 if exit_code is not None else duration < CRASH_THRESHOLD_SECONDS
+        )))
         and executable.lower().endswith((".exe", ".msi"))
         and os.path.isfile(executable)
     )
+
+
+def get_running_game_processes(executable: str, started: float) -> dict[tuple[int, float], str]:
+    """Find new Windows processes in the game's directory, including engine children."""
+    directory = os.path.dirname(os.path.abspath(executable)).lower() + "/"
+    running = {}
+    for process in psutil.process_iter(attrs=["pid", "name", "cmdline", "cwd", "create_time", "status"]):
+        info = process.info
+        created = info.get("create_time")
+        if created is None or created < started or info.get("status") == psutil.STATUS_ZOMBIE:
+            continue
+        arguments = info.get("cmdline") or []
+        command = (arguments[0] if arguments else info.get("name") or "").replace("\\", "/")
+        if not command.lower().endswith((".exe", ".msi")):
+            continue
+        if command.lower().startswith("z:/"):
+            command = command[2:]
+        if not command.startswith("/"):
+            cwd = info.get("cwd")
+            if not cwd:
+                continue
+            command = os.path.join(cwd, os.path.basename(command) if ":" in command else command)
+        command = os.path.normpath(command)
+        if command.lower().startswith(directory):
+            running[(info["pid"], created)] = command
+    return running
 
 
 def _read_imports(pe: pefile.PE) -> set[str]:

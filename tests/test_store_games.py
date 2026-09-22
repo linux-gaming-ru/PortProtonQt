@@ -1033,6 +1033,7 @@ def test_detached_store_game_keeps_running_state(monkeypatch: MonkeyPatch) -> No
         main_window_module.psutil, "process_iter", lambda attrs: [game_process]
     )
     window = cast(MainWindow, SimpleNamespace(
+        _observe_game_processes=lambda: False,
         game_processes=[dead_launcher], target_exe="DOOM64_x64.exe",
         game_start_time=datetime.now() - timedelta(minutes=1),
     ))
@@ -1051,6 +1052,7 @@ def test_zombie_store_game_is_not_running(monkeypatch: MonkeyPatch) -> None:
         main_window_module.psutil, "process_iter", lambda attrs: [game_process]
     )
     window = cast(MainWindow, SimpleNamespace(
+        _observe_game_processes=lambda: False,
         game_processes=[dead_launcher], target_exe="DOOM64_x64.exe",
         game_start_time=None, game_launch_monotonic=None,
     ))
@@ -1061,6 +1063,7 @@ def test_stopped_store_game_does_not_wait_for_launcher(monkeypatch: MonkeyPatch)
     launcher = SimpleNamespace(poll=lambda: None)
     monkeypatch.setattr(main_window_module.psutil, "process_iter", lambda attrs: [])
     window = cast(MainWindow, SimpleNamespace(
+        _observe_game_processes=lambda: False,
         game_processes=[launcher], target_exe="DOOM64_x64.exe",
         launcher_process_only=True, game_launch_started=False,
         game_stopped_by_user=True, game_launch_monotonic=100.0,
@@ -1073,6 +1076,7 @@ def test_store_launch_grace_prevents_early_button_reset(
 ) -> None:
     monkeypatch.setattr(main_window_module.psutil, "process_iter", lambda attrs: [])
     window = cast(MainWindow, SimpleNamespace(
+        _observe_game_processes=lambda: False,
         game_processes=[], target_exe="DOOM64_x64.exe",
         game_start_time=datetime.now(),
     ))
@@ -1085,6 +1089,7 @@ def test_store_launch_grace_starts_after_slow_legendary_login(
     monkeypatch.setattr(main_window_module.psutil, "process_iter", lambda attrs: [])
     monkeypatch.setattr(main_window_module.time, "monotonic", lambda: 105.0)
     window = cast(MainWindow, SimpleNamespace(
+        _observe_game_processes=lambda: False,
         game_processes=[], target_exe="DOOM64_x64.exe",
         game_start_time=datetime.now() - timedelta(minutes=1),
         game_launch_monotonic=100.0,
@@ -1144,6 +1149,7 @@ def test_store_launch_grace_preserves_early_crash_duration(
     )
     exited_installer = SimpleNamespace(poll=lambda: 0)
     window = cast(MainWindow, SimpleNamespace(
+        _observe_game_processes=lambda: False,
         game_processes=[exited_installer], target_exe="DOOM64_x64.exe",
         game_start_exe="game.exe",
         game_start_time=datetime.now() - timedelta(minutes=1),
@@ -1156,7 +1162,7 @@ def test_store_launch_grace_preserves_early_crash_duration(
     MainWindow._analyze_short_launch(window)
 
     assert launches[0].duration == 1.0
-    assert launches[0].exit_code == 0
+    assert launches[0].exit_code is None
 
 def test_egs_verification_uses_total_progress_format() -> None:
     import re

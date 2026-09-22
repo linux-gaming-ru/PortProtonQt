@@ -1,8 +1,9 @@
 """Tests for config/portproton.py — exec_line parsing, icon sanitization, launcher tail extraction."""
 import os
+import subprocess
 from pathlib import Path
 
-from pytest import MonkeyPatch
+from pytest import MonkeyPatch, mark
 
 from portprotonqt.config.portproton import (
     extract_exec_target_path,
@@ -210,6 +211,37 @@ def test_game_launch_marker_is_emitted_for_wine_and_proton() -> None:
 
     marker = "printf '%s\\n' 'PORTPROTONQT_GAME_LAUNCH_STARTED'"
     assert helper.count(marker) == 2
+
+
+@mark.parametrize("runtime,logging", [("0", "0"), ("0", "1"), ("1", "0"), ("1", "1")])
+def test_wine_exit_code_survives_log_output_and_wineserver_wait(
+    tmp_path: Path, runtime: str, logging: str,
+) -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text()
+    definition = helper.split("pw_run () {", 1)[1].split("export -f pw_run", 1)[0]
+    script = "pw_run () {" + definition + '''
+check_variables () { :; }
+pw_launch_wrapper () { return 37; }
+wait_wineserver () { return 0; }
+print_info () { :; }
+PATH_TO_GAME="$1"
+PW_TMPFS_PATH="$1"
+PW_LOG_FILE="$1/wine.log"
+PW_EXE_FILE="$1/game.exe"
+PW_USE_RUNTIME="$2"
+PW_LOG="$3"
+pw_run "$PW_EXE_FILE"
+exit $?
+'''
+    (tmp_path / "game.exe").touch()
+
+    result = subprocess.run(
+        ["bash", "-c", script, "bash", str(tmp_path), runtime, logging],
+        capture_output=True, text=True, env={"PATH": os.defpath}, check=False,
+    )
+
+    assert result.returncode == 37, result.stderr
+    assert result.stdout.count("PORTPROTONQT_GAME_EXIT_CODE=37") == 1
 
 
 def test_vk_gpu_info_uses_build_aux_binary() -> None:

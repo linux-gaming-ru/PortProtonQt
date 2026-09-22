@@ -119,6 +119,19 @@ def test_shutdown_waits_for_retained_theme_workers() -> None:
     assert window._imageWorkerPool == []
 
 
+def test_shutdown_waits_for_compatibility_analysis() -> None:
+    worker = MagicMock()
+    window = SimpleNamespace(
+        compatibility_workers=[worker],
+        _stopWorkerThread=MagicMock(), _stopWorkerThreads=MagicMock(),
+    )
+
+    MainWindowWorkersMixin._stopBackgroundWorkers(cast(Any, window))
+
+    worker.join.assert_called_once_with()
+    assert window.compatibility_workers == []
+
+
 def test_minimal_tray_contains_game_actions() -> None:
     _application = QApplication.instance() or QApplication([])
     manager = TrayManager.__new__(TrayManager)
@@ -1542,6 +1555,52 @@ def test_launch_marker_starts_crash_timer(monkeypatch: MonkeyPatch) -> None:
 
     assert window.game_launch_monotonic == 90.0
     assert window.game_launch_started is True
+
+
+def test_exit_marker_does_not_become_download_progress() -> None:
+    window: Any = MainWindow.__new__(MainWindow)
+    window.launch_output_queue = Queue()
+    window.wine_download_seen = False
+    window.game_launch_started = True
+    window.launch_output_queue.put(window._parse_process_status_line("PORTPROTONQT_GAME_EXIT_CODE=5"))
+
+    assert not window._drain_launch_output_progress()
+    assert window.game_command_exit_code == 5
+    assert not window.wine_download_seen
+
+
+def test_game_lifetime_excludes_launcher_cleanup(monkeypatch: MonkeyPatch) -> None:
+    window: Any = MainWindow.__new__(MainWindow)
+    window.game_start_exe = "/games/Game.exe"
+    window.game_start_time = main_window_module.datetime.now()
+    window.game_processes = [SimpleNamespace(poll=lambda: None)]
+    processes = iter([{(123, 1.0): "/games/Game.exe"}, {}, {}])
+    times = iter([100.0, 102.0])
+    monkeypatch.setattr(main_window_module, "get_running_game_processes", lambda *_args: next(processes))
+    monkeypatch.setattr(main_window_module.time, "monotonic", lambda: next(times))
+
+    assert window._has_running_game_process()
+    assert window._has_running_game_process()
+    assert window._has_running_game_process()
+    assert window.game_observed_started == 100.0
+    assert window.game_process_exit_monotonic == 102.0
+
+
+def test_nonzero_wine_exit_reports_after_long_game(monkeypatch: MonkeyPatch) -> None:
+    window: Any = MainWindow.__new__(MainWindow)
+    window.portproton_location = "/portproton"
+    reports = []
+    window.compatibility_report_ready = SimpleNamespace(emit=reports.append)
+    launch = main_window_module.CompatibilityLaunch("/games/Game.exe", 5, 120.0)
+    monkeypatch.setattr(main_window_module, "has_dxvk_vulkan_incompatibility", lambda _path: False)
+    monkeypatch.setattr(main_window_module.os.path, "isfile", lambda _path: True)
+    monkeypatch.delenv("PORTPROTONQT_COMPATIBILITY_ALWAYS_REPORT", raising=False)
+    monkeypatch.setattr(main_window_module, "analyze_launch", lambda *_args: "crash report")
+
+    window._build_compatibility_report(launch, stopped_by_user=False)
+    window._build_compatibility_report(launch, stopped_by_user=True)
+
+    assert reports == ["crash report"]
 
 def test_update_prefix_log_does_not_mark_wine_launch_start() -> None:
     window: Any = MainWindow.__new__(MainWindow)
