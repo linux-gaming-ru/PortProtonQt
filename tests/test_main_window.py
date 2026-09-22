@@ -2155,6 +2155,51 @@ def test_incremental_game_add_updates_search_index() -> None:
 
     assert search_index(manager.search_optimizer, "new") == [game]
 
+
+def test_add_game_dialog_does_not_reprocess_its_shortcut(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    desktop_path = tmp_path / "Praest.desktop"
+    entry = "[Desktop Entry]\nName=Praest\nExec=/games/praest.exe\n"
+    callbacks = []
+    dialog = SimpleNamespace(
+        isVisible=lambda: False,
+        setFocus=lambda *_: None,
+        finished=SimpleNamespace(connect=lambda *_: None),
+        exec=lambda: 1,
+        nameEdit=SimpleNamespace(text=lambda: "Praest"),
+        exeEdit=SimpleNamespace(text=lambda: "/games/praest.exe"),
+        coverEdit=SimpleNamespace(text=lambda: ""),
+        getDesktopEntryData=lambda: (entry, str(desktop_path)),
+        last_cover_path="",
+    )
+    window: Any = MainWindow.__new__(MainWindow)
+    window.current_add_game_dialog = None
+    window.theme = None
+    window.portproton_location = str(tmp_path)
+    window._known_portproton_desktops = set()
+    window.game_library_manager = SimpleNamespace(
+        games=[("Existing", "", "", "", "", "/games/existing.exe")],
+        add_game_incremental=MagicMock(),
+        load_visible_images=MagicMock(),
+    )
+    window._write_desktop_file = lambda content, path: Path(path).write_text(content)
+    window._sync_game_shortcuts_from_dialog = MagicMock()
+    window._process_desktop_file_async = MagicMock()
+    monkeypatch.setattr(library_tab_module, "AddGameDialog", lambda *_: dialog)
+    monkeypatch.setattr(library_tab_module.ui_config, "get_auto_download_ppdb", lambda: False)
+    monkeypatch.setattr(library_tab_module.ui_config, "get_economy_mode", lambda: False)
+    monkeypatch.setattr("portprotonqt.steam_api.get_steam_game_info_async", lambda *_args: callbacks.append(_args[-1]))
+
+    window.openAddGameDialog()
+    window._refresh_portproton_shortcuts()
+    callbacks[0]({"name": "GRAVEN", "appid": "1371690"})
+
+    window._process_desktop_file_async.assert_not_called()
+    window.game_library_manager.add_game_incremental.assert_called_once()
+    assert window.game_library_manager.add_game_incremental.call_args.args[0][0] == "Praest"
+
+
 def test_gog_account_state_detects_saved_auth(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
