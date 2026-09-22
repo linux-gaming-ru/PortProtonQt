@@ -1639,8 +1639,15 @@ pw_check_and_download_runtime () {
 }
 
 pw_check_and_download_dxvk_and_vkd3d () {
+    case "${PW_VULKAN_USE}" in
+        1) DXVK_VAR_VER="${DXVK_SAREK_VER}"; VKD3D_VAR_VER="${VKD3D_SAREK_VER}" ;;
+        2) DXVK_VAR_VER="${DXVK_OLD_VER}"; VKD3D_VAR_VER="${VKD3D_OLD_VER}" ;;
+        6) DXVK_VAR_VER="${DXVK_NEW_VER}"; VKD3D_VAR_VER="${VKD3D_NEW_VER}" ;;
+        *) DXVK_VAR_VER=""; VKD3D_VAR_VER="" ;;
+    esac
+
     # Download DXVK
-    for DXVK_VAR_VER in "${DXVK_SAREK_VER}" "${DXVK_OLD_VER}" "${DXVK_NEW_VER}" ; do
+    if [[ -n "${DXVK_VAR_VER}" ]] ; then
         if [[ ! -d "${PW_VULKAN_DIR}/dxvk-${DXVK_VAR_VER}" ]] ; then
             print_info "Download and install DXVK v.${DXVK_VAR_VER}"
             if try_download "https://github.com/Castro-Fidel/vulkan/releases/download/dxvk-${DXVK_VAR_VER}/dxvk-${DXVK_VAR_VER}.tar.xz" \
@@ -1667,10 +1674,10 @@ pw_check_and_download_dxvk_and_vkd3d () {
                 fatal "Failed to download and unpack dxvk"
             fi
         fi
-    done
+    fi
 
     # Download VKD3D
-    for VKD3D_VAR_VER in "${VKD3D_SAREK_VER}" "${VKD3D_OLD_VER}" "${VKD3D_NEW_VER}" ; do
+    if [[ -n "${VKD3D_VAR_VER}" ]] ; then
         if [[ ! -d "${PW_VULKAN_DIR}/vkd3d-proton-${VKD3D_VAR_VER}" ]] ; then
             print_info "Download and install VKD3D-PROTON v.${VKD3D_VAR_VER}"
             if try_download "https://github.com/Castro-Fidel/vulkan/releases/download/vkd3d-proton-${VKD3D_VAR_VER}/vkd3d-proton-${VKD3D_VAR_VER}.tar.xz" \
@@ -1695,10 +1702,10 @@ pw_check_and_download_dxvk_and_vkd3d () {
                 fatal "Failed to download and unpack VKD3D"
             fi
         fi
-    done
+    fi
 
     # Download D7VK
-    if [[ ! -d "${PW_VULKAN_DIR}/d7vk-${D7VK_VAR_VER}" ]] ; then
+    if [[ "${PW_USE_D7VK}" == "1" && ! -d "${PW_VULKAN_DIR}/d7vk-${D7VK_VAR_VER}" ]] ; then
         print_info "Download and install D7VK v.${D7VK_VAR_VER}"
         if try_download "https://github.com/Castro-Fidel/vulkan/releases/download/d7vk-${D7VK_VAR_VER}/d7vk-${D7VK_VAR_VER}.tar.xz" \
                                     "${PW_VULKAN_DIR}/d7vk-${D7VK_VAR_VER}.tar.xz" ; then
