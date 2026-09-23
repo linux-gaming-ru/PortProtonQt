@@ -3759,10 +3759,19 @@ start_portproton () {
 
     add_in_start_portproton
 
-    if [[ "$FULL_LN" == russian ]] ; then
+    local steam_emu_language=""
+    case "${PW_LOCALE_SELECT}" in
+        ru_*) steam_emu_language="russian" ;;
+        en_*) steam_emu_language="english" ;;
+        zh_*) steam_emu_language="schinese" ;;
+        ja_*) steam_emu_language="japanese" ;;
+        ko_*) steam_emu_language="koreana" ;;
+        disabled|"") steam_emu_language="$FULL_LN" ;;
+    esac
+    if [[ -n "$steam_emu_language" ]] ; then
         for chk_lang_and_uname in "steam_emu.ini" "steam_api.ini" "steam_api64.ini" "SteamConfig.ini" ; do
             if [[ -f "${PATH_TO_GAME}/${chk_lang_and_uname}" ]] ; then
-                sed -i "/^Language/c\Language=${FULL_LN}" "${PATH_TO_GAME}/${chk_lang_and_uname}"
+                sed -i "/^Language/c\Language=${steam_emu_language}" "${PATH_TO_GAME}/${chk_lang_and_uname}"
                 sed -i "/^UserName/c\UserName=${USER}" "${PATH_TO_GAME}/${chk_lang_and_uname}"
                 sed -i "/^PlayerName/c\PlayerName=${USER}" "${PATH_TO_GAME}/${chk_lang_and_uname}"
             fi
