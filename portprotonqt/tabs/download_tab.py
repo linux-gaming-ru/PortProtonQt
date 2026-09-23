@@ -823,7 +823,18 @@ class MainWindowDownloadTabMixin(_MainWindowTypingBase):
             )
             buttons.button(QDialogButtonBox.StandardButton.Ok).setText(_("Install"))
             buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(_("Cancel"))
+            install_all_button = buttons.addButton(
+                f"{_('Install')} {_('All').lower()}", QDialogButtonBox.ButtonRole.ActionRole
+            )
+            install_all_button.setIcon(self.theme_manager.get_icon("select_all"))
             buttons.setStyleSheet(self.theme.ACTION_BUTTON_STYLE)
+
+            def install_all() -> None:
+                for checkbox, _dlc in checkboxes:
+                    checkbox.setChecked(True)
+                dialog.accept()
+
+            install_all_button.clicked.connect(install_all)
             buttons.accepted.connect(dialog.accept)
             buttons.rejected.connect(dialog.reject)
             layout.addWidget(buttons)

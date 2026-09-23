@@ -8,6 +8,7 @@ from typing import Any, cast
 from unittest.mock import MagicMock
 
 import orjson
+from PySide6.QtGui import QIcon
 from pytest import MonkeyPatch, mark
 from shiboken6 import delete
 
@@ -119,11 +120,13 @@ def test_epic_success_starts_dlc_after_import_and_base_install(tmp_path: Path) -
 
 @mark.parametrize("source", ("gog", "egs"))
 @mark.parametrize("accepted", (True, False))
+@mark.parametrize("install_all", (True, False))
 def test_dlc_picker_preserves_installed_and_respects_cancel(
-    monkeypatch: MonkeyPatch, source: str, accepted: bool
+    monkeypatch: MonkeyPatch, source: str, accepted: bool, install_all: bool
 ) -> None:
     application = download_tab_module.QApplication.instance() or download_tab_module.QApplication([])
     window: Any = download_tab_module.QWidget()
+    window.theme_manager = SimpleNamespace(get_icon=lambda _name: QIcon())
     window.theme = SimpleNamespace(
         MESSAGE_BOX_STYLE="", CHECKBOX_STYLE="", SCROLL_STYLE="", ACTION_BUTTON_STYLE="",
         storeDlcDialogWidth=480, storeDlcVisibleRows=3, downloadsTableRowHeight=68,
@@ -145,7 +148,14 @@ def test_dlc_picker_preserves_installed_and_respects_cancel(
     def choose(dialog: Any) -> Any:
         checkboxes = dialog.findChildren(download_tab_module.QCheckBox)
         assert checkboxes[0].isChecked() and not checkboxes[0].isEnabled()
-        checkboxes[1].setChecked(True)
+        assert not checkboxes[1].isChecked() and checkboxes[1].isEnabled()
+        if install_all:
+            buttons = dialog.findChild(download_tab_module.QDialogButtonBox)
+            assert buttons is not None
+            next(button for button in buttons.buttons() if buttons.buttonRole(button)
+                 == download_tab_module.QDialogButtonBox.ButtonRole.ActionRole).click()
+        else:
+            checkboxes[1].setChecked(True)
         return (download_tab_module.QDialog.DialogCode.Accepted if accepted
                 else download_tab_module.QDialog.DialogCode.Rejected)
 
