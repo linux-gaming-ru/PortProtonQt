@@ -82,12 +82,23 @@ class ButtonInputMixin(InputMixin):
             if self._handle_system_table_button(focused, button_code):
                 return
 
+            if self._handle_table_button(focused, button_code):
+                return
+
             if self._handle_system_quick_button(button_code):
                 return
 
             self._handle_standard_button(focused, button_code, value)
         except Exception as e:
             logger.error(f"Error in handle_button_slot: {e}", exc_info=True)
+
+    def _handle_table_button(self, focused: QWidget | None, button_code: int) -> bool:
+        if not isinstance(focused, QTableWidget) or button_code not in BUTTONS['confirm']:
+            return False
+        if not self.handle_table_confirm(focused):
+            return False
+        SoundManager().play("click")
+        return True
 
     def _open_focused_context_menu(self, focused: QWidget | None, button_code: int) -> bool:
         if button_code not in BUTTONS['context_menu'] or focused is None:

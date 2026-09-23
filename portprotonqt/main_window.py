@@ -66,6 +66,7 @@ from portprotonqt.disc_image_utils import DiscImageManager
 from portprotonqt.compatibility_report import (
     CompatibilityLaunch,
     analyze_launch,
+    get_running_game_processes,
     has_dxvk_vulkan_incompatibility,
     is_suspected_crash,
 )
@@ -98,6 +99,7 @@ DISC_IMAGE_EXTENSIONS = (".iso", ".mdf", ".nrg")
 ALT_BIARCH_REPO = "x86_64-i586"
 ALT_BIARCH_URL = "https://www.altlinux.org/Biarch"
 GAME_LAUNCH_MARKER = "PORTPROTONQT_GAME_LAUNCH_STARTED"
+GAME_EXIT_MARKER = "PORTPROTONQT_GAME_EXIT_CODE"
 
 class MainWindow(
     MainWindowControlHintsMixin,
@@ -723,7 +725,7 @@ class MainWindow(
             if state is None:
                 continue
             status, percent, launch_started = state
-            if launch_started:
+            if launch_started or status == GAME_EXIT_MARKER:
                 continue
             self._update_install_progress(status, percent)
 
@@ -825,6 +827,9 @@ class MainWindow(
         line_lower = line.lower()
         status = percent = None
         launch_started = line_text == GAME_LAUNCH_MARKER
+        exit_match = re.fullmatch(rf"{GAME_EXIT_MARKER}=([0-9]{{1,3}})", line_text)
+        if exit_match:
+            return GAME_EXIT_MARKER, int(exit_match.group(1)), False
         progress_match = re.fullmatch(r'([0-9]*\.?[0-9]+)%', line_text)
         if progress_match:
             percent = float(progress_match.group(1))
@@ -1990,8 +1995,8 @@ class MainWindow(
 
     def checkTargetExe(self):
         """Update launch state from the marker and PortProton process."""
-        child_running = self._has_running_game_process()
         dependency_active = self._drain_launch_output_progress()
+        child_running = self._has_running_game_process()
 
         if dependency_active:
             # Dependencies are downloading/extracting - update button with progress
@@ -2050,6 +2055,9 @@ class MainWindow(
                 status, percent, launch_started = self.launch_output_queue.get_nowait()
             except Empty:
                 break
+            if status == GAME_EXIT_MARKER:
+                self.game_command_exit_code = int(percent) if percent is not None else None
+                continue
             if launch_started:
                 if not self.game_launch_started:
                     self.game_launch_monotonic = time.monotonic()
@@ -2103,6 +2111,9 @@ class MainWindow(
         self.wine_download_percent = 0.0
         self.wine_download_status = _("Downloading Wine…")
         self.game_launch_started = False
+        self.game_observed_processes = {}
+        self.game_observed_started = None
+        self.game_command_exit_code = None
         launcher_only = getattr(self, "launcher_process_only", False)
         self.launcher_process_only = False
         self.game_processes = [] if launcher_only else [
@@ -2211,6 +2222,8 @@ class MainWindow(
         return extract_exec_target_path(exec_line) or ""
 
     def _has_running_game_process(self) -> bool:
+        if self._observe_game_processes():
+            return True
         process_alive = any(proc.poll() is None for proc in self.game_processes)
         if process_alive and not (
             getattr(self, "launcher_process_only", False)
@@ -2219,10 +2232,11 @@ class MainWindow(
                 or getattr(self, "game_stopped_by_user", False)
             )
         ):
-            self.game_process_exit_monotonic = None
+            if getattr(self, "game_observed_started", None) is None:
+                self.game_process_exit_monotonic = None
             return True
         target = str(self.target_exe or "").lower()
-        if target:
+        if target and not getattr(self, "game_start_exe", None):
             for process in psutil.process_iter(attrs=["name", "status"]):
                 try:
                     if (
@@ -2245,6 +2259,26 @@ class MainWindow(
         if started is None:
             return False
         return (datetime.now() - started).total_seconds() < STORE_LAUNCH_GRACE_SECONDS
+
+    def _observe_game_processes(self) -> bool:
+        executable = getattr(self, "game_start_exe", None)
+        started = getattr(self, "game_start_time", None)
+        if not executable or started is None:
+            return False
+        running = get_running_game_processes(executable, started.timestamp())
+        previous = getattr(self, "game_observed_processes", {})
+        for identity in running.keys() - previous.keys():
+            logger.info("Game process appeared: pid=%s executable=%s", identity[0], running[identity])
+        for identity in previous.keys() - running.keys():
+            logger.info("Game process disappeared: pid=%s executable=%s", identity[0], previous[identity])
+        self.game_observed_processes = running
+        if running:
+            if getattr(self, "game_observed_started", None) is None:
+                self.game_observed_started = time.monotonic()
+            self.game_process_exit_monotonic = None
+        elif previous:
+            self.game_process_exit_monotonic = time.monotonic()
+        return bool(running)
 
     def _start_launch_output_reader(self, process: subprocess.Popen[str]) -> None:
         """Start background reader for PortProton launch output."""
@@ -2310,28 +2344,43 @@ class MainWindow(
 
     def _analyze_short_launch(self) -> None:
         if not ui_config.get_crash_reports_enabled():
+            logger.info("Compatibility report skipped: crash reports disabled")
             return
         executable = getattr(self, "game_start_exe", None) or ""
-        started = getattr(self, "game_launch_monotonic", None)
+        started = getattr(self, "game_observed_started", None)
         if started is None:
+            started = getattr(self, "game_launch_monotonic", None)
+        if started is None:
+            logger.info("Compatibility report skipped: no launch marker for %s", executable)
             return
         ended = getattr(self, "game_process_exit_monotonic", None)
         duration = (ended or time.monotonic()) - started
         stopped_by_user = getattr(self, "game_stopped_by_user", False)
-        exit_code = next(
+        launcher_exit_code = next(
             (process.poll() for process in self.game_processes if process.poll() is not None),
             None,
         )
+        exit_code = getattr(self, "game_command_exit_code", None)
         launch = CompatibilityLaunch(
             executable=executable,
             exit_code=exit_code,
             duration=duration,
+        )
+        logger.info(
+            "Compatibility launch: executable=%s duration=%.3fs wine_exit_code=%s "
+            "launcher_exit_code=%s stopped_by_user=%s process_observed=%s",
+            executable, duration, exit_code, launcher_exit_code, stopped_by_user,
+            getattr(self, "game_observed_started", None) is not None,
         )
         worker = Thread(
             target=self._build_compatibility_report,
             args=(launch, stopped_by_user),
             daemon=True,
         )
+        self.compatibility_workers = [
+            active for active in getattr(self, "compatibility_workers", []) if active.is_alive()
+        ]
+        self.compatibility_workers.append(worker)
         worker.start()
 
     def _build_compatibility_report(
@@ -2340,9 +2389,17 @@ class MainWindow(
         try:
             incompatible_dxvk = has_dxvk_vulkan_incompatibility(launch.executable)
             if not incompatible_dxvk and not is_suspected_crash(
-                launch.duration, stopped_by_user, launch.executable
+                launch.duration, stopped_by_user, launch.executable, launch.exit_code
             ):
+                logger.info(
+                    "Compatibility report skipped: crash criteria not met "
+                    "(duration=%.3fs stopped_by_user=%s windows_executable=%s exists=%s)",
+                    launch.duration, stopped_by_user,
+                    launch.executable.lower().endswith((".exe", ".msi")),
+                    os.path.isfile(launch.executable),
+                )
                 return
+            logger.info("Compatibility analysis started: %s", launch.executable)
             report = analyze_launch(launch, self.portproton_location or "")
         except (OSError, ValueError, TypeError) as error:
             logger.error("Compatibility analysis failed for %s: %s", launch.executable, error)
@@ -2350,6 +2407,7 @@ class MainWindow(
         self.compatibility_report_ready.emit(report)
 
     def _show_compatibility_report(self, report: str) -> None:
+        logger.info("Compatibility report dialog opened")
         dialog = CompatibilityReportDialog(self, self.theme, report)
         dialog.exec()
 

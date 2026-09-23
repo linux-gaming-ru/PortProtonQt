@@ -42,6 +42,9 @@ class MainWindowWorkersMixin:
         downloader = getattr(self, "downloader", None)
         for worker in list(getattr(downloader, "_active_threads", [])):
             self._stopWorker(worker, "downloader", None)
+        for worker in getattr(self, "compatibility_workers", []):
+            worker.join()
+        self.compatibility_workers = []
         input_manager = getattr(self, "input_manager", None)
         if input_manager is not None:
             input_manager.cleanup()

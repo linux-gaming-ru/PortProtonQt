@@ -1,7 +1,7 @@
 from pathlib import Path
 from types import SimpleNamespace
 
-from pytest import MonkeyPatch
+from pytest import MonkeyPatch, mark
 
 from portprotonqt import compatibility_report as compatibility
 from portprotonqt.scripts_utils.graphics_detector import (
@@ -30,6 +30,50 @@ def test_suspected_crash_requires_existing_windows_executable(tmp_path: Path) ->
     assert compatibility.is_suspected_crash(1.0, True, str(executable)) is False
     assert compatibility.is_suspected_crash(6.0, False, str(executable)) is True
     assert compatibility.is_suspected_crash(8.0, False, str(executable)) is False
+
+
+@mark.parametrize("case", [
+    (90.0, 5, False, True),
+    (1.0, 0, False, False),
+    (90.0, 0, False, False),
+    (1.0, 143, True, False),
+    (1.0, None, False, True),
+    (90.0, None, False, False),
+])
+def test_crash_detection_uses_command_status(
+    tmp_path: Path, monkeypatch: MonkeyPatch, case: tuple[float, int | None, bool, bool],
+) -> None:
+    monkeypatch.delenv(compatibility.COMPATIBILITY_ALWAYS_REPORT_ENV, raising=False)
+    executable = tmp_path / "game.exe"
+    executable.touch()
+    duration, code, stopped, expected = case
+
+    assert compatibility.is_suspected_crash(duration, stopped, str(executable), code) is expected
+
+
+def test_game_process_discovery_matches_engine_children_and_ignores_unrelated(
+    tmp_path: Path, monkeypatch: MonkeyPatch,
+) -> None:
+    executable = tmp_path / "game" / "Bootstrap.exe"
+    engine = executable.parent / "Binaries" / "Game-Win64-Shipping.exe"
+    commands = [
+        (str(executable), 11.0, "running"),
+        ("Z:" + str(engine).replace("/", "\\"), 12.0, "running"),
+        (str(executable), 1.0, "running"),
+        (str(tmp_path / "other" / executable.name), 12.0, "running"),
+        ("services.exe", 12.0, "running"),
+        (str(engine), 12.0, compatibility.psutil.STATUS_ZOMBIE),
+        ("bash", 12.0, "running"),
+    ]
+    processes = [SimpleNamespace(info={
+        "pid": pid, "name": "truncated-name", "cmdline": [command, str(executable)],
+        "cwd": str(tmp_path), "create_time": created, "status": status,
+    }) for pid, (command, created, status) in enumerate(commands)]
+    monkeypatch.setattr(compatibility.psutil, "process_iter", lambda attrs: processes)
+
+    assert compatibility.get_running_game_processes(str(executable), 10.0) == {
+        (0, 11.0): str(executable), (1, 12.0): str(engine),
+    }
 
 
 def test_always_report_environment_bypasses_duration(
@@ -486,6 +530,15 @@ def test_dxvk_suggestion_only_appears_for_wined3d() -> None:
 
     assert not any("DXVK" in suggestion for suggestion in active_dxvk)
     assert "Switch from WineD3D to DXVK for DirectX 8-11." in wined3d
+
+
+@mark.parametrize("enabled", ["1", "0", ""])
+def test_optiscaler_suggestion_only_appears_when_enabled(enabled: str) -> None:
+    suggestions = compatibility._compatibility_suggestions(
+        {}, "DirectX 11", "", {"PW_USE_OPTISCALER": enabled}
+    )
+
+    assert any("disable OptiScaler" in suggestion for suggestion in suggestions) == (enabled == "1")
 
 
 def test_runtime_suggestions_use_portproton_components() -> None:

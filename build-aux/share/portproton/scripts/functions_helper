@@ -3799,6 +3799,7 @@ start_portproton () {
 }
 
 pw_run () {
+    local pw_game_exit_code
     if [[ "$PW_USE_TERMINAL" == 1 ]] \
     && [[ "${PRESSURE_VESSEL_TERMINAL:-}" != "tty" ]]
     then
@@ -3865,6 +3866,7 @@ pw_run () {
             ${PW_GAMEMODERUN_SLR} \
             ${PW_ADD_VAR_SLR} \
             "${WINELOADER}" "$@" ${proxy_launch_parameters} &>>"${PW_LOG_FILE}"
+            pw_game_exit_code=$?
         else
             if [[ "$PW_USE_TERMINAL" == 1 ]] ; then
                 pw_init_runtime
@@ -3885,6 +3887,7 @@ pw_run () {
             ${PW_GAMEMODERUN_SLR} \
             ${PW_ADD_VAR_SLR} \
             "${WINELOADER}" "$@" ${proxy_launch_parameters} &>>"${PW_LOG_FILE}"
+            pw_game_exit_code=$?
             print_info "Update prefix log:"
             [[ -f "${PW_TMPFS_PATH}/update_pfx_log" ]] && cat "${PW_TMPFS_PATH}/update_pfx_log"
             echo
@@ -3914,6 +3917,7 @@ pw_run () {
             ${PW_INHIBIT_SLR} \
             ${PW_TASKSET_SLR} \
             "${WINELOADER}" "$@" ${proxy_launch_parameters} &>>"${PW_LOG_FILE}"
+            pw_game_exit_code=$?
             wait_wineserver
         else
             print_info "Update prefix log:"
@@ -3934,9 +3938,12 @@ pw_run () {
             ${PW_INHIBIT_SLR} \
             ${PW_TASKSET_SLR} \
             "${WINELOADER}" "$@" ${proxy_launch_parameters}
+            pw_game_exit_code=$?
             wait_wineserver
         fi
     fi
+    printf 'PORTPROTONQT_GAME_EXIT_CODE=%s\n' "$pw_game_exit_code"
+    return "$pw_game_exit_code"
 }
 export -f pw_run
 
@@ -4102,6 +4109,7 @@ steamplay_launch () {
         ${PW_GAMEMODERUN_SLR} \
         ${PW_TASKSET_SLR} \
         "${proton_runner}" waitforexitandrun "${PW_EXE_FILE}" "$@"
+        printf 'PORTPROTONQT_GAME_EXIT_CODE=%s\n' "$?"
         if [[ $PW_LOG != 1 ]] && [[ -n $START_PW_TIME_IN_GAME ]] ; then
             debug_timer --end -s "PW_TIME_IN_GAME"
             PW_TIME_IN_GAME=$(( PW_TIME_IN_GAME / 1000 ))

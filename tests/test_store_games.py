@@ -8,6 +8,7 @@ from typing import Any, cast
 from unittest.mock import MagicMock
 
 import orjson
+from PySide6.QtGui import QIcon
 from pytest import MonkeyPatch, mark
 from shiboken6 import delete
 
@@ -81,6 +82,54 @@ def test_store_dlc_worker_failure_does_not_continue_install(
     assert errors == ["gogdl"]
 
 
+@mark.parametrize("source", ("gog", "egs"))
+def test_store_dlc_selection_remains_available_during_download(
+    monkeypatch: MonkeyPatch, source: str,
+) -> None:
+    worker = MagicMock()
+    monkeypatch.setattr(download_tab_module, "StoreDLCWorker", lambda *_args: worker)
+    window = SimpleNamespace(
+        store_dlc_worker=None, gog_process=object(), egs_process=object(),
+        gog_api=object(), egs_api=object(),
+        _on_store_dlcs_loaded=MagicMock(),
+        _on_store_dlc_worker_finished=MagicMock(),
+    )
+
+    GOGMixin._select_store_dlcs(
+        cast(Any, window), source, {"app_id": "123", "title": "Game"}
+    )
+
+    worker.start.assert_called_once_with()
+    assert window.store_dlc_worker is worker
+
+
+def test_store_download_queues_reject_duplicates() -> None:
+    active = {"app_id": "active", "title": "Active"}
+    queued = {"app_id": "queued", "title": "Queued"}
+    append_row = MagicMock()
+    switch_tab = MagicMock()
+    window = SimpleNamespace(
+        gog_repair_worker=None, gog_process=object(), gog_active_game=active,
+        egs_process=None, store_download_queue=[],
+        egs_api=SimpleNamespace(load_library=lambda: [active, queued]),
+        downloadQueuedTable=object(), _append_download_row=append_row,
+        switchTab=switch_tab,
+    )
+    window._queue_store_download = lambda source, game: GOGMixin._queue_store_download(
+        cast(Any, window), source, game
+    )
+
+    for game in (queued, queued, active):
+        GOGMixin._install_gog_game(cast(Any, window), game)
+        GOGMixin._install_egs_download(cast(Any, window), str(game["app_id"]))
+
+    assert window.store_download_queue == [
+        ("gog", queued), ("egs", queued), ("egs", active),
+    ]
+    assert append_row.call_count == 3
+    assert switch_tab.call_count == 3
+
+
 def test_epic_dlc_uses_base_game_folder_and_remaining_queue(tmp_path: Path) -> None:
     commands, started = [], []
     game = {"app_id": "base", "title": "Base", "_dlcs": [
@@ -119,11 +168,13 @@ def test_epic_success_starts_dlc_after_import_and_base_install(tmp_path: Path) -
 
 @mark.parametrize("source", ("gog", "egs"))
 @mark.parametrize("accepted", (True, False))
+@mark.parametrize("install_all", (True, False))
 def test_dlc_picker_preserves_installed_and_respects_cancel(
-    monkeypatch: MonkeyPatch, source: str, accepted: bool
+    monkeypatch: MonkeyPatch, source: str, accepted: bool, install_all: bool
 ) -> None:
     application = download_tab_module.QApplication.instance() or download_tab_module.QApplication([])
     window: Any = download_tab_module.QWidget()
+    window.theme_manager = SimpleNamespace(get_icon=lambda _name: QIcon())
     window.theme = SimpleNamespace(
         MESSAGE_BOX_STYLE="", CHECKBOX_STYLE="", SCROLL_STYLE="", ACTION_BUTTON_STYLE="",
         storeDlcDialogWidth=480, storeDlcVisibleRows=3, downloadsTableRowHeight=68,
@@ -145,7 +196,14 @@ def test_dlc_picker_preserves_installed_and_respects_cancel(
     def choose(dialog: Any) -> Any:
         checkboxes = dialog.findChildren(download_tab_module.QCheckBox)
         assert checkboxes[0].isChecked() and not checkboxes[0].isEnabled()
-        checkboxes[1].setChecked(True)
+        assert not checkboxes[1].isChecked() and checkboxes[1].isEnabled()
+        if install_all:
+            buttons = dialog.findChild(download_tab_module.QDialogButtonBox)
+            assert buttons is not None
+            next(button for button in buttons.buttons() if buttons.buttonRole(button)
+                 == download_tab_module.QDialogButtonBox.ButtonRole.ActionRole).click()
+        else:
+            checkboxes[1].setChecked(True)
         return (download_tab_module.QDialog.DialogCode.Accepted if accepted
                 else download_tab_module.QDialog.DialogCode.Rejected)
 
@@ -160,6 +218,33 @@ def test_dlc_picker_preserves_installed_and_respects_cancel(
         assert started == []
     assert len(images) == 2
     window.deleteLater()
+
+
+def test_completed_download_opens_game_card_and_notifies() -> None:
+    application = download_tab_module.QApplication.instance() or download_tab_module.QApplication([])
+    table = download_tab_module.QTableWidget(1, 2)
+    item = download_tab_module.QTableWidgetItem()
+    item.setData(download_tab_module.Qt.ItemDataRole.UserRole, ("123", "gog"))
+    table.setItem(0, 1, item)
+    card = SimpleNamespace(appid="123", game_source="gog", click=MagicMock())
+    tray_icon = SimpleNamespace(showMessage=MagicMock())
+    window = SimpleNamespace(
+        downloadCompletedTable=table,
+        game_library_manager=SimpleNamespace(game_card_cache={"game": card}),
+        tray_manager=SimpleNamespace(tray_icon=tray_icon),
+    )
+
+    GOGMixin._open_completed_download(cast(Any, window), 0, 0)
+    GOGMixin._notify_download_finished(
+        cast(Any, window), {"title": "Game"}, "Installed"
+    )
+
+    assert application is not None
+    card.click.assert_called_once_with()
+    tray_icon.showMessage.assert_called_once_with(
+        download_tab_module._("Downloads"), "Game: Installed"
+    )
+    table.deleteLater()
 
 
 @mark.parametrize("source", ("gog", "egs"))
@@ -479,7 +564,7 @@ def test_install_gog_game_uses_support_path(
         build_command=lambda arguments: ["gogdl", *arguments],
     )
     window = SimpleNamespace(
-        gog_process=None, gog_download_queue=[], theme=object(), gog_api=api,
+        gog_process=None, egs_process=None, store_download_queue=[], theme=object(), gog_api=api,
         _start_gog_download=lambda *arguments: started.append(arguments),
     )
 
@@ -562,7 +647,7 @@ def test_install_gog_existing_game_imports_and_repairs(
     api = GOGAPI()
     api.games_dir = game_path.parent
     window = SimpleNamespace(
-        gog_process=None, gog_download_queue=[], theme=object(), gog_api=api,
+        gog_process=None, egs_process=None, store_download_queue=[], theme=object(), gog_api=api,
         _repair_gog_game=MagicMock(), _start_gog_download=MagicMock(),
     )
     game = {"app_id": "123", "title": "Game"}
@@ -1033,6 +1118,7 @@ def test_detached_store_game_keeps_running_state(monkeypatch: MonkeyPatch) -> No
         main_window_module.psutil, "process_iter", lambda attrs: [game_process]
     )
     window = cast(MainWindow, SimpleNamespace(
+        _observe_game_processes=lambda: False,
         game_processes=[dead_launcher], target_exe="DOOM64_x64.exe",
         game_start_time=datetime.now() - timedelta(minutes=1),
     ))
@@ -1051,6 +1137,7 @@ def test_zombie_store_game_is_not_running(monkeypatch: MonkeyPatch) -> None:
         main_window_module.psutil, "process_iter", lambda attrs: [game_process]
     )
     window = cast(MainWindow, SimpleNamespace(
+        _observe_game_processes=lambda: False,
         game_processes=[dead_launcher], target_exe="DOOM64_x64.exe",
         game_start_time=None, game_launch_monotonic=None,
     ))
@@ -1061,6 +1148,7 @@ def test_stopped_store_game_does_not_wait_for_launcher(monkeypatch: MonkeyPatch)
     launcher = SimpleNamespace(poll=lambda: None)
     monkeypatch.setattr(main_window_module.psutil, "process_iter", lambda attrs: [])
     window = cast(MainWindow, SimpleNamespace(
+        _observe_game_processes=lambda: False,
         game_processes=[launcher], target_exe="DOOM64_x64.exe",
         launcher_process_only=True, game_launch_started=False,
         game_stopped_by_user=True, game_launch_monotonic=100.0,
@@ -1073,6 +1161,7 @@ def test_store_launch_grace_prevents_early_button_reset(
 ) -> None:
     monkeypatch.setattr(main_window_module.psutil, "process_iter", lambda attrs: [])
     window = cast(MainWindow, SimpleNamespace(
+        _observe_game_processes=lambda: False,
         game_processes=[], target_exe="DOOM64_x64.exe",
         game_start_time=datetime.now(),
     ))
@@ -1085,6 +1174,7 @@ def test_store_launch_grace_starts_after_slow_legendary_login(
     monkeypatch.setattr(main_window_module.psutil, "process_iter", lambda attrs: [])
     monkeypatch.setattr(main_window_module.time, "monotonic", lambda: 105.0)
     window = cast(MainWindow, SimpleNamespace(
+        _observe_game_processes=lambda: False,
         game_processes=[], target_exe="DOOM64_x64.exe",
         game_start_time=datetime.now() - timedelta(minutes=1),
         game_launch_monotonic=100.0,
@@ -1144,6 +1234,7 @@ def test_store_launch_grace_preserves_early_crash_duration(
     )
     exited_installer = SimpleNamespace(poll=lambda: 0)
     window = cast(MainWindow, SimpleNamespace(
+        _observe_game_processes=lambda: False,
         game_processes=[exited_installer], target_exe="DOOM64_x64.exe",
         game_start_exe="game.exe",
         game_start_time=datetime.now() - timedelta(minutes=1),
@@ -1156,7 +1247,7 @@ def test_store_launch_grace_preserves_early_crash_duration(
     MainWindow._analyze_short_launch(window)
 
     assert launches[0].duration == 1.0
-    assert launches[0].exit_code == 0
+    assert launches[0].exit_code is None
 
 def test_egs_verification_uses_total_progress_format() -> None:
     import re
