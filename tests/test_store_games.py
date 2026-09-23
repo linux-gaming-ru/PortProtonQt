@@ -82,6 +82,54 @@ def test_store_dlc_worker_failure_does_not_continue_install(
     assert errors == ["gogdl"]
 
 
+@mark.parametrize("source", ("gog", "egs"))
+def test_store_dlc_selection_remains_available_during_download(
+    monkeypatch: MonkeyPatch, source: str,
+) -> None:
+    worker = MagicMock()
+    monkeypatch.setattr(download_tab_module, "StoreDLCWorker", lambda *_args: worker)
+    window = SimpleNamespace(
+        store_dlc_worker=None, gog_process=object(), egs_process=object(),
+        gog_api=object(), egs_api=object(),
+        _on_store_dlcs_loaded=MagicMock(),
+        _on_store_dlc_worker_finished=MagicMock(),
+    )
+
+    GOGMixin._select_store_dlcs(
+        cast(Any, window), source, {"app_id": "123", "title": "Game"}
+    )
+
+    worker.start.assert_called_once_with()
+    assert window.store_dlc_worker is worker
+
+
+def test_store_download_queues_reject_duplicates() -> None:
+    active = {"app_id": "active", "title": "Active"}
+    queued = {"app_id": "queued", "title": "Queued"}
+    append_row = MagicMock()
+    switch_tab = MagicMock()
+    window = SimpleNamespace(
+        gog_repair_worker=None, gog_process=object(), gog_active_game=active,
+        egs_process=None, store_download_queue=[],
+        egs_api=SimpleNamespace(load_library=lambda: [active, queued]),
+        downloadQueuedTable=object(), _append_download_row=append_row,
+        switchTab=switch_tab,
+    )
+    window._queue_store_download = lambda source, game: GOGMixin._queue_store_download(
+        cast(Any, window), source, game
+    )
+
+    for game in (queued, queued, active):
+        GOGMixin._install_gog_game(cast(Any, window), game)
+        GOGMixin._install_egs_download(cast(Any, window), str(game["app_id"]))
+
+    assert window.store_download_queue == [
+        ("gog", queued), ("egs", queued), ("egs", active),
+    ]
+    assert append_row.call_count == 3
+    assert switch_tab.call_count == 3
+
+
 def test_epic_dlc_uses_base_game_folder_and_remaining_queue(tmp_path: Path) -> None:
     commands, started = [], []
     game = {"app_id": "base", "title": "Base", "_dlcs": [
@@ -516,7 +564,7 @@ def test_install_gog_game_uses_support_path(
         build_command=lambda arguments: ["gogdl", *arguments],
     )
     window = SimpleNamespace(
-        gog_process=None, gog_download_queue=[], theme=object(), gog_api=api,
+        gog_process=None, egs_process=None, store_download_queue=[], theme=object(), gog_api=api,
         _start_gog_download=lambda *arguments: started.append(arguments),
     )
 
@@ -599,7 +647,7 @@ def test_install_gog_existing_game_imports_and_repairs(
     api = GOGAPI()
     api.games_dir = game_path.parent
     window = SimpleNamespace(
-        gog_process=None, gog_download_queue=[], theme=object(), gog_api=api,
+        gog_process=None, egs_process=None, store_download_queue=[], theme=object(), gog_api=api,
         _repair_gog_game=MagicMock(), _start_gog_download=MagicMock(),
     )
     game = {"app_id": "123", "title": "Game"}
