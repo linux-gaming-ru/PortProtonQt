@@ -11,7 +11,7 @@ import orjson
 import requests
 from shiboken6 import isValid
 
-from PySide6.QtCore import QProcess, QProcessEnvironment, QThread, QTimer, QUrl, Signal
+from PySide6.QtCore import Qt, QProcess, QProcessEnvironment, QThread, QTimer, QUrl, Signal
 from PySide6.QtGui import QDesktopServices, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -351,6 +351,17 @@ class MainWindowDownloadTabMixin(_MainWindowTypingBase):
         completed_header.addStretch()
         layout.addLayout(completed_header)
         self.downloadCompletedTable = self._create_download_table("", layout)
+        self.downloadCompletedTable.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows
+        )
+        self.downloadCompletedTable.setSelectionMode(
+            QAbstractItemView.SelectionMode.SingleSelection
+        )
+        self.downloadCompletedTable._on_confirm_callback = (  # type: ignore[attr-defined]
+            lambda _table, row, column: self._open_completed_download(row, column)
+        )
+        self.downloadCompletedTable.cellClicked.connect(self._open_completed_download)
+        self.downloadCompletedTable.viewport().setCursor(Qt.CursorShape.PointingHandCursor)
         layout.addStretch()
         self.stackedWidget.addWidget(page)
         self._update_downloads_tab_visibility()
@@ -454,6 +465,17 @@ class MainWindowDownloadTabMixin(_MainWindowTypingBase):
         self.downloadCompletedTable.setRowCount(0)
         self._update_download_table_height(self.downloadCompletedTable)
         self._update_downloads_tab_visibility()
+
+    def _open_completed_download(self, row: int, _column: int) -> None:
+        item = self.downloadCompletedTable.item(row, 1)
+        if item is None:
+            return
+        app_id, source = item.data(Qt.ItemDataRole.UserRole)
+        cards = self.game_library_manager.game_card_cache.values()
+        card = next((card for card in cards if str(card.appid) == app_id
+                     and str(card.game_source).lower() == source), None)
+        if card is not None:
+            card.click()
 
     def _start_gog_login(self) -> None:
         if getattr(self, "gog_auth_worker", None) is not None:
@@ -1186,9 +1208,18 @@ class MainWindowDownloadTabMixin(_MainWindowTypingBase):
         table.insertRow(row)
         game_cell, details_label = self._create_download_game_cell(game)
         table.setCellWidget(row, 0, game_cell)
+        if table is self.downloadCompletedTable:
+            game_cell.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         values = (datetime.now().strftime("%H:%M:%S"), action, store)
         for column, value in enumerate(values, 1):
             table.setItem(row, column, QTableWidgetItem(value))
+        if table is self.downloadCompletedTable:
+            source = "egs" if store == "Epic Games" else "gog"
+            started_item = table.item(row, 1)
+            assert started_item is not None
+            started_item.setData(
+                Qt.ItemDataRole.UserRole, (str(game["app_id"]), source)
+            )
         table.setRowHeight(row, self.theme.downloadsTableRowHeight)
         if table is self.downloadQueuedTable:
             details_label.setText(_("Queued"))
@@ -1332,6 +1363,13 @@ class MainWindowDownloadTabMixin(_MainWindowTypingBase):
     def _update_active_download_details(self, details: list[str]) -> None:
         self.downloadActiveDetails.setText("  ·  ".join(details))
 
+    def _notify_download_finished(self, game: dict, status: str) -> None:
+        tray_manager = getattr(self, "tray_manager", None)
+        if tray_manager is not None:
+            tray_manager.tray_icon.showMessage(
+                _("Downloads"), f"{game['title']}: {status}"
+            )
+
     def _on_gog_download_finished(
         self, code: int, _status: QProcess.ExitStatus
     ) -> None:
@@ -1362,6 +1400,7 @@ class MainWindowDownloadTabMixin(_MainWindowTypingBase):
             error = self._get_gog_download_error()
             completed_details.setText(error)
             logger.error("GOG download failed for %s: %s", app_id, error)
+        self._notify_download_finished(game, completed_action)
         self.gog_process = None
         self.downloadOverallProgress.setValue(0)
         self.downloadSpeedLabel.setText(_("Downloading: ") + "\u2014")
@@ -1434,6 +1473,7 @@ class MainWindowDownloadTabMixin(_MainWindowTypingBase):
             error = self._get_egs_download_error()
             completed_details.setText(error)
             logger.error("Epic download failed for %s: %s", app_id, error)
+        self._notify_download_finished(game, completed_action)
         process = self.egs_process
         self.egs_process = None
         self._clear_egs_data_lock()

@@ -172,6 +172,33 @@ def test_dlc_picker_preserves_installed_and_respects_cancel(
     window.deleteLater()
 
 
+def test_completed_download_opens_game_card_and_notifies() -> None:
+    application = download_tab_module.QApplication.instance() or download_tab_module.QApplication([])
+    table = download_tab_module.QTableWidget(1, 2)
+    item = download_tab_module.QTableWidgetItem()
+    item.setData(download_tab_module.Qt.ItemDataRole.UserRole, ("123", "gog"))
+    table.setItem(0, 1, item)
+    card = SimpleNamespace(appid="123", game_source="gog", click=MagicMock())
+    tray_icon = SimpleNamespace(showMessage=MagicMock())
+    window = SimpleNamespace(
+        downloadCompletedTable=table,
+        game_library_manager=SimpleNamespace(game_card_cache={"game": card}),
+        tray_manager=SimpleNamespace(tray_icon=tray_icon),
+    )
+
+    GOGMixin._open_completed_download(cast(Any, window), 0, 0)
+    GOGMixin._notify_download_finished(
+        cast(Any, window), {"title": "Game"}, "Installed"
+    )
+
+    assert application is not None
+    card.click.assert_called_once_with()
+    tray_icon.showMessage.assert_called_once_with(
+        download_tab_module._("Downloads"), "Game: Installed"
+    )
+    table.deleteLater()
+
+
 @mark.parametrize("source", ("gog", "egs"))
 def test_dlc_covers_use_store_metadata(tmp_path: Path, monkeypatch: MonkeyPatch, source: str) -> None:
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))

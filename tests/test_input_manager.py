@@ -617,6 +617,27 @@ def test_system_table_button_routes_action_and_sound(monkeypatch: MonkeyPatch) -
     assert app is not None
 
 
+def test_confirm_button_activates_table_callback(monkeypatch: MonkeyPatch) -> None:
+    app = QApplication.instance() or QApplication([])
+    table = QTableWidget(1, 1)
+    table.setItem(0, 0, QTableWidgetItem("Game"))
+    table.setCurrentCell(0, 0)
+    activated = []
+    table._on_confirm_callback = lambda _table, row, column: activated.append(  # type: ignore[attr-defined]
+        (row, column)
+    )
+    manager = InputManager.__new__(InputManager)
+    monkeypatch.setattr(
+        input_buttons, "SoundManager", lambda: SimpleNamespace(play=lambda _sound: None)
+    )
+    confirm_button = next(iter(input_manager.BUTTONS["confirm"]))
+
+    assert manager._handle_table_button(table, confirm_button)
+
+    assert activated == [(0, 0)]
+    assert app is not None
+
+
 def test_confirm_button_routes_line_edit_to_keyboard() -> None:
     app = QApplication.instance() or QApplication([])
     shown_for = []

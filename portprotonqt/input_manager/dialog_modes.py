@@ -265,7 +265,8 @@ class DialogInputModesMixin(InputMixin):
 
             # Check if the cell contains a checkbox
             item = table.item(current_row, current_col)
-            if item and (item.flags() & Qt.ItemFlag.ItemIsUserCheckable):
+            if (item and item.data(Qt.ItemDataRole.CheckStateRole) is not None
+                    and item.flags() & Qt.ItemFlag.ItemIsUserCheckable):
                 # Toggle the checkbox state
                 new_state = Qt.CheckState.Checked if item.checkState() == Qt.CheckState.Unchecked else Qt.CheckState.Unchecked
                 item.setCheckState(new_state)
