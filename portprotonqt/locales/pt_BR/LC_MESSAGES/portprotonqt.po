@@ -1222,8 +1222,15 @@ msgstr "O download ou a extração foi cancelado."
 msgid "System WINE"
 msgstr "WINE do Sistema"
 
+#, fuzzy
+msgid "Global Game Settings"
+msgstr "Salvar Configurações"
+
 msgid "Exe Settings"
 msgstr "Configurações do Exe"
+
+msgid "Edit user.conf"
+msgstr ""
 
 msgid "Search settings…"
 msgstr "Pesquisar configurações…"
@@ -1249,6 +1256,10 @@ msgstr "Editar PPDB"
 msgid "Clear PPDB"
 msgstr "Limpar PPDB"
 
+#, fuzzy
+msgid "Failed to load global game settings."
+msgstr "Falha ao carregar temas"
+
 msgid "Executable path is not available."
 msgstr "O caminho do executável não está disponível."
 
@@ -1256,6 +1267,10 @@ msgid "PPDB file does not exist at: "
 msgstr "O arquivo PPDB não existe em: "
 
 msgid "Failed to open PPDB file:\n"
+msgstr "Falha ao abrir o arquivo PPDB:\n"
+
+#, fuzzy
+msgid "Failed to open file:\n"
 msgstr "Falha ao abrir o arquivo PPDB:\n"
 
 msgid "Information"
@@ -1272,6 +1287,12 @@ msgstr ""
 msgid "Failed to remove PPDB file:\n"
 msgstr "Falha ao remover o arquivo PPDB:\n"
 
+msgid "Failed to apply changes. Check logs."
+msgstr "Falha ao aplicar as alterações. Verifique os logs."
+
+msgid "Default"
+msgstr "Padrão"
+
 msgid "disabled"
 msgstr "desativado"
 
@@ -1280,9 +1301,6 @@ msgstr "Digite o nome do prefixo"
 
 msgid "Default value"
 msgstr "Valor padrão"
-
-msgid "Failed to apply changes. Check logs."
-msgstr "Falha ao aplicar as alterações. Verifique os logs."
 
 msgid "Borderless window"
 msgstr "Janela sem bordas"
@@ -1486,9 +1504,6 @@ msgstr "Predefinições rápidas"
 #, python-brace-format
 msgid "Enable {0}"
 msgstr "Ativar {0}"
-
-msgid "Default"
-msgstr "Padrão"
 
 msgid "FSR upscaling"
 msgstr "FSR upscaling"

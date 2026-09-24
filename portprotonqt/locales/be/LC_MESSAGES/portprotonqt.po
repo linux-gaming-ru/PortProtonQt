@@ -1138,7 +1138,13 @@ msgstr ""
 msgid "System WINE"
 msgstr ""
 
+msgid "Global Game Settings"
+msgstr ""
+
 msgid "Exe Settings"
+msgstr ""
+
+msgid "Edit user.conf"
 msgstr ""
 
 msgid "Search settings…"
@@ -1165,6 +1171,9 @@ msgstr ""
 msgid "Clear PPDB"
 msgstr ""
 
+msgid "Failed to load global game settings."
+msgstr ""
+
 msgid "Executable path is not available."
 msgstr ""
 
@@ -1172,6 +1181,9 @@ msgid "PPDB file does not exist at: "
 msgstr ""
 
 msgid "Failed to open PPDB file:\n"
+msgstr ""
+
+msgid "Failed to open file:\n"
 msgstr ""
 
 msgid "Information"
@@ -1186,6 +1198,12 @@ msgstr ""
 msgid "Failed to remove PPDB file:\n"
 msgstr ""
 
+msgid "Failed to apply changes. Check logs."
+msgstr ""
+
+msgid "Default"
+msgstr ""
+
 msgid "disabled"
 msgstr ""
 
@@ -1193,9 +1211,6 @@ msgid "Enter prefix name"
 msgstr ""
 
 msgid "Default value"
-msgstr ""
-
-msgid "Failed to apply changes. Check logs."
 msgstr ""
 
 msgid "Borderless window"
@@ -1389,9 +1404,6 @@ msgstr ""
 
 #, python-brace-format
 msgid "Enable {0}"
-msgstr ""
-
-msgid "Default"
 msgstr ""
 
 msgid "FSR upscaling"
