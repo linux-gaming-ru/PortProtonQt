@@ -728,6 +728,15 @@ class MainWindowSettingsTabMixin(_MainWindowTypingBase):
         self.resetSettingsButton.clicked.connect(self.resetSettings)
         buttonsLayout.addWidget(self.resetSettingsButton)
 
+        self.globalGameSettingsButton = AutoSizeButton(
+            _("Global Game Settings"), icon=self.theme_manager.get_icon("settings", as_path=True)
+        )
+        self.globalGameSettingsButton.setProperty("theme_style_name", "ACTION_BUTTON_STYLE")
+        self.globalGameSettingsButton.setStyleSheet(self.theme.ACTION_BUTTON_STYLE)
+        self.globalGameSettingsButton.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.globalGameSettingsButton.clicked.connect(self.openGlobalGameSettings)
+        buttonsLayout.addWidget(self.globalGameSettingsButton)
+
         self.migrateShortcutsButton = AutoSizeButton(_("Migrate legacy shortcuts"), icon=self.theme_manager.get_icon("update", as_path=True))
         self.migrateShortcutsButton.setProperty("theme_style_name", "ACTION_BUTTON_STYLE")
         self.migrateShortcutsButton.setStyleSheet(self.theme.ACTION_BUTTON_STYLE)
@@ -747,6 +756,11 @@ class MainWindowSettingsTabMixin(_MainWindowTypingBase):
 
         layout.addLayout(buttonsLayout)
         self.stackedWidget.addWidget(self.portProtonWidget)
+
+    def openGlobalGameSettings(self) -> None:
+        from portprotonqt.dialogs.settings_dialog import ExeSettingsDialog
+
+        ExeSettingsDialog(self, self.theme, user_conf=True).exec()
 
     def resetSettings(self):
         """Reset settings and restart application."""

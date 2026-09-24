@@ -273,7 +273,7 @@ case "$1" in
 --launch                                            Launches the application immediately, requires the path to the .exe file
 --edit-db                                           After the variable, the path to the .exe file is required and then the variables.
                                                     (List their variables and values for example PW_MANGOHUD=1 PW_VKBASALT=0, etc.)
---get-user-conf                                     Get a value from user.conf file, requires variable name
+--get-user-conf                                     Get one or all values from user.conf file
 --set-user-conf                                     Set a value in user.conf file, requires variable name and value
 --del-user-conf                                     Delete a value from user.conf file, requires variable name
 --list-db                                           List all available database variables
