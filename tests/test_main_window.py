@@ -317,7 +317,6 @@ TAB_METHODS = {
     ),
     WineMixin: (
         "createWineTab",
-        "save_wine_defaults",
         "launch_generic_tool",
         "_start_wine_process_monitor",
         "_check_wine_process",
