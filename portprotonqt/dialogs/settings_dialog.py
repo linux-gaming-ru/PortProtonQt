@@ -45,6 +45,7 @@ from portprotonqt.dialogs.settings_vkbasalt import VKBASALT_ENV_KEYS, VkBasaltSe
 from portprotonqt.localization import _, format_setting_name_for_display
 from portprotonqt.logger import get_logger
 from portprotonqt.preloader import Preloader
+from portprotonqt.qt_utils import get_screen_info, get_system_dpi_for_wine
 from portprotonqt.settings_manager import (
     ADVANCED_SETTING_KEYS,
     get_available_prefix_options,
@@ -154,12 +155,21 @@ class ExeSettingsDialog(
 
         self.dist_options = []
         self.lg_dist_aliases = {}
+        self.plugins_ver = ""
         self.prefix_options = []
         if self.portproton_path:
             scripts_path = get_portproton_scripts_path()
             if scripts_path:
                 var_path = os.path.join(scripts_path, "var")
                 self.lg_dist_aliases = read_lg_dist_versions_from_var(var_path)
+                try:
+                    with open(var_path, encoding="utf-8") as var_file:
+                        for line in var_file:
+                            if line.startswith('export PW_PLUGINS_VER='):
+                                self.plugins_ver = line.split('=', 1)[1].strip().strip('"\'')
+                                break
+                except OSError as exc:
+                    logger.warning("Failed to read PW_PLUGINS_VER: %s", exc)
             system_wine_label = "" if self.game_source == "steam" else _('System WINE')
             self.dist_options = get_available_wine_options(
                 self.portproton_path, system_wine_label, self.game_source == "steam"
@@ -535,6 +545,8 @@ class ExeSettingsDialog(
                             self.current_settings[key] = val
                     except ValueError:
                         continue
+        if self.user_conf and self.plugins_ver:
+            self.current_settings['PW_PLUGINS_VER'] = self.plugins_ver
 
         if self.game_source == "steam":
             self.blocked_keys.update({
@@ -669,7 +681,18 @@ class ExeSettingsDialog(
             logger.warning("Failed to remove user.conf: %s", exc)
             QMessageBox.warning(self, _("Error"), _("Failed to apply changes. Check logs."))
             return
-        self.load_current_settings()
+        screen_resolution, screen_primary = get_screen_info()
+        self.user_conf_changes = [
+            screen_resolution,
+            screen_primary,
+            f"PW_WINE_DPI_VALUE={get_system_dpi_for_wine()}",
+        ]
+        self.user_conf_changes = [
+            change for change in self.user_conf_changes if change.split('=', 1)[1]
+        ]
+        self.close_after_user_conf_changes = False
+        self.apply_button.setEnabled(False)
+        self._apply_next_user_conf_change()
 
     def populate_table(self):
         """Populate the table with settings."""
@@ -1409,6 +1432,7 @@ class ExeSettingsDialog(
 
         if self.user_conf:
             self.user_conf_changes = changes
+            self.close_after_user_conf_changes = True
             self.apply_button.setEnabled(False)
             self._apply_next_user_conf_change()
             return
@@ -1423,7 +1447,10 @@ class ExeSettingsDialog(
     def _apply_next_user_conf_change(self) -> None:
         if not self.user_conf_changes:
             self.apply_button.setEnabled(True)
-            self.close()
+            if self.close_after_user_conf_changes:
+                self.close()
+            else:
+                self.load_current_settings()
             return
 
         key, value = self.user_conf_changes.pop(0).split('=', 1)
