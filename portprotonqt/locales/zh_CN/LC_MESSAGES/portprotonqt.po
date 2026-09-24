@@ -2551,9 +2551,6 @@ msgstr "加载主题失败"
 msgid "Prefix:"
 msgstr "前缀："
 
-msgid "Use by default"
-msgstr "默认使用"
-
 msgid "Wine Configuration"
 msgstr "Wine 配置"
 
