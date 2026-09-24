@@ -720,11 +720,17 @@ class ExeSettingsDialog(
             is_blocked = toggle in self.blocked_keys
             if self.user_conf:
                 value_widget = CustomComboBox(theme=self.theme)
+                value_widget.setObjectName("settingsTableCombo")
+                value_widget.view().window().setWindowFlags(
+                    Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint
+                )
+                value_widget.view().window().setAttribute(
+                    Qt.WidgetAttribute.WA_TranslucentBackground
+                )
                 value_widget.addItem(_("Default"), "")
                 value_widget.addItem(_("Yes"), "1")
                 value_widget.addItem(_("No"), "0")
                 value_widget.setCurrentIndex(max(0, value_widget.findData(current_val)))
-                value_widget.setStyleSheet(self.theme.COMBOBOX_STYLE)
             else:
                 value_widget = QCheckBox()
                 value_widget.setStyleSheet(self.theme.CHECKBOX_STYLE)
@@ -732,19 +738,22 @@ class ExeSettingsDialog(
             value_widget.setEnabled(not is_blocked)
             value_widget.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
             value_widget.installEventFilter(self)
-            checkbox_container = QWidget()
-            checkbox_container.setStyleSheet(self.theme.CHECKBOX_STYLE + self.theme.TRANSPARENT_BACKGROUND_STYLE)
-            checkbox_layout = QHBoxLayout(checkbox_container)
-            checkbox_layout.setContentsMargins(0, 0, 0, 0)
-            checkbox_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            checkbox_layout.addWidget(value_widget)
-            checkbox_container.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-            checkbox_item = QTableWidgetItem()
-            checkbox_item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
             if is_blocked:
                 name_item.setForeground(QColor(self.theme.color_disabled_text))
-            self.settings_table.setItem(row, 1, checkbox_item)
-            self.settings_table.setCellWidget(row, 1, checkbox_container)
+            if self.user_conf:
+                self.settings_table.setCellWidget(row, 1, value_widget)
+            else:
+                checkbox_container = QWidget()
+                checkbox_container.setStyleSheet(self.theme.CHECKBOX_STYLE + self.theme.TRANSPARENT_BACKGROUND_STYLE)
+                checkbox_layout = QHBoxLayout(checkbox_container)
+                checkbox_layout.setContentsMargins(0, 0, 0, 0)
+                checkbox_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                checkbox_layout.addWidget(value_widget)
+                checkbox_container.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+                checkbox_item = QTableWidgetItem()
+                checkbox_item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
+                self.settings_table.setItem(row, 1, checkbox_item)
+                self.settings_table.setCellWidget(row, 1, checkbox_container)
 
             desc_item = QTableWidgetItem(description)
             desc_item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)

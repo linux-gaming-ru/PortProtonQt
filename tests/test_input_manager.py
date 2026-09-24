@@ -549,6 +549,27 @@ def test_confirm_button_opens_combo_popup() -> None:
     assert app is not None
 
 
+def test_user_conf_table_combo_gets_focus_and_opens() -> None:
+    app = QApplication.instance() or QApplication([])
+    table = QTableWidget(1, 2)
+    combo = QComboBox()
+    combo.addItems(["Default", "Yes", "No"])
+    table.setCellWidget(0, 1, combo)
+    table.setCurrentCell(0, 1)
+    table.show()
+    combo.show()
+    app.processEvents()
+    manager = InputManager.__new__(InputManager)
+    manager.settings_dialog = SimpleNamespace(settings_table=table)
+
+    manager._focus_settings_advanced_value_widget(table, 0)
+    assert QApplication.focusWidget() is combo
+    assert manager.handle_table_confirm(table)
+    assert combo.view().isVisible()
+    combo.hidePopup()
+    assert app is not None
+
+
 def test_back_button_closes_visible_combo_popup() -> None:
     app = QApplication.instance() or QApplication([])
     combo = QComboBox()
