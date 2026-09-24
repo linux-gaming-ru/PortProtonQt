@@ -26,7 +26,11 @@ from portprotonqt.localization import _
 from portprotonqt.logger import get_logger
 from portprotonqt.portproton_api import get_user_conf_setting
 from portprotonqt.scripts_utils.prefix_backup import is_legacy_squashfs_backup
-from portprotonqt.settings_manager import get_available_prefix_options, get_available_wine_options
+from portprotonqt.settings_manager import (
+    LG_WINE_ALIASES,
+    get_available_prefix_options,
+    get_available_wine_options,
+)
 
 logger = get_logger(__name__)
 
@@ -64,9 +68,7 @@ class MainWindowWineTabMixin(_MainWindowTypingBase):
         formLayout.setSpacing(self.theme.wineSettingsSetSpacing)
         formLayout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
 
-        self.wine_versions = get_available_wine_options(
-            self.portproton_location, include_lg_aliases=True
-        )
+        self.wine_versions = get_available_wine_options(self.portproton_location)
         self.wineCombo = CustomComboBox(theme=self.theme)
         self.wineCombo.view().window().setWindowFlags(
             Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint
@@ -84,7 +86,7 @@ class MainWindowWineTabMixin(_MainWindowTypingBase):
         if self.wine_versions:
             self.wineCombo.setCurrentIndex(0)
         default_wine = get_user_conf_setting('PW_DEFAULT_WINE_USE')
-        if default_wine:
+        if default_wine and default_wine not in dict(LG_WINE_ALIASES):
             if self.wineCombo.findText(default_wine) == -1:
                 self.wineCombo.addItem(default_wine)
             self.wineCombo.setCurrentText(default_wine)
@@ -457,9 +459,7 @@ class MainWindowWineTabMixin(_MainWindowTypingBase):
         if not self.portproton_location:
             return
 
-        self.wine_versions = get_available_wine_options(
-            self.portproton_location, include_lg_aliases=True
-        )
+        self.wine_versions = get_available_wine_options(self.portproton_location)
         self.wineCombo.clear()
         self.wineCombo.addItems(self.wine_versions)
 
