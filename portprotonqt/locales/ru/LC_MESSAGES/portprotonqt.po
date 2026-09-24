@@ -1217,8 +1217,15 @@ msgstr "Скачивание или распаковка отменены."
 msgid "System WINE"
 msgstr "Системный WINE"
 
+#, fuzzy
+msgid "Global Game Settings"
+msgstr "Сохранить настройки"
+
 msgid "Exe Settings"
 msgstr "Настройки EXE"
+
+msgid "Edit user.conf"
+msgstr ""
 
 msgid "Search settings…"
 msgstr "Поиск настроек…"
@@ -1244,6 +1251,10 @@ msgstr "Редактировать PPDB"
 msgid "Clear PPDB"
 msgstr "Очистить PPDB"
 
+#, fuzzy
+msgid "Failed to load global game settings."
+msgstr "Не удалось загрузить темы"
+
 msgid "Executable path is not available."
 msgstr "Путь к исполняемому файлу недоступен."
 
@@ -1251,6 +1262,10 @@ msgid "PPDB file does not exist at: "
 msgstr "Файл PPDB не существует по адресу: "
 
 msgid "Failed to open PPDB file:\n"
+msgstr "Не удалось открыть файл PPDB:\n"
+
+#, fuzzy
+msgid "Failed to open file:\n"
 msgstr "Не удалось открыть файл PPDB:\n"
 
 msgid "Information"
@@ -1265,6 +1280,12 @@ msgstr "Уверены, что хотите сбросить настройки?
 msgid "Failed to remove PPDB file:\n"
 msgstr "Не удалось удалить файл PPDB:\n"
 
+msgid "Failed to apply changes. Check logs."
+msgstr "Не удалось применить изменения. Проверьте логи."
+
+msgid "Default"
+msgstr "Стандартный"
+
 msgid "disabled"
 msgstr "отключено"
 
@@ -1273,9 +1294,6 @@ msgstr "Введите имя префикса"
 
 msgid "Default value"
 msgstr "По умолчанию"
-
-msgid "Failed to apply changes. Check logs."
-msgstr "Не удалось применить изменения. Проверьте логи."
 
 msgid "Borderless window"
 msgstr "Без рамок"
@@ -1481,9 +1499,6 @@ msgstr "Быстрые профили"
 #, python-brace-format
 msgid "Enable {0}"
 msgstr "Включить {0}"
-
-msgid "Default"
-msgstr "Стандартный"
 
 msgid "FSR upscaling"
 msgstr "FSR масштабирование"

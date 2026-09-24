@@ -213,6 +213,27 @@ def test_game_launch_marker_is_emitted_for_wine_and_proton() -> None:
     assert helper.count(marker) == 2
 
 
+def test_user_conf_get_without_name_lists_active_values(tmp_path: Path) -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text()
+    definition = helper.split("manage_user_conf_value () {", 1)[1].split(
+        "use_exiftool () {", 1
+    )[0]
+    user_conf = tmp_path / "user.conf"
+    user_conf.write_text(
+        '# comment\nexport PW_USE_ESYNC="1"\n# export PW_USE_FSYNC="1"\n',
+        encoding="utf-8",
+    )
+    script = "manage_user_conf_value () {" + definition + '\nmanage_user_conf_value get\n'
+
+    result = subprocess.run(
+        ["bash", "-c", script], capture_output=True, text=True,
+        env={"PATH": os.defpath, "USER_CONF": str(user_conf)}, check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == 'PW_USE_ESYNC="1"\n'
+
+
 @mark.parametrize("runtime,logging", [("0", "0"), ("0", "1"), ("1", "0"), ("1", "1")])
 def test_wine_exit_code_survives_log_output_and_wineserver_wait(
     tmp_path: Path, runtime: str, logging: str,

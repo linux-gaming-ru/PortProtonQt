@@ -1218,8 +1218,15 @@ msgstr "Der Download oder das Entpacken wurde abgebrochen."
 msgid "System WINE"
 msgstr "System WINE"
 
+#, fuzzy
+msgid "Global Game Settings"
+msgstr "Einstellungen speichern"
+
 msgid "Exe Settings"
 msgstr "Einstellungen für die exe-Datei"
+
+msgid "Edit user.conf"
+msgstr ""
 
 msgid "Search settings…"
 msgstr "Einstellungen suchen…"
@@ -1245,6 +1252,10 @@ msgstr "PPDB bearbeiten"
 msgid "Clear PPDB"
 msgstr "PPDB zurücksetzen"
 
+#, fuzzy
+msgid "Failed to load global game settings."
+msgstr "Laden der Themes fehlgeschlagen"
+
 msgid "Executable path is not available."
 msgstr "Der Pfad zur ausführbaren Datei ist nicht verfügbar."
 
@@ -1252,6 +1263,10 @@ msgid "PPDB file does not exist at: "
 msgstr "PPDB-Datei ist nicht vorhanden unter: "
 
 msgid "Failed to open PPDB file:\n"
+msgstr "Fehler beim Öffnen der PPDB-Datei:\n"
+
+#, fuzzy
+msgid "Failed to open file:\n"
 msgstr "Fehler beim Öffnen der PPDB-Datei:\n"
 
 msgid "Information"
@@ -1268,6 +1283,12 @@ msgstr ""
 msgid "Failed to remove PPDB file:\n"
 msgstr "Fehler beim Entfernen der PPDB-Datei:\n"
 
+msgid "Failed to apply changes. Check logs."
+msgstr "Anwenden der Änderungen fehlgeschlagen. Überprüfe die Protokolle."
+
+msgid "Default"
+msgstr "Standard"
+
 msgid "disabled"
 msgstr "deaktiviert"
 
@@ -1276,9 +1297,6 @@ msgstr "Prefix-Name eingeben"
 
 msgid "Default value"
 msgstr "Standardwert"
-
-msgid "Failed to apply changes. Check logs."
-msgstr "Anwenden der Änderungen fehlgeschlagen. Überprüfe die Protokolle."
 
 msgid "Borderless window"
 msgstr "Rahmenloses Fenster"
@@ -1482,9 +1500,6 @@ msgstr "Voreingestellte Einstellungen"
 #, python-brace-format
 msgid "Enable {0}"
 msgstr "Einschalten {0}"
-
-msgid "Default"
-msgstr "Standard"
 
 msgid "FSR upscaling"
 msgstr "FSR-Upscaling"

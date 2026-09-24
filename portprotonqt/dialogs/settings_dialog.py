@@ -45,6 +45,7 @@ from portprotonqt.dialogs.settings_vkbasalt import VKBASALT_ENV_KEYS, VkBasaltSe
 from portprotonqt.localization import _, format_setting_name_for_display
 from portprotonqt.logger import get_logger
 from portprotonqt.preloader import Preloader
+from portprotonqt.qt_utils import get_screen_info, get_system_dpi_for_wine
 from portprotonqt.settings_manager import (
     ADVANCED_SETTING_KEYS,
     get_available_prefix_options,
@@ -65,8 +66,6 @@ TOGGLE_BOOL_KEYS = {
     'PW_VKBASALT',
     'PW_VKBASALT_USER_CONF',
 }
-
-
 def _normalize_prefix_directories(prefixes_dir):
     if not os.path.isdir(prefixes_dir):
         return
@@ -135,13 +134,15 @@ class ExeSettingsDialog(
 ):
     """Dialog for configuring executable-specific settings."""
 
-    def __init__(self, parent=None, theme=None, exe_path=None, appid=None, game_source=None):
+    def __init__(self, parent=None, theme=None, exe_path=None, appid=None, game_source=None,
+                 user_conf=False):
         super().__init__(parent)
         self.theme = theme if theme else theme_manager.apply_theme(ui_config.get_theme())
         self.exe_path = exe_path
         self.appid = appid
         self.game_source = str(game_source).lower() if game_source else ""
-        if not self.exe_path and not self.appid:
+        self.user_conf = user_conf
+        if not self.user_conf and not self.exe_path and not self.appid:
             return
         self.portproton_path = get_portproton_location()
         if self.portproton_path is None:
@@ -154,12 +155,21 @@ class ExeSettingsDialog(
 
         self.dist_options = []
         self.lg_dist_aliases = {}
+        self.plugins_ver = ""
         self.prefix_options = []
         if self.portproton_path:
             scripts_path = get_portproton_scripts_path()
             if scripts_path:
                 var_path = os.path.join(scripts_path, "var")
                 self.lg_dist_aliases = read_lg_dist_versions_from_var(var_path)
+                try:
+                    with open(var_path, encoding="utf-8") as var_file:
+                        for line in var_file:
+                            if line.startswith('export PW_PLUGINS_VER='):
+                                self.plugins_ver = line.split('=', 1)[1].strip().strip('"\'')
+                                break
+                except OSError as exc:
+                    logger.warning("Failed to read PW_PLUGINS_VER: %s", exc)
             system_wine_label = "" if self.game_source == "steam" else _('System WINE')
             self.dist_options = get_available_wine_options(
                 self.portproton_path, system_wine_label, self.game_source == "steam"
@@ -185,7 +195,7 @@ class ExeSettingsDialog(
         self.logical_core_options = []
         self._gamepad_tooltip_map = {}
 
-        self.setWindowTitle(_("Exe Settings"))
+        self.setWindowTitle(_("Global Game Settings") if self.user_conf else _("Exe Settings"))
         self.setModal(True)
         self.resize(1100, 720)
         self.setStyleSheet(self.theme.MAIN_WINDOW_STYLE + self.theme.MESSAGE_BOX_STYLE)
@@ -194,6 +204,16 @@ class ExeSettingsDialog(
         self.toggle_settings = get_toggle_settings()
 
         self.setup_ui()
+        if self.user_conf:
+            self.open_ppdb_button.clicked.disconnect()
+            self.open_ppdb_button.setText(_("Edit user.conf"))
+            self.open_ppdb_button.clicked.connect(self.open_user_conf)
+            self.clear_ppdb_button.clicked.disconnect()
+            self.clear_ppdb_button.setText(_("Clear All"))
+            self.clear_ppdb_button.clicked.connect(self.clear_user_conf)
+            self.settings_table.horizontalHeader().setSectionResizeMode(
+                1, QHeaderView.ResizeMode.ResizeToContents
+            )
         app = QApplication.instance()
         if isinstance(app, QApplication):
             app.focusChanged.connect(self._on_focus_changed)
@@ -472,7 +492,10 @@ class ExeSettingsDialog(
 
         process = QProcess(self)
         process.finished.connect(self.on_show_ppdb_finished)
-        args = self._get_process_args(["cli", "--show-ppdb", f"{self.exe_path}"])
+        command = ["cli", "--get-user-conf"] if self.user_conf else [
+            "cli", "--show-ppdb", f"{self.exe_path}"
+        ]
+        args = self._get_process_args(command)
         process.start(args[0], args[1:])
 
     def on_show_ppdb_finished(self, exit_code, exit_status):
@@ -483,6 +506,13 @@ class ExeSettingsDialog(
         self.numa_nodes = _get_numa_nodes()
         self.logical_core_options = []
         self.locale_options = []
+
+        if self.user_conf and (
+            exit_code != 0 or exit_status != QProcess.ExitStatus.NormalExit
+        ):
+            QMessageBox.warning(self, _("Error"), _("Failed to load global game settings."))
+            self.reject()
+            return
 
         if exit_code == 0 and exit_status == QProcess.ExitStatus.NormalExit:
             output = bytes(process.readAllStandardOutput().data()).decode('utf-8', 'ignore')
@@ -515,6 +545,8 @@ class ExeSettingsDialog(
                             self.current_settings[key] = val
                     except ValueError:
                         continue
+        if self.user_conf and self.plugins_ver:
+            self.current_settings['PW_PLUGINS_VER'] = self.plugins_ver
 
         if self.game_source == "steam":
             self.blocked_keys.update({
@@ -539,7 +571,7 @@ class ExeSettingsDialog(
                 self.current_settings[key] = ''
             for key in VKBASALT_ENV_KEYS:
                 self.current_settings[key] = ''
-        else:
+        elif not self.user_conf:
             self.current_settings.setdefault('PW_MANGOHUD', '0')
             self.current_settings.setdefault('PW_VKBASALT', '0')
 
@@ -560,7 +592,7 @@ class ExeSettingsDialog(
 
         self.original_values = self.current_settings.copy()
         for key in set(self.toggle_settings.keys()):
-            self.original_values.setdefault(key, '0')
+            self.original_values.setdefault(key, '' if self.user_conf else '0')
 
         self.populate_table()
         self.populate_advanced()
@@ -587,6 +619,14 @@ class ExeSettingsDialog(
 
         if not QDesktopServices.openUrl(QUrl.fromLocalFile(db_path)):
             QMessageBox.critical(self, _("Error"), _("Failed to open PPDB file:\n") + db_path)
+
+    def open_user_conf(self) -> None:
+        user_conf = os.path.join(cast(str, self.portproton_path), "data", "user.conf")
+        if not os.path.exists(user_conf):
+            QMessageBox.critical(self, _("Error"), _("Failed to open file:\n") + user_conf)
+            return
+        if not QDesktopServices.openUrl(QUrl.fromLocalFile(user_conf)):
+            QMessageBox.critical(self, _("Error"), _("Failed to open file:\n") + user_conf)
 
     def clear_ppdb_file(self):
         """Remove the PPDB file and reload settings."""
@@ -620,6 +660,40 @@ class ExeSettingsDialog(
 
         self.load_current_settings()
 
+    def clear_user_conf(self) -> None:
+        msg_box = QMessageBox(self)
+        msg_box.setIcon(QMessageBox.Icon.Question)
+        msg_box.setWindowTitle(_("Confirm Clear"))
+        msg_box.setText(_("Are you sure you want to clear settings? This action cannot be undone."))
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        msg_box.setDefaultButton(QMessageBox.StandardButton.No)
+        msg_box.setButtonText(QMessageBox.StandardButton.Yes, _("Yes"))
+        msg_box.setButtonText(QMessageBox.StandardButton.No, _("No"))
+        if msg_box.exec() != QMessageBox.StandardButton.Yes:
+            return
+
+        user_conf = os.path.join(cast(str, self.portproton_path), "data", "user.conf")
+        try:
+            os.remove(user_conf)
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            logger.warning("Failed to remove user.conf: %s", exc)
+            QMessageBox.warning(self, _("Error"), _("Failed to apply changes. Check logs."))
+            return
+        screen_resolution, screen_primary = get_screen_info()
+        self.user_conf_changes = [
+            screen_resolution,
+            screen_primary,
+            f"PW_WINE_DPI_VALUE={get_system_dpi_for_wine()}",
+        ]
+        self.user_conf_changes = [
+            change for change in self.user_conf_changes if change.split('=', 1)[1]
+        ]
+        self.close_after_user_conf_changes = False
+        self.apply_button.setEnabled(False)
+        self._apply_next_user_conf_change()
+
     def populate_table(self):
         """Populate the table with settings."""
         self.settings_table.setRowCount(0)
@@ -640,20 +714,30 @@ class ExeSettingsDialog(
             name_item.setData(Qt.ItemDataRole.UserRole, toggle)
             name_item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
 
-            current_val = self.current_settings.get(toggle, '0')
+            current_val = self.current_settings.get(toggle, '') if self.user_conf else (
+                self.current_settings.get(toggle, '0')
+            )
             is_blocked = toggle in self.blocked_keys
-            checkbox_widget = QCheckBox()
-            checkbox_widget.setStyleSheet(self.theme.CHECKBOX_STYLE)
-            checkbox_widget.setChecked(current_val == '1' and not is_blocked)
-            checkbox_widget.setEnabled(not is_blocked)
-            checkbox_widget.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-            checkbox_widget.installEventFilter(self)
+            if self.user_conf:
+                value_widget = CustomComboBox(theme=self.theme)
+                value_widget.addItem(_("Default"), "")
+                value_widget.addItem(_("Yes"), "1")
+                value_widget.addItem(_("No"), "0")
+                value_widget.setCurrentIndex(max(0, value_widget.findData(current_val)))
+                value_widget.setStyleSheet(self.theme.COMBOBOX_STYLE)
+            else:
+                value_widget = QCheckBox()
+                value_widget.setStyleSheet(self.theme.CHECKBOX_STYLE)
+                value_widget.setChecked(current_val == '1' and not is_blocked)
+            value_widget.setEnabled(not is_blocked)
+            value_widget.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+            value_widget.installEventFilter(self)
             checkbox_container = QWidget()
             checkbox_container.setStyleSheet(self.theme.CHECKBOX_STYLE + self.theme.TRANSPARENT_BACKGROUND_STYLE)
             checkbox_layout = QHBoxLayout(checkbox_container)
             checkbox_layout.setContentsMargins(0, 0, 0, 0)
             checkbox_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            checkbox_layout.addWidget(checkbox_widget)
+            checkbox_layout.addWidget(value_widget)
             checkbox_container.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             checkbox_item = QTableWidgetItem()
             checkbox_item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
@@ -670,7 +754,7 @@ class ExeSettingsDialog(
             self.settings_table.setItem(row, 2, desc_item)
 
             self.settings_table.setItem(row, 0, name_item)
-            self.value_widgets[(row, 1)] = checkbox_widget
+            self.value_widgets[(row, 1)] = value_widget
 
         self.settings_table.resizeRowsToContents()
         if self.settings_table.rowCount() > 0:
@@ -702,6 +786,14 @@ class ExeSettingsDialog(
             dist_options=self.dist_options,
             prefix_options=self.prefix_options
         )
+        if self.user_conf:
+            advanced_settings = [
+                setting for setting in advanced_settings
+                if setting['key'] not in ('PW_WINE_USE', 'PW_PREFIX_NAME', 'PW_VULKAN_USE')
+            ]
+            for setting in advanced_settings:
+                if setting['type'] == 'combo':
+                    setting['options'] = [_('Default')] + setting['options']
         self.advanced_settings_by_key = {
             setting['key']: setting for setting in advanced_settings
         }
@@ -740,8 +832,12 @@ class ExeSettingsDialog(
                         lambda row, c=combo: self._on_combo_highlighted(row, c),
                     )
 
-                current_raw = current.get(setting['key'], setting['default'])
-                if setting['key'] == 'PW_WINE_CPU_TOPOLOGY':
+                current_raw = current.get(setting['key'], '') if self.user_conf else (
+                    current.get(setting['key'], setting['default'])
+                )
+                if self.user_conf and not current_raw:
+                    current_val = _('Default')
+                elif setting['key'] == 'PW_WINE_CPU_TOPOLOGY':
                     current_val = disabled_text if current_raw == 'disabled' else (
                         current_raw.split(':')[0] if isinstance(current_raw, str) and ':' in current_raw else current_raw
                     )
@@ -781,6 +877,9 @@ class ExeSettingsDialog(
                 else:
                     self.original_display_values[setting['key']] = current_val_text
 
+                if self.user_conf and not current_raw:
+                    self.original_display_values[setting['key']] = ''
+
                 if '_value_map' in setting:
                     reverse_map = {v: k for k, v in setting['_value_map'].items()}
                     self.value_mapping[setting['key']] = {
@@ -790,7 +889,9 @@ class ExeSettingsDialog(
 
             elif setting['type'] == 'text':
                 line_edit = QLineEdit()
-                current_val = current.get(setting['key'], setting['default'])
+                current_val = current.get(setting['key'], '') if self.user_conf else (
+                    current.get(setting['key'], setting['default'])
+                )
                 line_edit.setText(current_val)
                 if not current_val and not setting['default']:
                     line_edit.setPlaceholderText(_("Default value"))
@@ -996,6 +1097,10 @@ class ExeSettingsDialog(
         source_widget = self._find_toggle_widget(key)
         checkbox = QCheckBox()
         checkbox.setStyleSheet(self.theme.CHECKBOX_STYLE)
+        if isinstance(source_widget, QComboBox):
+            self.favorites_table.removeCellWidget(row, 1)
+            self._add_favorite_combo(row, source_widget)
+            return
         checkbox.setChecked(source_widget.isChecked() if source_widget else False)
         checkbox.setEnabled(source_widget.isEnabled() if source_widget else False)
         checkbox.stateChanged.connect(
@@ -1039,7 +1144,7 @@ class ExeSettingsDialog(
         self.favorites_table.setItem(row, 0, name_item)
         self.favorites_table.setItem(row, 2, desc_item)
 
-    def _find_toggle_widget(self, key: str) -> QCheckBox | None:
+    def _find_toggle_widget(self, key: str) -> QCheckBox | QComboBox | None:
         for (row, _column), widget in self.value_widgets.items():
             item = self.settings_table.item(row, 0)
             if item and item.data(Qt.ItemDataRole.UserRole) == key:
@@ -1047,8 +1152,8 @@ class ExeSettingsDialog(
         return None
 
     def _sync_checkbox(self, source_widget: QCheckBox | None, checkbox: QCheckBox) -> None:
-        if source_widget is not None and source_widget.isChecked() != checkbox.isChecked():
-            source_widget.setChecked(checkbox.isChecked())
+        if source_widget is not None and source_widget.checkState() != checkbox.checkState():
+            source_widget.setCheckState(checkbox.checkState())
 
     def _add_favorite_combo(self, row: int, source_widget: QComboBox) -> None:
         combo = CustomComboBox(theme=self.theme)
@@ -1226,10 +1331,12 @@ class ExeSettingsDialog(
                 continue
 
             widget = self.value_widgets.get((row, 1))
-            if not isinstance(widget, QCheckBox):
+            if isinstance(widget, QComboBox) and self.user_conf:
+                new_val = str(widget.currentData() or '')
+            elif isinstance(widget, QCheckBox):
+                new_val = '1' if widget.isChecked() else '0'
+            else:
                 continue
-
-            new_val = '1' if widget.isChecked() else '0'
             if new_val != orig_val:
                 changes.append(f"{key}={new_val}")
                 # Track if PW_MANGOHUD is being enabled
@@ -1240,6 +1347,8 @@ class ExeSettingsDialog(
             orig_val = self.original_display_values.get(key, '')
             if isinstance(widget, QComboBox):
                 new_val = widget.currentText()
+                if self.user_conf and new_val == _('Default'):
+                    new_val = ''
                 if key in ('PW_PREFIX_NAME', 'PW_VULKAN_USE') and self.game_source == "steam":
                     continue
                 if key == 'PW_PREFIX_NAME':
@@ -1275,9 +1384,32 @@ class ExeSettingsDialog(
         gamescope_changes = []
         if self.gamescope_available:
             gamescope_changes = self._collect_gamescope_changes()
-        changes.extend(mangohud_changes)
-        changes.extend(self._collect_vkbasalt_changes())
-        changes.extend(gamescope_changes)
+        vkbasalt_changes = self._collect_vkbasalt_changes()
+        if self.user_conf:
+            if self.current_settings.get('PW_MANGOHUD') != '1':
+                mangohud_changes = [
+                    change for change in mangohud_changes
+                    if change.startswith(('PW_MANGOHUD=', 'PW_MANGOHUD_USER_CONF='))
+                ]
+            if self.current_settings.get('PW_VKBASALT') != '1':
+                vkbasalt_changes = [
+                    change for change in vkbasalt_changes
+                    if change.startswith(('PW_VKBASALT=', 'PW_VKBASALT_USER_CONF='))
+                ]
+            if self.current_settings.get('PW_GAMESCOPE') != '1':
+                gamescope_changes = [
+                    change for change in gamescope_changes
+                    if change.startswith('PW_GAMESCOPE=')
+                ]
+        specialized_changes = mangohud_changes + vkbasalt_changes + gamescope_changes
+        if self.user_conf:
+            defaults = ('', '0', '0.00', 'Home')
+            specialized_changes = [
+                change for change in specialized_changes
+                if change.split('=', 1)[0] in self.original_values
+                or change.split('=', 1)[1] not in defaults
+            ]
+        changes.extend(specialized_changes)
 
         # Check if PW_GAMESCOPE toggle changes are already in the list
         has_gamescope_toggle = any(change.startswith("PW_GAMESCOPE=") for change in gamescope_changes)
@@ -1298,12 +1430,49 @@ class ExeSettingsDialog(
         if not changes:
             return
 
+        if self.user_conf:
+            self.user_conf_changes = changes
+            self.close_after_user_conf_changes = True
+            self.apply_button.setEnabled(False)
+            self._apply_next_user_conf_change()
+            return
+
         process = QProcess(self)
         process.finished.connect(self.on_edit_db_finished)
         process_args = ["cli", "--edit-db", self.exe_path] + changes
         args = self._get_process_args(process_args)
         process.start(args[0], args[1:])
         self.apply_button.setEnabled(False)
+
+    def _apply_next_user_conf_change(self) -> None:
+        if not self.user_conf_changes:
+            self.apply_button.setEnabled(True)
+            if self.close_after_user_conf_changes:
+                self.close()
+            else:
+                self.load_current_settings()
+            return
+
+        key, value = self.user_conf_changes.pop(0).split('=', 1)
+        action = "--set-user-conf" if value else "--delete-user-conf"
+        command = ["cli", action, key]
+        if value:
+            command.append(value)
+        self.user_conf_process = QProcess(self)
+        self.user_conf_process.finished.connect(self._on_user_conf_change_finished)
+        args = self._get_process_args(command)
+        self.user_conf_process.start(args[0], args[1:])
+
+    def _on_user_conf_change_finished(self, exit_code, exit_status) -> None:
+        if exit_code != 0 or exit_status != QProcess.ExitStatus.NormalExit:
+            error_output = bytes(self.user_conf_process.readAllStandardError().data()).decode(
+                'utf-8', 'ignore'
+            )
+            self.apply_button.setEnabled(True)
+            QMessageBox.warning(self, _("Error"), _("Failed to apply changes. Check logs."))
+            logger.error("Failed to update user.conf: %s", error_output)
+            return
+        self._apply_next_user_conf_change()
 
     def on_edit_db_finished(self, exit_code, exit_status):
         """Handle --edit-db output."""

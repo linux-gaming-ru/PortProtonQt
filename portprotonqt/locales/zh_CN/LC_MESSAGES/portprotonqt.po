@@ -1183,8 +1183,15 @@ msgstr "下载或提取已被取消。"
 msgid "System WINE"
 msgstr "系统 WINE"
 
+#, fuzzy
+msgid "Global Game Settings"
+msgstr "保存设置"
+
 msgid "Exe Settings"
 msgstr "可执行文件设置"
+
+msgid "Edit user.conf"
+msgstr ""
 
 msgid "Search settings…"
 msgstr "搜索设置…"
@@ -1210,6 +1217,10 @@ msgstr "编辑 PPDB"
 msgid "Clear PPDB"
 msgstr "清除 PPDB"
 
+#, fuzzy
+msgid "Failed to load global game settings."
+msgstr "加载主题失败"
+
 msgid "Executable path is not available."
 msgstr "可执行文件路径不可用。"
 
@@ -1217,6 +1228,10 @@ msgid "PPDB file does not exist at: "
 msgstr "PPDB 文件不存在于： "
 
 msgid "Failed to open PPDB file:\n"
+msgstr "打开 PPDB 文件失败：\n"
+
+#, fuzzy
+msgid "Failed to open file:\n"
 msgstr "打开 PPDB 文件失败：\n"
 
 msgid "Information"
@@ -1231,6 +1246,12 @@ msgstr "确定要清除设置吗？此操作无法撤销。"
 msgid "Failed to remove PPDB file:\n"
 msgstr "移除 PPDB 文件失败：\n"
 
+msgid "Failed to apply changes. Check logs."
+msgstr "应用更改失败。请检查日志。"
+
+msgid "Default"
+msgstr "默认"
+
 msgid "disabled"
 msgstr "已禁用"
 
@@ -1239,9 +1260,6 @@ msgstr "输入前缀名称"
 
 msgid "Default value"
 msgstr "默认值"
-
-msgid "Failed to apply changes. Check logs."
-msgstr "应用更改失败。请检查日志。"
 
 msgid "Borderless window"
 msgstr "无边框窗口"
@@ -1435,9 +1453,6 @@ msgstr "快速预设"
 #, python-brace-format
 msgid "Enable {0}"
 msgstr "启用 {0}"
-
-msgid "Default"
-msgstr "默认"
 
 msgid "FSR upscaling"
 msgstr "FSR 升频"

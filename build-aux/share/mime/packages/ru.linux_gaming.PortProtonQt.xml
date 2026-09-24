@@ -16,4 +16,10 @@
     <sub-class-of type="text/plain"/>
     <glob pattern="*.ppdb" weight="100"/>
   </mime-type>
+  <mime-type type="application/x-portproton-user-conf">
+    <comment>PortProton user configuration</comment>
+    <comment xml:lang="ru">Пользовательская конфигурация PortProton</comment>
+    <sub-class-of type="text/plain"/>
+    <glob pattern="user.conf" weight="100"/>
+  </mime-type>
 </mime-info>

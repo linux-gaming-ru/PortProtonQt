@@ -1233,7 +1233,14 @@ msgstr ""
 msgid "System WINE"
 msgstr ""
 
+#, fuzzy
+msgid "Global Game Settings"
+msgstr "Ajustes de Wine"
+
 msgid "Exe Settings"
+msgstr ""
+
+msgid "Edit user.conf"
 msgstr ""
 
 msgid "Search settings…"
@@ -1260,6 +1267,10 @@ msgstr ""
 msgid "Clear PPDB"
 msgstr ""
 
+#, fuzzy
+msgid "Failed to load global game settings."
+msgstr "Error al cargar los temas"
+
 msgid "Executable path is not available."
 msgstr ""
 
@@ -1268,6 +1279,10 @@ msgstr ""
 
 msgid "Failed to open PPDB file:\n"
 msgstr ""
+
+#, fuzzy, python-brace-format
+msgid "Failed to open file:\n"
+msgstr "No se ha podido abrir la carpeta: {error}"
 
 msgid "Information"
 msgstr ""
@@ -1286,6 +1301,12 @@ msgstr ""
 msgid "Failed to remove PPDB file:\n"
 msgstr "No se ha podido eliminar el archivo PPDB:\n"
 
+msgid "Failed to apply changes. Check logs."
+msgstr ""
+
+msgid "Default"
+msgstr ""
+
 msgid "disabled"
 msgstr ""
 
@@ -1293,9 +1314,6 @@ msgid "Enter prefix name"
 msgstr ""
 
 msgid "Default value"
-msgstr ""
-
-msgid "Failed to apply changes. Check logs."
 msgstr ""
 
 msgid "Borderless window"
@@ -1488,9 +1506,6 @@ msgstr ""
 
 #, python-brace-format
 msgid "Enable {0}"
-msgstr ""
-
-msgid "Default"
 msgstr ""
 
 msgid "FSR upscaling"
