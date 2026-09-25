@@ -291,6 +291,7 @@ GAME_CARD_GRID = {
 }
 
 GAME_CARD_HORIZONTAL = {
+    "card_orientation": "vertical",
     "card_animation_type": "scale",
     "extra_margin": 20,
     "spacing": 5,
@@ -301,6 +302,9 @@ GAME_CARD_HORIZONTAL = {
     "layout_spacing": 20,
 }
 ```
+
+Set `card_orientation` to `"vertical"` to reuse the grid card proportions in
+the horizontal strip. Omit it to keep the horizontal block proportions.
 
 Values are logical pixels. `cover_radius` applies to static and animated covers;
 `border_radius` applies to the painted focus and hover border. Grid cover width

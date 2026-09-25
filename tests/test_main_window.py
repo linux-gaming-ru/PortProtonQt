@@ -1030,6 +1030,36 @@ def test_game_card_theme_refresh_updates_hidden_badge_styles() -> None:
     card.animations.refresh_theme.assert_not_called()
     card.update_scale.assert_not_called()
 
+
+def test_horizontal_card_can_use_vertical_geometry() -> None:
+    card = SimpleNamespace(
+        horizontal_layout=True,
+        card_layout_cfg={"card_orientation": "vertical"},
+    )
+    grid_config = {"cover_aspect_ratio": 1.5, "card_height_ratio": 1.8}
+
+    config = GameCard._get_card_geometry_config(
+        cast(Any, card), SimpleNamespace(GAME_CARD_GRID=grid_config)
+    )
+
+    assert config is grid_config
+    card.card_layout_cfg = {"cover_aspect_ratio": 0.62}
+    assert GameCard._get_card_geometry_config(
+        cast(Any, card), SimpleNamespace(GAME_CARD_GRID=grid_config)
+    ) is card.card_layout_cfg
+
+
+def test_vertical_horizontal_card_does_not_require_grid_config() -> None:
+    card = SimpleNamespace(
+        horizontal_layout=True,
+        card_layout_cfg={"card_orientation": "vertical"},
+    )
+
+    assert GameCard._get_card_geometry_config(
+        cast(Any, card), SimpleNamespace()
+    ) == {}
+
+
 def test_source_corner_does_not_shadow_generic_theme_refresh() -> None:
     assert hasattr(SourceCorner, "refresh_source_theme")
     assert not hasattr(SourceCorner, "refresh_theme")

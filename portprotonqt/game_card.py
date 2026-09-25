@@ -398,6 +398,7 @@ class GameCard(AnimatedCard):
         else:
             config_name = "GAME_CARD_GRID"
         self.card_layout_cfg = getattr(self.theme, config_name, {})
+        self.card_geometry_cfg = self._get_card_geometry_config(self.theme)
         default_margin = 8 if self.list_layout else 20
         self.base_extra_margin = self.card_layout_cfg.get("extra_margin", default_margin)
         card_style_name = (
@@ -611,6 +612,7 @@ class GameCard(AnimatedCard):
         else:
             config_name = "GAME_CARD_GRID"
         self.card_layout_cfg = getattr(theme, config_name, {})
+        self.card_geometry_cfg = self._get_card_geometry_config(theme)
         default_margin = 8 if self.list_layout else 20
         self.base_extra_margin = self.card_layout_cfg.get("extra_margin", default_margin)
         spacing = self.card_layout_cfg.get("spacing", 12 if self.list_layout else 5)
@@ -667,6 +669,14 @@ class GameCard(AnimatedCard):
         else:
             self.update()
 
+    def _get_card_geometry_config(self, theme: Any) -> dict:
+        if (
+            self.horizontal_layout
+            and self.card_layout_cfg.get("card_orientation") == "vertical"
+        ):
+            return getattr(theme, "GAME_CARD_GRID", {})
+        return self.card_layout_cfg
+
     def on_cover_loaded(self, pixmap):
         self.animated_cover_path = ""
         self.base_pixmap = pixmap
@@ -679,7 +689,7 @@ class GameCard(AnimatedCard):
             height = cover_size
         else:
             width = self.base_card_width
-            layout_config = getattr(self, "card_layout_cfg", {})
+            layout_config = getattr(self, "card_geometry_cfg", {})
             height = int(self.base_card_width * layout_config.get("cover_aspect_ratio", 1.5))
         if self._set_animated_cover(cover_path, width, height):
             return
@@ -887,11 +897,11 @@ class GameCard(AnimatedCard):
             small_card_mode = self.base_card_width < self.theme.COMPACT_CARD["width_threshold"]
             height_ratio = (
                 self.theme.COMPACT_CARD["height_ratio"]
-                if small_card_mode else self.card_layout_cfg.get("card_height_ratio", 1.8)
+                if small_card_mode else self.card_geometry_cfg.get("card_height_ratio", 1.8)
             )
             scaled_height = int(self.base_card_width * height_ratio * self._scale)
             self.setFixedSize(scaled_width + scaled_extra, scaled_height + scaled_extra)
-            cover_ratio = self.card_layout_cfg.get("cover_aspect_ratio", 1.5)
+            cover_ratio = self.card_geometry_cfg.get("cover_aspect_ratio", 1.5)
             cover_height = int(scaled_width * cover_ratio)
             self.coverWidget.setFixedSize(scaled_width, cover_height)
             self.coverLabel.setFixedSize(scaled_width, cover_height)
