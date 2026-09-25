@@ -2474,9 +2474,6 @@ msgstr ""
 msgid "Prefix:"
 msgstr ""
 
-msgid "Use by default"
-msgstr ""
-
 msgid "Wine Configuration"
 msgstr ""
 

@@ -257,6 +257,10 @@ class DialogInputModesMixin(InputMixin):
             if isinstance(cell_widget, QCheckBox) and cell_widget.isEnabled():
                 cell_widget.setChecked(not cell_widget.isChecked())
                 return True
+            if isinstance(cell_widget, QComboBox) and cell_widget.isEnabled():
+                cell_widget.showPopup()
+                cell_widget.setFocus(Qt.FocusReason.OtherFocusReason)
+                return True
             if cell_widget is not None:
                 checkbox = cell_widget.findChild(QCheckBox)
                 if checkbox and checkbox.isEnabled():

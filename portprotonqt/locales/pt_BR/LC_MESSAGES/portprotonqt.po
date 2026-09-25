@@ -2583,9 +2583,6 @@ msgstr "Não foi possível excluir o tema."
 msgid "Prefix:"
 msgstr "Prefixo:"
 
-msgid "Use by default"
-msgstr "Usar por padrão"
-
 msgid "Wine Configuration"
 msgstr "Configuração do Wine"
 

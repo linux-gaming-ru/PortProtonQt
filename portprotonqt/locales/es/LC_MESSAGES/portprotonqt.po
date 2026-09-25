@@ -2589,9 +2589,6 @@ msgstr "Error al cargar los temas"
 msgid "Prefix:"
 msgstr "Prefijo:"
 
-msgid "Use by default"
-msgstr "Usar por defecto"
-
 msgid "Wine Configuration"
 msgstr "Configuración de Wine"
 

@@ -327,12 +327,16 @@ class SettingsInputMixin(InputMixin):
                     self._move_mangohud_vertical(focused, normalized_value, sections)
                 return
 
-            # 2. Combo Box Navigation (within Advanced Table)
+            # 2. Combo Box Navigation (within Advanced and Main Tables)
             table = self._get_current_settings_table()
             if not table or table.rowCount() == 0:
                 return
 
-            if self.settings_dialog and table == self.settings_dialog.advanced_table and table.currentRow() >= 0:
+            combo_tables = (
+                self.settings_dialog.advanced_table,
+                self.settings_dialog.settings_table,
+            )
+            if self.settings_dialog and table in combo_tables and table.currentRow() >= 0:
                 cell_widget = table.cellWidget(table.currentRow(), 1)
                 if isinstance(cell_widget, QComboBox) and cell_widget.view().isVisible():
                     if code == PAD_DPAD_Y and value != 0:
@@ -433,6 +437,9 @@ class SettingsInputMixin(InputMixin):
 
         if table == self.settings_dialog.settings_table:
             cell_widget = table.cellWidget(row, 1)
+            if isinstance(cell_widget, QComboBox) and cell_widget.isEnabled():
+                cell_widget.setFocus(Qt.FocusReason.OtherFocusReason)
+                return
             if cell_widget is not None:
                 checkbox = cell_widget.findChild(QCheckBox)
                 if checkbox and checkbox.isEnabled():

@@ -66,6 +66,11 @@ TOGGLE_BOOL_KEYS = {
     'PW_VKBASALT',
     'PW_VKBASALT_USER_CONF',
 }
+DEFAULT_WINE_SETTING_KEYS = {
+    'PW_WINE_USE': 'PW_DEFAULT_WINE_USE',
+    'PW_PREFIX_NAME': 'PW_DEFAULT_PREFIX_NAME',
+    'PW_VULKAN_USE': 'PW_DEFAULT_VULKAN_USE',
+}
 def _normalize_prefix_directories(prefixes_dir):
     if not os.path.isdir(prefixes_dir):
         return
@@ -534,6 +539,7 @@ class ExeSettingsDialog(
                         if (
                             key in self.toggle_settings
                             or key in ADVANCED_SETTING_KEYS
+                            or key in DEFAULT_WINE_SETTING_KEYS.values()
                             or key in MANGOHUD_ENV_KEYS
                             or key in GAMESCOPE_ENV_KEYS
                             or key in VKBASALT_ENV_KEYS
@@ -578,10 +584,11 @@ class ExeSettingsDialog(
         for key in self.blocked_keys:
             self.current_settings[key] = '0'
 
-        current_wine_version = self.current_settings.get('PW_WINE_USE')
+        wine_key = 'PW_DEFAULT_WINE_USE' if self.user_conf else 'PW_WINE_USE'
+        current_wine_version = self.current_settings.get(wine_key)
         if current_wine_version in self.lg_dist_aliases:
-            self.current_settings['PW_WINE_USE'] = self.lg_dist_aliases[current_wine_version]
-            current_wine_version = self.current_settings['PW_WINE_USE']
+            self.current_settings[wine_key] = self.lg_dist_aliases[current_wine_version]
+            current_wine_version = self.current_settings[wine_key]
         if (
             current_wine_version
             and current_wine_version not in self.dist_options
@@ -720,11 +727,17 @@ class ExeSettingsDialog(
             is_blocked = toggle in self.blocked_keys
             if self.user_conf:
                 value_widget = CustomComboBox(theme=self.theme)
+                value_widget.setObjectName("settingsTableCombo")
+                value_widget.view().window().setWindowFlags(
+                    Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint
+                )
+                value_widget.view().window().setAttribute(
+                    Qt.WidgetAttribute.WA_TranslucentBackground
+                )
                 value_widget.addItem(_("Default"), "")
                 value_widget.addItem(_("Yes"), "1")
                 value_widget.addItem(_("No"), "0")
                 value_widget.setCurrentIndex(max(0, value_widget.findData(current_val)))
-                value_widget.setStyleSheet(self.theme.COMBOBOX_STYLE)
             else:
                 value_widget = QCheckBox()
                 value_widget.setStyleSheet(self.theme.CHECKBOX_STYLE)
@@ -732,19 +745,22 @@ class ExeSettingsDialog(
             value_widget.setEnabled(not is_blocked)
             value_widget.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
             value_widget.installEventFilter(self)
-            checkbox_container = QWidget()
-            checkbox_container.setStyleSheet(self.theme.CHECKBOX_STYLE + self.theme.TRANSPARENT_BACKGROUND_STYLE)
-            checkbox_layout = QHBoxLayout(checkbox_container)
-            checkbox_layout.setContentsMargins(0, 0, 0, 0)
-            checkbox_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            checkbox_layout.addWidget(value_widget)
-            checkbox_container.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-            checkbox_item = QTableWidgetItem()
-            checkbox_item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
             if is_blocked:
                 name_item.setForeground(QColor(self.theme.color_disabled_text))
-            self.settings_table.setItem(row, 1, checkbox_item)
-            self.settings_table.setCellWidget(row, 1, checkbox_container)
+            if self.user_conf:
+                self.settings_table.setCellWidget(row, 1, value_widget)
+            else:
+                checkbox_container = QWidget()
+                checkbox_container.setStyleSheet(self.theme.CHECKBOX_STYLE + self.theme.TRANSPARENT_BACKGROUND_STYLE)
+                checkbox_layout = QHBoxLayout(checkbox_container)
+                checkbox_layout.setContentsMargins(0, 0, 0, 0)
+                checkbox_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                checkbox_layout.addWidget(value_widget)
+                checkbox_container.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+                checkbox_item = QTableWidgetItem()
+                checkbox_item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
+                self.settings_table.setItem(row, 1, checkbox_item)
+                self.settings_table.setCellWidget(row, 1, checkbox_container)
 
             desc_item = QTableWidgetItem(description)
             desc_item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
@@ -787,11 +803,8 @@ class ExeSettingsDialog(
             prefix_options=self.prefix_options
         )
         if self.user_conf:
-            advanced_settings = [
-                setting for setting in advanced_settings
-                if setting['key'] not in ('PW_WINE_USE', 'PW_PREFIX_NAME', 'PW_VULKAN_USE')
-            ]
             for setting in advanced_settings:
+                setting['key'] = DEFAULT_WINE_SETTING_KEYS.get(setting['key'], setting['key'])
                 if setting['type'] == 'combo':
                     setting['options'] = [_('Default')] + setting['options']
         self.advanced_settings_by_key = {
@@ -818,7 +831,7 @@ class ExeSettingsDialog(
                     Qt.WidgetAttribute.WA_TranslucentBackground
                 )
                 combo.addItems(setting['options'])
-                if setting['key'] == 'PW_PREFIX_NAME':
+                if setting['key'] in ('PW_PREFIX_NAME', 'PW_DEFAULT_PREFIX_NAME'):
                     combo.setEditable(True)
                     combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
                     prefix_line_edit = combo.lineEdit()
@@ -827,7 +840,7 @@ class ExeSettingsDialog(
                     combo.highlighted.connect(
                         lambda row, c=combo: self._on_combo_highlighted(row, c),
                     )
-                elif setting['key'] == 'PW_WINE_USE':
+                elif setting['key'] in ('PW_WINE_USE', 'PW_DEFAULT_WINE_USE'):
                     combo.highlighted.connect(
                         lambda row, c=combo: self._on_combo_highlighted(row, c),
                     )
@@ -841,7 +854,7 @@ class ExeSettingsDialog(
                     current_val = disabled_text if current_raw == 'disabled' else (
                         current_raw.split(':')[0] if isinstance(current_raw, str) and ':' in current_raw else current_raw
                     )
-                elif setting['key'] == 'PW_WINE_USE':
+                elif setting['key'] in ('PW_WINE_USE', 'PW_DEFAULT_WINE_USE'):
                     current_val = _('System WINE') if current_raw == 'USE_SYSTEM_WINE' else current_raw
                 else:
                     current_val = disabled_text if current_raw == 'disabled' else current_raw
@@ -1351,7 +1364,7 @@ class ExeSettingsDialog(
                     new_val = ''
                 if key in ('PW_PREFIX_NAME', 'PW_VULKAN_USE') and self.game_source == "steam":
                     continue
-                if key == 'PW_PREFIX_NAME':
+                if key in ('PW_PREFIX_NAME', 'PW_DEFAULT_PREFIX_NAME'):
                     new_val = re.sub(r"[ \t]", "_", new_val.strip()).upper()
 
                 if key in self.value_mapping and 'forward' in self.value_mapping[key]:
@@ -1362,7 +1375,7 @@ class ExeSettingsDialog(
                 else:
                     has_changed = (new_val != orig_val)
 
-                if key == 'PW_WINE_USE' and new_val == _('System WINE'):
+                if key in ('PW_WINE_USE', 'PW_DEFAULT_WINE_USE') and new_val == _('System WINE'):
                     new_val = 'USE_SYSTEM_WINE'
 
                 if new_val.lower() == _('disabled').lower():

@@ -24,9 +24,13 @@ from portprotonqt.dialogs.prefix_backup import PrefixBackupDialog, PrefixBackupJ
 from portprotonqt.dialogs.proton_manager import show_proton_manager
 from portprotonqt.localization import _
 from portprotonqt.logger import get_logger
-from portprotonqt.portproton_api import get_user_conf_setting, set_user_conf_setting
+from portprotonqt.portproton_api import get_user_conf_setting
 from portprotonqt.scripts_utils.prefix_backup import is_legacy_squashfs_backup
-from portprotonqt.settings_manager import get_available_prefix_options, get_available_wine_options
+from portprotonqt.settings_manager import (
+    LG_WINE_ALIASES,
+    get_available_prefix_options,
+    get_available_wine_options,
+)
 
 logger = get_logger(__name__)
 
@@ -64,9 +68,7 @@ class MainWindowWineTabMixin(_MainWindowTypingBase):
         formLayout.setSpacing(self.theme.wineSettingsSetSpacing)
         formLayout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
 
-        self.wine_versions = get_available_wine_options(
-            self.portproton_location, include_lg_aliases=True
-        )
+        self.wine_versions = get_available_wine_options(self.portproton_location)
         self.wineCombo = CustomComboBox(theme=self.theme)
         self.wineCombo.view().window().setWindowFlags(
             Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint
@@ -84,7 +86,7 @@ class MainWindowWineTabMixin(_MainWindowTypingBase):
         if self.wine_versions:
             self.wineCombo.setCurrentIndex(0)
         default_wine = get_user_conf_setting('PW_DEFAULT_WINE_USE')
-        if default_wine:
+        if default_wine and default_wine not in dict(LG_WINE_ALIASES):
             if self.wineCombo.findText(default_wine) == -1:
                 self.wineCombo.addItem(default_wine)
             self.wineCombo.setCurrentText(default_wine)
@@ -158,7 +160,6 @@ class MainWindowWineTabMixin(_MainWindowTypingBase):
         tools_grid.setSpacing(6)
 
         tools = [
-            ("default", _("Use by default")),
             ("--winecfg", _("Wine Configuration")),
             ("--winereg", _("Registry Editor")),
             ("--winefile", _("File Explorer")),
@@ -173,10 +174,7 @@ class MainWindowWineTabMixin(_MainWindowTypingBase):
             btn.setProperty("theme_style_name", "ACTION_BUTTON_STYLE")
             btn.setStyleSheet(self.theme.ACTION_BUTTON_STYLE)
             btn.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-            if tool_cmd == "default":
-                btn.clicked.connect(self.save_wine_defaults)
-            else:
-                btn.clicked.connect(lambda checked, t=tool_cmd: self.launch_generic_tool(t))
+            btn.clicked.connect(lambda checked, t=tool_cmd: self.launch_generic_tool(t))
             tools_grid.addWidget(btn, row, col)
 
         for col in range(3):
@@ -227,16 +225,6 @@ class MainWindowWineTabMixin(_MainWindowTypingBase):
         wine_progress_layout.addStretch(1)
         wine_progress_layout.addWidget(self.wine_progress_bar)
         layout.addLayout(wine_progress_layout)
-
-    def save_wine_defaults(self) -> None:
-        default_wine = self.wineCombo.currentText().strip()
-        raw_prefix = self.prefixCombo.currentText().strip()
-        default_prefix = re.sub(r"[ \t]", "_", raw_prefix).upper() if raw_prefix else ""
-        default_vulkan = self.defaultVulkanCombo.currentData()
-
-        set_user_conf_setting('PW_DEFAULT_WINE_USE', default_wine)
-        set_user_conf_setting('PW_DEFAULT_PREFIX_NAME', default_prefix)
-        set_user_conf_setting('PW_DEFAULT_VULKAN_USE', str(default_vulkan or ""))
 
     def launch_generic_tool(self, cli_arg):
         wine = self.wineCombo.currentText()
@@ -471,9 +459,7 @@ class MainWindowWineTabMixin(_MainWindowTypingBase):
         if not self.portproton_location:
             return
 
-        self.wine_versions = get_available_wine_options(
-            self.portproton_location, include_lg_aliases=True
-        )
+        self.wine_versions = get_available_wine_options(self.portproton_location)
         self.wineCombo.clear()
         self.wineCombo.addItems(self.wine_versions)
 

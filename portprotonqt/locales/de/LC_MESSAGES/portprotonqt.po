@@ -2583,9 +2583,6 @@ msgstr "Das Theme konnte nicht gelöscht werden."
 msgid "Prefix:"
 msgstr "Prefix:"
 
-msgid "Use by default"
-msgstr "Standardmäßig verwenden"
-
 msgid "Wine Configuration"
 msgstr "Wine-Konfiguration"
 
