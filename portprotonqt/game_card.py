@@ -670,9 +670,13 @@ class GameCard(AnimatedCard):
             self.update()
 
     def _get_card_geometry_config(self, theme: Any) -> dict:
+        theme_orientation = self.card_layout_cfg.get(
+            "card_orientation", "horizontal"
+        )
         if (
             self.horizontal_layout
-            and self.card_layout_cfg.get("card_orientation") == "vertical"
+            and ui_config.get_horizontal_card_orientation(theme_orientation)
+            == "vertical"
         ):
             return getattr(theme, "GAME_CARD_GRID", {})
         return self.card_layout_cfg

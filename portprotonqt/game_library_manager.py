@@ -26,7 +26,9 @@ class FullLibraryTile(AnimatedCard):
         self.name = ""
         self.animation_base_size = theme.fullLibraryTileSize
         self.tile_pixmap = QPixmap()
-        self.setup_card_animations(theme, theme.GAME_CARD_HORIZONTAL)
+        self.setup_card_animations(
+            theme, getattr(theme, "GAME_CARD_HORIZONTAL", {})
+        )
         self.update_scale()
 
     def set_tile_pixmap(self, pixmap: QPixmap) -> None:
@@ -72,7 +74,8 @@ class GameLibraryManager:
         self.game_card_cache = {}
         self.pending_images = {}
         self.card_width = ui_config.get_card_width()
-        self.layout_mode = str(getattr(theme, "LIBRARY_LAYOUT_MODE", "grid")).lower()
+        theme_mode = str(getattr(theme, "LIBRARY_LAYOUT_MODE", "grid"))
+        self.layout_mode = ui_config.get_library_layout_mode(theme_mode)
         self.gamesListWidget: QWidget | None = None
         self.gamesListLayout: FlowLayout | QHBoxLayout | QVBoxLayout | None = None
         self.gamesScrollArea: QScrollArea | None = None
@@ -139,11 +142,13 @@ class GameLibraryManager:
         self.gamesListWidget.setProperty("theme_style_name", "LIST_WIDGET_STYLE")
         self.gamesListWidget.setStyleSheet(self.theme.LIST_WIDGET_STYLE)
         if self.layout_mode in {"horizontal", "horizontal_top"}:
-            layout_config = self.theme.GAME_CARD_HORIZONTAL
+            layout_config = getattr(self.theme, "GAME_CARD_HORIZONTAL", {})
             self.gamesListLayout = QHBoxLayout(self.gamesListWidget)
             self.gamesListLayout.setAlignment(Qt.AlignmentFlag.AlignLeft)
-            self.gamesListLayout.setContentsMargins(*layout_config["layout_margins"])
-            self.gamesListLayout.setSpacing(layout_config["layout_spacing"])
+            self.gamesListLayout.setContentsMargins(
+                *layout_config.get("layout_margins", (0, 0, 0, 0))
+            )
+            self.gamesListLayout.setSpacing(layout_config.get("layout_spacing", 0))
             scrollArea.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         elif self.layout_mode == "vertical":
             layout_config = self.theme.GAME_CARD_VERTICAL
@@ -224,11 +229,13 @@ class GameLibraryManager:
         self.fullLibraryTile = None
         old_layout = self.gamesListLayout
         if layout_mode in {"horizontal", "horizontal_top"}:
-            layout_config = self.theme.GAME_CARD_HORIZONTAL
+            layout_config = getattr(self.theme, "GAME_CARD_HORIZONTAL", {})
             self.gamesListLayout = QHBoxLayout()
             self.gamesListLayout.setAlignment(Qt.AlignmentFlag.AlignLeft)
-            self.gamesListLayout.setContentsMargins(*layout_config["layout_margins"])
-            self.gamesListLayout.setSpacing(layout_config["layout_spacing"])
+            self.gamesListLayout.setContentsMargins(
+                *layout_config.get("layout_margins", (0, 0, 0, 0))
+            )
+            self.gamesListLayout.setSpacing(layout_config.get("layout_spacing", 0))
         elif layout_mode == "vertical":
             layout_config = self.theme.GAME_CARD_VERTICAL
             self.gamesListLayout = QVBoxLayout()
@@ -249,7 +256,9 @@ class GameLibraryManager:
                 else Qt.ScrollBarPolicy.ScrollBarAsNeeded
             )
             self.gamesScrollArea.setVerticalScrollBarPolicy(vertical_policy)
-        theme_mode = str(getattr(self.theme, "LIBRARY_LAYOUT_MODE", "grid")).lower()
+        theme_mode = ui_config.get_library_layout_mode(
+            str(getattr(self.theme, "LIBRARY_LAYOUT_MODE", "grid"))
+        )
         self.full_library_open = theme_mode == "horizontal_top" and layout_mode == "grid"
         if self.full_library_open and self.libraryBackgroundLabel is not None:
             remove_cover_background(self.libraryBackgroundLabel)
@@ -465,7 +474,9 @@ class GameLibraryManager:
         """Schedules a game grid update with debouncing."""
         if focus_first_card is not None:
             self._focus_first_card_after_update = focus_first_card
-        theme_mode = str(getattr(self.theme, "LIBRARY_LAYOUT_MODE", "grid")).lower()
+        theme_mode = ui_config.get_library_layout_mode(
+            str(getattr(self.theme, "LIBRARY_LAYOUT_MODE", "grid"))
+        )
         if not self.full_library_open:
             self.layout_mode = theme_mode
         if self.sizeSlider is not None:

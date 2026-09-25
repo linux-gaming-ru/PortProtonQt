@@ -3059,7 +3059,9 @@ class MainWindow(
             self.tray_manager.shutdown()
 
         # Save card sizes only for grid layouts.
-        layout_mode = str(getattr(self.theme, "LIBRARY_LAYOUT_MODE", "grid")).lower()
+        layout_mode = ui_config.get_library_layout_mode(
+            str(getattr(self.theme, "LIBRARY_LAYOUT_MODE", "grid"))
+        )
         size_slider = getattr(self.game_library_manager, 'sizeSlider', None)
         if size_slider is None or layout_mode not in {
             "list", "vertical", "horizontal", "horizontal_top"

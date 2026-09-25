@@ -316,7 +316,8 @@ widths, pulse settings, gradient angles and colors, fill/stripe/glow colors and
 opacity, scale values, animation durations, and easing curves. For example,
 `horizontal_top` can define its own `scale` type, scale values, duration, and
 easing while the complete grid uses separately configured `gradient` values.
-Keys omitted from a layout continue to use `GAME_CARD_ANIMATION` as fallback.
+Keys omitted from a layout continue to use `GAME_CARD_ANIMATION` as fallback;
+`card_animation_type` defaults to `gradient`.
 
 ```python
 GAME_CARD_HORIZONTAL = {

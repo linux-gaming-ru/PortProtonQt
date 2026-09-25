@@ -318,7 +318,8 @@ GAME_CARD_HORIZONTAL = {
 fill/stripe/glow, масштаб, длительности и easing-кривые. Например,
 `horizontal_top` может задавать собственные тип `scale`, значения масштаба,
 длительность и easing, а полная сетка — отдельные параметры `gradient`.
-Отсутствующие в режиме параметры берутся из `GAME_CARD_ANIMATION`.
+Отсутствующие в режиме параметры берутся из `GAME_CARD_ANIMATION`, а
+`card_animation_type` по умолчанию использует `gradient`.
 
 ```python
 GAME_CARD_HORIZONTAL = {

@@ -9,6 +9,10 @@ GAME_CARD_WINDOW_STYLE = f"""
     }}
 """
 
+FULL_LIBRARY_TILE_STYLE = GAME_CARD_WINDOW_STYLE
+
+GAME_CARD_VERTICAL_STYLE = GAME_CARD_WINDOW_STYLE
+
 # GAME NAME LABEL IN CARD (QLabel)
 GAME_CARD_NAME_LABEL_STYLE = f"""
     QLabel {{
@@ -21,6 +25,34 @@ GAME_CARD_NAME_LABEL_STYLE = f"""
         border-bottom-right-radius: {border_radius_card};
         padding: 14px, 7px, 3px, 7px;
         qproperty-wordWrap: true;
+    }}
+"""
+
+GAME_CARD_VERTICAL_NAME_STYLE = GAME_CARD_NAME_LABEL_STYLE
+
+GAME_CARD_COLUMN_LABEL_STYLE = f"""
+    QLabel {{
+        color: {color_text_muted};
+        font-family: '{font_family}';
+        font-size: {font_size_value};
+        background: {color_transparent};
+    }}
+"""
+
+LIBRARY_HEADER_STYLE = f"""
+    QWidget {{
+        background: {color_surface_elevated};
+        border-radius: {border_radius_small};
+    }}
+"""
+
+LIBRARY_HEADER_LABEL_STYLE = f"""
+    QLabel {{
+        color: {color_text_muted};
+        font-family: '{font_family}';
+        font-size: {font_size_small};
+        font-weight: bold;
+        background: {color_transparent};
     }}
 """
 

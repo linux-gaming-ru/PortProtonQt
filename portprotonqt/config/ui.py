@@ -383,6 +383,27 @@ class UIConfig(BaseConfig):
         validate_string(mode, "badge_view_mode", min_len=1, max_len=20)
         self._save_value("badge_view_mode", mode, "str")
 
+    def get_library_layout_mode(self, theme_mode: str = "grid") -> str:
+        """Get the selected library layout or the theme default."""
+        modes = {"grid", "list", "vertical", "horizontal", "horizontal_top"}
+        mode = self._get_str("library_layout_mode", "theme")
+        return mode if mode in modes else theme_mode.lower()
+
+    def set_library_layout_mode(self, mode: str) -> None:
+        """Set the library layout mode."""
+        validate_string(mode, "library_layout_mode", min_len=1, max_len=20)
+        self._save_value("library_layout_mode", mode, "str")
+
+    def get_horizontal_card_orientation(self, theme_mode: str) -> str:
+        """Get the horizontal card orientation or the theme default."""
+        mode = self._get_str("horizontal_card_orientation", "theme")
+        return mode if mode in {"horizontal", "vertical"} else theme_mode
+
+    def set_horizontal_card_orientation(self, mode: str) -> None:
+        """Set the horizontal card orientation."""
+        validate_string(mode, "horizontal_card_orientation", min_len=1, max_len=20)
+        self._save_value("horizontal_card_orientation", mode, "str")
+
     def get_economy_mode(self) -> bool:
         """Get economy mode setting."""
         return self._get_download_bool("economy_mode", False)

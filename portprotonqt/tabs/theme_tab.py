@@ -479,6 +479,8 @@ class MainWindowThemeTabMixin(ThemeStoreMixin, _MainWindowTypingBase):
     def _refresh_theme_library_layout(
         self, old_theme: object, new_theme: object
     ) -> None:
+        if ui_config.get_library_layout_mode("theme") != "theme":
+            return
         old_mode = getattr(old_theme, "LIBRARY_LAYOUT_MODE", "grid")
         new_mode = getattr(new_theme, "LIBRARY_LAYOUT_MODE", "grid")
         if old_mode == new_mode:
