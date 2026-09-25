@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PortProtonQt 0.1.1\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-09-24 20:08+0500\n"
+"POT-Creation-Date: 2026-09-25 13:59+0500\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -2150,6 +2150,33 @@ msgid "Hidden"
 msgstr ""
 
 msgid "Badge View Type:"
+msgstr ""
+
+msgid "Theme"
+msgstr ""
+
+msgid "Grid"
+msgstr ""
+
+msgid "List"
+msgstr ""
+
+msgid "Table"
+msgstr ""
+
+msgid "Horizontal Blocks"
+msgstr ""
+
+msgid "Horizontal Cards"
+msgstr ""
+
+msgid "Horizontal Top Blocks"
+msgstr ""
+
+msgid "Horizontal Top Cards"
+msgstr ""
+
+msgid "Grid Type:"
 msgstr ""
 
 #, python-brace-format

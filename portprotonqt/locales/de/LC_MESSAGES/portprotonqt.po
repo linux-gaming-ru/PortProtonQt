@@ -2260,6 +2260,40 @@ msgstr "Versteckt"
 msgid "Badge View Type:"
 msgstr "Anzeigetyp von Titelbildern:"
 
+#, fuzzy
+msgid "Theme"
+msgstr "Themen"
+
+msgid "Grid"
+msgstr ""
+
+#, fuzzy
+msgid "List"
+msgstr "Hell"
+
+#, fuzzy
+msgid "Table"
+msgstr "Stable"
+
+#, fuzzy
+msgid "Horizontal Blocks"
+msgstr "Horizontales HUD-Layout"
+
+#, fuzzy
+msgid "Horizontal Cards"
+msgstr "Horizontales HUD-Layout"
+
+#, fuzzy
+msgid "Horizontal Top Blocks"
+msgstr "Horizontales HUD-Layout"
+
+msgid "Horizontal Top Cards"
+msgstr ""
+
+#, fuzzy
+msgid "Grid Type:"
+msgstr "Gamepad-Typ:"
+
 #, python-brace-format
 msgid ""
 "Are you sure you want to delete {count} cards without executable? This "

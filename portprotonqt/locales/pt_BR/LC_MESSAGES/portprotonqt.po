@@ -2262,6 +2262,40 @@ msgstr "Oculto"
 msgid "Badge View Type:"
 msgstr "Modo de Exibição do Selo:"
 
+#, fuzzy
+msgid "Theme"
+msgstr "Temas"
+
+msgid "Grid"
+msgstr ""
+
+#, fuzzy
+msgid "List"
+msgstr "Claro"
+
+#, fuzzy
+msgid "Table"
+msgstr "Estável"
+
+#, fuzzy
+msgid "Horizontal Blocks"
+msgstr "Layout horizontal do HUD"
+
+#, fuzzy
+msgid "Horizontal Cards"
+msgstr "Layout horizontal do HUD"
+
+#, fuzzy
+msgid "Horizontal Top Blocks"
+msgstr "Layout horizontal do HUD"
+
+msgid "Horizontal Top Cards"
+msgstr ""
+
+#, fuzzy
+msgid "Grid Type:"
+msgstr "Tipo de Controle:"
+
 #, python-brace-format
 msgid ""
 "Are you sure you want to delete {count} cards without executable? This "

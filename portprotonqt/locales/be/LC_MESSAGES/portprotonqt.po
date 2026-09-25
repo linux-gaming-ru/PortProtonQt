@@ -2156,6 +2156,33 @@ msgstr ""
 msgid "Badge View Type:"
 msgstr ""
 
+msgid "Theme"
+msgstr ""
+
+msgid "Grid"
+msgstr ""
+
+msgid "List"
+msgstr ""
+
+msgid "Table"
+msgstr ""
+
+msgid "Horizontal Blocks"
+msgstr ""
+
+msgid "Horizontal Cards"
+msgstr ""
+
+msgid "Horizontal Top Blocks"
+msgstr ""
+
+msgid "Horizontal Top Cards"
+msgstr ""
+
+msgid "Grid Type:"
+msgstr ""
+
 #, python-brace-format
 msgid ""
 "Are you sure you want to delete {count} cards without executable? This "
