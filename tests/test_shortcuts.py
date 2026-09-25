@@ -445,6 +445,31 @@ class TestCreateDesktopFile:
 # ── parse_desktop_entry round-trip ───────────────────────────────────────────
 
 class TestParseDesktopEntryRoundTrip:
+    def test_recovers_multiline_values(self, tmp_path: Path) -> None:
+        desktop_path = tmp_path / "multiline.desktop"
+        desktop_path.write_text(
+            "[Desktop Entry]\n"
+            "Name=Game\nSubtitle\n"
+            "Comment=Launch Game\nSubtitle\n"
+            "Exec=/game.exe\n"
+            "Icon=/icons/Game\nSubtitle.png\n",
+            encoding="utf-8",
+        )
+
+        parsed = parse_desktop_entry(str(desktop_path))
+
+        assert parsed is not None
+        assert parsed.get("Name") == "Game Subtitle"
+        assert parsed.get("Comment") == "Launch Game Subtitle"
+        assert parsed.get("Icon") == "/icons/Game Subtitle.png"
+        assert desktop_path.read_text(encoding="utf-8") == (
+            "[Desktop Entry]\n"
+            "Name=Game Subtitle\n"
+            "Comment=Launch Game Subtitle\n"
+            "Exec=/game.exe\n"
+            "Icon=/icons/Game Subtitle.png\n"
+        )
+
     def test_round_trip_simple(self, tmp_path: Path, monkeypatch: Any) -> None:
         _patch_location(monkeypatch, tmp_path)
         exe = _make_exe(tmp_path)
@@ -495,6 +520,19 @@ class TestParseDesktopEntryRoundTrip:
         parsed = parse_desktop_entry(desktop_path)
         assert parsed is not None
         assert parsed.get("Name") == "Тест Игра"
+
+    def test_multiline_name_is_written_on_one_line(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        _patch_location(monkeypatch, tmp_path)
+        exe = _make_exe(tmp_path)
+
+        result = create_desktop_file(exe, game_name="Game\nSubtitle")
+
+        assert result is not None
+        entry_text, desktop_path, _ = result
+        assert "Name=Game Subtitle\n" in entry_text
+        assert Path(desktop_path).name == "Game Subtitle.desktop"
 
 
 # ── extract_exec_target_path with spaces ─────────────────────────────────────
