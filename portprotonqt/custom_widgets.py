@@ -1,7 +1,7 @@
 import os
 from PySide6.QtWidgets import QLabel, QPushButton, QStyle, QStyleOptionButton, QWidget, QLayout, QLayoutItem, QScrollArea, QGraphicsOpacityEffect, QComboBox
 from PySide6.QtCore import Qt, Signal, QRect, QRectF, QSize, Property, QPropertyAnimation, QEasingCurve, QTimer, QEvent
-from PySide6.QtGui import QFont, QFontMetrics, QIcon, QPainter, QPalette, QColor
+from PySide6.QtGui import QFont, QFontMetrics, QIcon, QPainter, QPalette, QColor, QWheelEvent
 from PySide6.QtSvg import QSvgRenderer
 from portprotonqt.theme_manager import ThemeManager
 from portprotonqt.config import ui_config
@@ -1009,6 +1009,12 @@ class AutoHideScrollArea(QScrollArea):
             self._hide_timer.start(self.hide_delay_ms)
         if self._h_scroll_needed and self._h_is_visible:
             self._h_hide_timer.start(self.hide_delay_ms)
+
+    def wheelEvent(self, event: QWheelEvent) -> None:
+        if self._v_scrollbar.maximum() == 0 and self._h_scrollbar.maximum() > 0:
+            self._h_scrollbar.event(event)
+            return
+        super().wheelEvent(event)
 
     def eventFilter(self, obj, event):
         if not hasattr(self, "_v_scrollbar") or not hasattr(self, "_h_scrollbar"):

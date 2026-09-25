@@ -12,8 +12,8 @@ from unittest.mock import MagicMock
 
 import psutil
 from pytest import MonkeyPatch, fixture, mark
-from PySide6.QtCore import QEventLoop, QObject, Qt, QTimer
-from PySide6.QtGui import QAction, QPixmap
+from PySide6.QtCore import QEventLoop, QObject, QPoint, QPointF, Qt, QTimer
+from PySide6.QtGui import QAction, QPixmap, QWheelEvent
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -692,6 +692,29 @@ def test_auto_hide_scroll_area_tracks_horizontal_overflow() -> None:
     assert scroll_area._h_scroll_needed is True
     assert scroll_area._h_is_visible is True
     assert scroll_area._h_hide_timer.isActive()
+
+
+def test_auto_hide_scroll_area_uses_wheel_for_horizontal_overflow() -> None:
+    _application = QApplication.instance() or QApplication([])
+    theme = SimpleNamespace(TRANSPARENT_BACKGROUND_STYLE="", SCROLL_STYLE="")
+    scroll_area = AutoHideScrollArea(theme=theme)
+    scroll_area.resize(100, 100)
+    content = QWidget()
+    content.setMinimumSize(300, 50)
+    scroll_area.setWidget(content)
+    scroll_area.show()
+    QApplication.processEvents()
+    scroll_area.horizontalScrollBar().setValue(100)
+    event = QWheelEvent(
+        QPointF(), QPointF(), QPoint(), QPoint(0, 120),
+        Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier,
+        Qt.ScrollPhase.ScrollUpdate, False,
+    )
+
+    scroll_area.wheelEvent(event)
+
+    assert scroll_area.horizontalScrollBar().value() < 100
+
 
 @mark.parametrize("layout_mode", ["vertical", "horizontal", "horizontal_top"])
 def test_vertical_library_uses_column_layout(layout_mode: str) -> None:
