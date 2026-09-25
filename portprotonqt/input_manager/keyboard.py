@@ -450,6 +450,7 @@ class KeyboardInputMixin(InputMixin):
             "gamesDisplayCombo",
             "onlyInstalledCheckBox",
             "gamesBadgeViewCombo",
+            "gamesLayoutCombo",
         ):
             widget = getattr(self._parent, attr_name, None)
             if isinstance(widget, QWidget) and widget.isVisible() and widget.isEnabled():
