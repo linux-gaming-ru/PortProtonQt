@@ -397,7 +397,7 @@ class GameCard(AnimatedCard):
             config_name = "GAME_CARD_HORIZONTAL"
         else:
             config_name = "GAME_CARD_GRID"
-        self.card_layout_cfg = getattr(self.theme, config_name, {})
+        self.card_layout_cfg = self._get_layout_config(self.theme, config_name)
         self.card_geometry_cfg = self._get_card_geometry_config(self.theme)
         default_margin = 8 if self.list_layout else 20
         self.base_extra_margin = self.card_layout_cfg.get("extra_margin", default_margin)
@@ -611,7 +611,7 @@ class GameCard(AnimatedCard):
             config_name = "GAME_CARD_HORIZONTAL"
         else:
             config_name = "GAME_CARD_GRID"
-        self.card_layout_cfg = getattr(theme, config_name, {})
+        self.card_layout_cfg = self._get_layout_config(theme, config_name)
         self.card_geometry_cfg = self._get_card_geometry_config(theme)
         default_margin = 8 if self.list_layout else 20
         self.base_extra_margin = self.card_layout_cfg.get("extra_margin", default_margin)
@@ -680,6 +680,31 @@ class GameCard(AnimatedCard):
         ):
             return getattr(theme, "GAME_CARD_GRID", {})
         return self.card_layout_cfg
+
+    @staticmethod
+    def _get_layout_config(theme: Any, config_name: str) -> dict:
+        config = getattr(theme, config_name, {})
+        get_override = getattr(theme, "get_theme_override", None)
+        if not callable(get_override) or get_override(config_name) is not None:
+            return config
+        config = dict(config)
+        for name in (
+            "GAME_CARD_GRID", "GAME_CARD_HORIZONTAL",
+            "GAME_CARD_LIST", "GAME_CARD_VERTICAL",
+        ):
+            override = get_override(name)
+            if isinstance(override, dict) and "card_animation_type" in override:
+                config["card_animation_type"] = override["card_animation_type"]
+                break
+        else:
+            animation = getattr(theme, "GAME_CARD_ANIMATION", {})
+            config["card_animation_type"] = animation.get(
+                "card_animation_type", "gradient"
+            )
+        radius = str(getattr(theme, "border_radius_card", "")).removesuffix("px")
+        if radius.isdigit():
+            config.update(cover_radius=int(radius), border_radius=int(radius))
+        return config
 
     def on_cover_loaded(self, pixmap):
         self.animated_cover_path = ""

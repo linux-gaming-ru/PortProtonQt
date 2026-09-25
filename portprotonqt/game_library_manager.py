@@ -27,7 +27,7 @@ class FullLibraryTile(AnimatedCard):
         self.animation_base_size = theme.fullLibraryTileSize
         self.tile_pixmap = QPixmap()
         self.setup_card_animations(
-            theme, getattr(theme, "GAME_CARD_HORIZONTAL", {})
+            theme, GameCard._get_layout_config(theme, "GAME_CARD_HORIZONTAL")
         )
         self.update_scale()
 

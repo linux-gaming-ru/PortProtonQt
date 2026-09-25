@@ -966,6 +966,36 @@ def test_game_card_animation_type_defaults_to_gradient() -> None:
 
     assert GameCardAnimations(card, theme)._animation_type() == "gradient"
 
+
+def test_inherited_card_layout_uses_theme_card_animation() -> None:
+    overrides = {
+        "GAME_CARD_LIST": {"card_animation_type": "glow"},
+    }
+    theme = SimpleNamespace(
+        GAME_CARD_GRID={"cover_radius": 15, "border_radius": 18},
+        border_radius_card="4px",
+        get_theme_override=lambda name: overrides.get(name),
+    )
+
+    config = GameCard._get_layout_config(theme, "GAME_CARD_GRID")
+
+    assert config["card_animation_type"] == "glow"
+    assert config["cover_radius"] == 4
+    assert config["border_radius"] == 4
+
+
+def test_inherited_card_layout_uses_global_animation_as_last_fallback() -> None:
+    theme = SimpleNamespace(
+        GAME_CARD_GRID={},
+        GAME_CARD_ANIMATION={"card_animation_type": "glow"},
+        border_radius_card="4px",
+        get_theme_override=lambda _name: None,
+    )
+
+    assert GameCard._get_layout_config(
+        theme, "GAME_CARD_GRID"
+    )["card_animation_type"] == "glow"
+
 def test_game_card_click_uses_select_callback() -> None:
     select_callback = MagicMock()
     card = SimpleNamespace(
@@ -1025,6 +1055,9 @@ def test_game_card_theme_refresh_updates_hidden_badge_styles() -> None:
         favoriteLabelIconSize=18,
     )
     card.card_layout_cfg = {}
+    card._get_layout_config.side_effect = lambda selected_theme, name: getattr(
+        selected_theme, name, {}
+    )
     theme = SimpleNamespace(
         GAME_CARD_GRID={},
         GAME_CARD_ANIMATION=animation_config,
