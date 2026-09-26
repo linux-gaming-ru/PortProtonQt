@@ -2327,6 +2327,9 @@ msgstr "启用界面音效"
 msgid "Show compatibility report after game crash"
 msgstr ""
 
+msgid "Disable ALT Linux i586 dependency check"
+msgstr ""
+
 msgid "Disable runtime download"
 msgstr "禁用运行时下载"
 

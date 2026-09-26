@@ -2348,6 +2348,9 @@ msgstr "Включить звуки интерфейса"
 msgid "Show compatibility report after game crash"
 msgstr "Показывать отчёт о совместимости после сбоя игры"
 
+msgid "Disable ALT Linux i586 dependency check"
+msgstr ""
+
 msgid "Disable runtime download"
 msgstr "Отключить скачивание контейнера"
 

@@ -2361,6 +2361,9 @@ msgstr "Ativar sons da interface"
 msgid "Show compatibility report after game crash"
 msgstr "Mostrar relatório de compatibilidade após a falha do jogo"
 
+msgid "Disable ALT Linux i586 dependency check"
+msgstr ""
+
 msgid "Disable runtime download"
 msgstr "Desativar download de runtime"
 
