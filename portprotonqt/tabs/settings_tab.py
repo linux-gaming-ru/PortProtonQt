@@ -441,6 +441,35 @@ class MainWindowSettingsTabMixin(_MainWindowTypingBase):
         crash_reports_enabled_layout.addStretch()
         uiForm.addRow(crash_reports_enabled_layout)
 
+        self.disableAltDependencyCheckCheckBox: QCheckBox | None = None
+        if self._is_alt_x86_64():
+            self.disableAltDependencyCheckCheckBox = QCheckBox()
+            self.disableAltDependencyCheckCheckBox.setStyleSheet(self.theme.CHECKBOX_STYLE)
+            self.disableAltDependencyCheckCheckBox.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+            disable_alt_dependency_check_title = QLabel(
+                _("Disable ALT Linux i586 dependency check")
+            )
+            disable_alt_dependency_check_title.setSizePolicy(
+                QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
+            )
+            disable_alt_dependency_check_title.setStyleSheet(
+                self.theme.SETTINGS_TITLE_CHECKBOX_STYLE
+            )
+            disable_alt_dependency_check_title.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            self.disableAltDependencyCheckCheckBox.setChecked(
+                ui_config.get_disable_alt_i586_dependency_check()
+            )
+            disable_alt_dependency_check_layout = QHBoxLayout()
+            disable_alt_dependency_check_layout.setContentsMargins(0, 0, 0, 0)
+            disable_alt_dependency_check_layout.addWidget(
+                self.disableAltDependencyCheckCheckBox
+            )
+            disable_alt_dependency_check_layout.addWidget(
+                disable_alt_dependency_check_title
+            )
+            disable_alt_dependency_check_layout.addStretch()
+            uiForm.addRow(disable_alt_dependency_check_layout)
+
         disable_runtime_download_layout = None
         if not os.getenv("FLATPAK_ID"):
             self.disableRuntimeDownloadCheckBox = QCheckBox()
@@ -1067,6 +1096,10 @@ class MainWindowSettingsTabMixin(_MainWindowTypingBase):
         ui_config.set_crash_reports_enabled(
             self.crashReportsEnabledCheckBox.isChecked()
         )
+        if self.disableAltDependencyCheckCheckBox is not None:
+            ui_config.set_disable_alt_i586_dependency_check(
+                self.disableAltDependencyCheckCheckBox.isChecked()
+            )
 
         from portprotonqt.sound_manager import SoundManager
         SoundManager().reload_config()

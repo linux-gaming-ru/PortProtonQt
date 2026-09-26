@@ -1860,6 +1860,19 @@ def test_alt_package_check_uses_install_script(
     )
     process_events.assert_called()
 
+
+def test_alt_dependency_check_can_be_disabled(monkeypatch: MonkeyPatch) -> None:
+    window: Any = MainWindow.__new__(MainWindow)
+    window._is_alt_x86_64 = lambda: True
+    window._has_alt_biarch_repo = MagicMock()
+    monkeypatch.setattr(
+        "portprotonqt.main_window.ui_config.get_disable_alt_i586_dependency_check",
+        lambda: True,
+    )
+
+    assert window._check_alt_i586_dependencies_before_launch()
+    window._has_alt_biarch_repo.assert_not_called()
+
 def test_initial_library_card_focus_does_not_use_navigation_reason() -> None:
     focus_reasons: list[Qt.FocusReason] = []
     card = SimpleNamespace(

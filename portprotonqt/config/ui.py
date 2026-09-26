@@ -510,6 +510,15 @@ class UIConfig(BaseConfig):
         validate_bool(enabled, "crash_reports_enabled")
         self._save_value("crash_reports_enabled", enabled, "bool")
 
+    def get_disable_alt_i586_dependency_check(self) -> bool:
+        """Get ALT i586 dependency check setting."""
+        return self._get_bool("disable_alt_i586_dependency_check", False)
+
+    def set_disable_alt_i586_dependency_check(self, enabled: bool) -> None:
+        """Set ALT i586 dependency check setting."""
+        validate_bool(enabled, "disable_alt_i586_dependency_check")
+        self._save_value("disable_alt_i586_dependency_check", enabled, "bool")
+
 
 def load_theme_metainfo(theme_name: str) -> dict:
     """Load theme metadata from metainfo.ini."""

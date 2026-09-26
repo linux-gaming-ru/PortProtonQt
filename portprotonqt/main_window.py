@@ -2568,6 +2568,8 @@ class MainWindow(
     def _check_alt_i586_dependencies_before_launch(self) -> bool:
         if not self._is_alt_x86_64():
             return True
+        if ui_config.get_disable_alt_i586_dependency_check():
+            return True
 
         if not self._has_alt_biarch_repo():
             QMessageBox.warning(
