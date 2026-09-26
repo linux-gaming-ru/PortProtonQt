@@ -103,7 +103,9 @@ class MainWindowAutoInstallTabMixin(_MainWindowTypingBase):
 
         self.autoInstallContainer = QWidget()
         self.autoInstallContainer.setStyleSheet(self.theme.LIST_WIDGET_STYLE)
-        auto_layout_mode = str(getattr(self.theme, "LIBRARY_LAYOUT_MODE", "grid")).lower()
+        auto_layout_mode = ui_config.get_library_layout_mode(
+            str(getattr(self.theme, "LIBRARY_LAYOUT_MODE", "grid"))
+        )
         self._set_autoinstall_container_layout(auto_layout_mode)
         self.autoInstallScrollArea.setWidget(self.autoInstallContainer)
 
@@ -144,9 +146,9 @@ class MainWindowAutoInstallTabMixin(_MainWindowTypingBase):
         def on_autoinstall_games_loaded(games: list[tuple]):
             self.autoInstallLoaded = True
             self.autoInstallLoading = False
-            auto_layout_mode = str(
-                getattr(self.theme, "LIBRARY_LAYOUT_MODE", "grid")
-            ).lower()
+            auto_layout_mode = ui_config.get_library_layout_mode(
+                str(getattr(self.theme, "LIBRARY_LAYOUT_MODE", "grid"))
+            )
             list_layout = auto_layout_mode in {"list", "vertical"}
             self.autoInstallContainer.setProperty(
                 "library_layout_mode", auto_layout_mode
@@ -261,10 +263,12 @@ class MainWindowAutoInstallTabMixin(_MainWindowTypingBase):
             layout.setSpacing(config.get("layout_spacing", 0))
             layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         elif mode in {"horizontal", "horizontal_top"}:
-            config = self.theme.GAME_CARD_HORIZONTAL
+            config = getattr(self.theme, "GAME_CARD_HORIZONTAL", {})
             layout = QHBoxLayout()
-            layout.setContentsMargins(*config["layout_margins"])
-            layout.setSpacing(config["layout_spacing"])
+            layout.setContentsMargins(
+                *config.get("layout_margins", (0, 0, 0, 0))
+            )
+            layout.setSpacing(config.get("layout_spacing", 0))
             layout.setAlignment(
                 Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
             )
@@ -288,7 +292,9 @@ class MainWindowAutoInstallTabMixin(_MainWindowTypingBase):
         """Rebuild auto-install cards after a live library layout change."""
         if not hasattr(self, "autoInstallContainer"):
             return
-        mode = str(getattr(self.theme, "LIBRARY_LAYOUT_MODE", "grid")).lower()
+        mode = ui_config.get_library_layout_mode(
+            str(getattr(self.theme, "LIBRARY_LAYOUT_MODE", "grid"))
+        )
         fixed_layout = mode in {
             "list", "vertical", "horizontal", "horizontal_top",
         }
@@ -406,7 +412,9 @@ class MainWindowAutoInstallTabMixin(_MainWindowTypingBase):
 
     def on_auto_slider_released(self):
         """Handles auto-install slider release to update card size."""
-        auto_layout_mode = str(getattr(self.theme, "LIBRARY_LAYOUT_MODE", "grid")).lower()
+        auto_layout_mode = ui_config.get_library_layout_mode(
+            str(getattr(self.theme, "LIBRARY_LAYOUT_MODE", "grid"))
+        )
         fixed_layout = auto_layout_mode in {
             "list", "vertical", "horizontal", "horizontal_top",
         }

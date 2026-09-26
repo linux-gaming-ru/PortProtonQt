@@ -2249,6 +2249,40 @@ msgstr "Скрытый"
 msgid "Badge View Type:"
 msgstr "Тип отображения бейджей:"
 
+#, fuzzy
+msgid "Theme"
+msgstr "Темы"
+
+msgid "Grid"
+msgstr ""
+
+#, fuzzy
+msgid "List"
+msgstr "Светлая"
+
+#, fuzzy
+msgid "Table"
+msgstr "Стабильный"
+
+#, fuzzy
+msgid "Horizontal Blocks"
+msgstr "Горизонтальное расположение HUD"
+
+#, fuzzy
+msgid "Horizontal Cards"
+msgstr "Горизонтальное расположение HUD"
+
+#, fuzzy
+msgid "Horizontal Top Blocks"
+msgstr "Горизонтальное расположение HUD"
+
+msgid "Horizontal Top Cards"
+msgstr ""
+
+#, fuzzy
+msgid "Grid Type:"
+msgstr "Тип геймпада:"
+
 #, python-brace-format
 msgid ""
 "Are you sure you want to delete {count} cards without executable? This "
@@ -2313,6 +2347,9 @@ msgstr "Включить звуки интерфейса"
 
 msgid "Show compatibility report after game crash"
 msgstr "Показывать отчёт о совместимости после сбоя игры"
+
+msgid "Disable ALT Linux i586 dependency check"
+msgstr ""
 
 msgid "Disable runtime download"
 msgstr "Отключить скачивание контейнера"

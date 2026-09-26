@@ -25,10 +25,7 @@ class GameCardAnimations:
 
     def _animation_type(self) -> str:
         layout_config = getattr(self.game_card, "card_layout_cfg", {})
-        return layout_config.get(
-            "card_animation_type",
-            self.theme.GAME_CARD_ANIMATION.get("card_animation_type", "gradient"),
-        )
+        return layout_config.get("card_animation_type", "gradient")
 
     def _config_value(self, key: str) -> Any:
         layout_config = getattr(self.game_card, "card_layout_cfg", {})

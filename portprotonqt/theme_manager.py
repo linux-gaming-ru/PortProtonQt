@@ -651,6 +651,11 @@ class ThemeWrapper:
         self._default_theme = None  # Lazy-loaded default theme
         self._generated_styles = None  # Lazy-generated standard styles with custom constants
 
+    def get_theme_override(self, name: str) -> Any | None:
+        """Return a value declared by the custom theme."""
+        declared = getattr(self.custom_theme, "_declared_theme_names", set())
+        return getattr(self.custom_theme, name, None) if name in declared else None
+
     @property
     def screenshots(self) -> list[tuple[QPixmap, str]]:
         """Load theme preview screenshots on first access."""
@@ -842,6 +847,19 @@ def load_theme(theme_name, inherit_chain=None):
             if spec is None or spec.loader is None:
                 continue
             custom_theme = importlib.util.module_from_spec(spec)
+            try:
+                with open(styles_file, encoding="utf-8") as source_file:
+                    theme_tree = ast.parse(source_file.read(), filename=styles_file)
+                declared_theme_names = {
+                    target.id
+                    for node in theme_tree.body
+                    if isinstance(node, ast.Assign)
+                    for target in node.targets
+                    if isinstance(target, ast.Name)
+                }
+                custom_theme.__dict__["_declared_theme_names"] = declared_theme_names
+            except (OSError, SyntaxError):
+                custom_theme.__dict__["_declared_theme_names"] = set()
 
             # Temporarily add the theme directory to sys.path to support relative imports
             theme_dir = os.path.dirname(styles_file)

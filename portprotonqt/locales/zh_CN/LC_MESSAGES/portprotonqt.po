@@ -2227,6 +2227,40 @@ msgstr "隐藏"
 msgid "Badge View Type:"
 msgstr "徽章视图类型："
 
+#, fuzzy
+msgid "Theme"
+msgstr "主题"
+
+msgid "Grid"
+msgstr ""
+
+#, fuzzy
+msgid "List"
+msgstr "浅色"
+
+#, fuzzy
+msgid "Table"
+msgstr "稳定"
+
+#, fuzzy
+msgid "Horizontal Blocks"
+msgstr "水平 HUD 布局"
+
+#, fuzzy
+msgid "Horizontal Cards"
+msgstr "水平 HUD 布局"
+
+#, fuzzy
+msgid "Horizontal Top Blocks"
+msgstr "水平 HUD 布局"
+
+msgid "Horizontal Top Cards"
+msgstr ""
+
+#, fuzzy
+msgid "Grid Type:"
+msgstr "游戏手柄类型："
+
 #, python-brace-format
 msgid ""
 "Are you sure you want to delete {count} cards without executable? This "
@@ -2291,6 +2325,9 @@ msgid "Enable UI Sounds"
 msgstr "启用界面音效"
 
 msgid "Show compatibility report after game crash"
+msgstr ""
+
+msgid "Disable ALT Linux i586 dependency check"
 msgstr ""
 
 msgid "Disable runtime download"

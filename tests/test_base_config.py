@@ -120,6 +120,14 @@ def test_crash_reports_config_defaults_to_enabled(tmp_path: Path):
     assert config.get_crash_reports_enabled() is False
 
 
+def test_alt_dependency_check_config_defaults_to_enabled(tmp_path: Path):
+    config = UIConfig(config_file=tmp_path / "test.conf")
+
+    assert config.get_disable_alt_i586_dependency_check() is False
+    config.set_disable_alt_i586_dependency_check(True)
+    assert config.get_disable_alt_i586_dependency_check() is True
+
+
 def test_control_hints_are_visible_by_default(tmp_path: Path):
     config = UIConfig(config_file=tmp_path / "test.conf")
 
@@ -134,6 +142,26 @@ def test_force_english_is_disabled_by_default(tmp_path: Path):
     assert config.get_force_english() is False
     config.set_force_english(True)
     assert config.get_force_english() is True
+
+
+def test_library_layout_uses_theme_until_overridden(tmp_path: Path):
+    config = UIConfig(config_file=tmp_path / "test.conf")
+
+    assert config.get_library_layout_mode("horizontal") == "horizontal"
+    config.set_library_layout_mode("grid")
+    assert config.get_library_layout_mode("horizontal") == "grid"
+    config.set_library_layout_mode("horizontal_top")
+    assert config.get_library_layout_mode("grid") == "horizontal_top"
+    config.set_library_layout_mode("vertical")
+    assert config.get_library_layout_mode("horizontal") == "vertical"
+
+
+def test_horizontal_card_orientation_uses_theme_until_overridden(tmp_path: Path):
+    config = UIConfig(config_file=tmp_path / "test.conf")
+
+    assert config.get_horizontal_card_orientation("vertical") == "vertical"
+    config.set_horizontal_card_orientation("horizontal")
+    assert config.get_horizontal_card_orientation("vertical") == "horizontal"
 
 
 def test_translation_can_switch_to_english_without_restart(

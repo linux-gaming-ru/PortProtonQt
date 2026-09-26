@@ -2266,6 +2266,35 @@ msgstr ""
 msgid "Badge View Type:"
 msgstr ""
 
+#, fuzzy
+msgid "Theme"
+msgstr "Temas"
+
+msgid "Grid"
+msgstr ""
+
+msgid "List"
+msgstr ""
+
+#, fuzzy
+msgid "Table"
+msgstr "Estable"
+
+msgid "Horizontal Blocks"
+msgstr ""
+
+msgid "Horizontal Cards"
+msgstr ""
+
+msgid "Horizontal Top Blocks"
+msgstr ""
+
+msgid "Horizontal Top Cards"
+msgstr ""
+
+msgid "Grid Type:"
+msgstr ""
+
 #, fuzzy, python-brace-format
 msgid ""
 "Are you sure you want to delete {count} cards without executable? This "
@@ -2329,6 +2358,9 @@ msgid "Enable UI Sounds"
 msgstr ""
 
 msgid "Show compatibility report after game crash"
+msgstr ""
+
+msgid "Disable ALT Linux i586 dependency check"
 msgstr ""
 
 msgid "Disable runtime download"

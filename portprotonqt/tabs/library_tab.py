@@ -143,6 +143,24 @@ class MainWindowLibraryTabMixin(_MainWindowTypingBase):
             card.update_badge_visibility(display_filter)
             card.update_badge_view_mode(badge_view_mode)
 
+    def _on_library_layout_changed(self, index: int) -> None:
+        if index < 0 or index >= len(self.library_layout_keys):
+            return
+        layout_mode = self.library_layout_keys[index]
+        card_orientation = "theme"
+        if layout_mode in {"horizontal_vertical", "horizontal_top_vertical"}:
+            layout_mode = layout_mode.removesuffix("_vertical")
+            card_orientation = "vertical"
+        elif layout_mode in {"horizontal", "horizontal_top"}:
+            card_orientation = "horizontal"
+        ui_config.set_library_layout_mode(layout_mode)
+        ui_config.set_horizontal_card_orientation(card_orientation)
+        theme_mode = str(getattr(self.theme, "LIBRARY_LAYOUT_MODE", "grid"))
+        self.game_library_manager.rebuild_library_layout(
+            ui_config.get_library_layout_mode(theme_mode)
+        )
+        self.refresh_autoinstall_layout()
+
     def _toggle_library_controls(self) -> None:
         self._position_library_controls_widget()
         self.libraryControlsAnimation.toggle(self.libraryControlsButton.isChecked())
@@ -365,6 +383,36 @@ class MainWindowLibraryTabMixin(_MainWindowTypingBase):
         self.gamesBadgeViewCombo.currentIndexChanged.connect(self._on_library_badge_view_changed)
         self.gamesBadgeViewCombo.activated.connect(self._delay_library_controls_hover_close)
         controls_layout.addWidget(self.gamesBadgeViewCombo, 0, 2)
+
+        self.library_layout_keys = [
+            "theme", "grid", "list", "vertical", "horizontal",
+            "horizontal_vertical", "horizontal_top", "horizontal_top_vertical",
+        ]
+        self.library_layout_labels = [
+            _("Theme"), _("Grid"), _("List"), _("Table"),
+            _("Horizontal Blocks"), _("Horizontal Cards"),
+            _("Horizontal Top Blocks"), _("Horizontal Top Cards"),
+        ]
+        self.gamesLayoutCombo = self._create_library_combo(
+            self.library_layout_labels, _("Grid Type:")
+        )
+        selected_layout = ui_config.get_library_layout_mode("theme")
+        if (
+            selected_layout in {"horizontal", "horizontal_top"}
+            and ui_config.get_horizontal_card_orientation("horizontal")
+            == "vertical"
+        ):
+            selected_layout += "_vertical"
+        self._set_combo_current_key(
+            self.gamesLayoutCombo, self.library_layout_keys, selected_layout
+        )
+        self.gamesLayoutCombo.currentIndexChanged.connect(
+            self._on_library_layout_changed
+        )
+        self.gamesLayoutCombo.activated.connect(
+            self._delay_library_controls_hover_close
+        )
+        controls_layout.addWidget(self.gamesLayoutCombo, 0, 3)
 
     def _delay_library_controls_hover_close(self, _index: int = -1) -> None:
         self._library_controls_hover_close_delayed = True

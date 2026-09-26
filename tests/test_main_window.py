@@ -11,9 +11,9 @@ from typing import Any, cast
 from unittest.mock import MagicMock
 
 import psutil
-from pytest import MonkeyPatch, mark
-from PySide6.QtCore import QEventLoop, QObject, Qt, QTimer
-from PySide6.QtGui import QAction, QPixmap
+from pytest import MonkeyPatch, fixture, mark
+from PySide6.QtCore import QEventLoop, QObject, QPoint, QPointF, Qt, QTimer
+from PySide6.QtGui import QAction, QPixmap, QWheelEvent
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -64,6 +64,18 @@ from portprotonqt.tabs.theme_tab import (
 )
 from portprotonqt.tabs.workers import MainWindowWorkersMixin
 from portprotonqt.tabs.wine_tab import MainWindowWineTabMixin as WineMixin
+
+
+@fixture(autouse=True)
+def use_theme_library_layout(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "portprotonqt.config.ui_config.get_library_layout_mode",
+        lambda theme_mode: theme_mode.lower(),
+    )
+    monkeypatch.setattr(
+        "portprotonqt.config.ui_config.get_horizontal_card_orientation",
+        lambda theme_mode: theme_mode,
+    )
 
 def _tile_theme() -> Any:
     return SimpleNamespace(
@@ -681,6 +693,29 @@ def test_auto_hide_scroll_area_tracks_horizontal_overflow() -> None:
     assert scroll_area._h_is_visible is True
     assert scroll_area._h_hide_timer.isActive()
 
+
+def test_auto_hide_scroll_area_uses_wheel_for_horizontal_overflow() -> None:
+    _application = QApplication.instance() or QApplication([])
+    theme = SimpleNamespace(TRANSPARENT_BACKGROUND_STYLE="", SCROLL_STYLE="")
+    scroll_area = AutoHideScrollArea(theme=theme)
+    scroll_area.resize(100, 100)
+    content = QWidget()
+    content.setMinimumSize(300, 50)
+    scroll_area.setWidget(content)
+    scroll_area.show()
+    QApplication.processEvents()
+    scroll_area.horizontalScrollBar().setValue(100)
+    event = QWheelEvent(
+        QPointF(), QPointF(), QPoint(), QPoint(0, 120),
+        Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier,
+        Qt.ScrollPhase.ScrollUpdate, False,
+    )
+
+    scroll_area.wheelEvent(event)
+
+    assert scroll_area.horizontalScrollBar().value() < 100
+
+
 @mark.parametrize("layout_mode", ["vertical", "horizontal", "horizontal_top"])
 def test_vertical_library_uses_column_layout(layout_mode: str) -> None:
     _application = QApplication.instance() or QApplication([])
@@ -903,9 +938,11 @@ def test_game_card_animation_refresh_supports_all_modes() -> None:
     card._hovered = True
     card._focused = False
     card.update = MagicMock()
+    card.card_layout_cfg = {}
     animations = GameCardAnimations(card, SimpleNamespace(GAME_CARD_ANIMATION=config))
 
     for animation_type in ("gradient", "glow", "fill", "stripe", "scale", "scale_fill"):
+        card.card_layout_cfg = {"card_animation_type": animation_type}
         theme = SimpleNamespace(
             GAME_CARD_ANIMATION={**config, "card_animation_type": animation_type}
         )
@@ -942,6 +979,45 @@ def test_game_card_animation_type_uses_layout_override() -> None:
     assert animations._config_value("hover_border_width") == 6
     assert animations._optional_config_value("fill_alpha", 0) == 40
     assert animations._config_value("focus_scale") == 1.05
+
+
+def test_game_card_animation_type_defaults_to_gradient() -> None:
+    card = SimpleNamespace(card_layout_cfg={})
+    theme = SimpleNamespace(
+        GAME_CARD_ANIMATION={"card_animation_type": "scale_fill"}
+    )
+
+    assert GameCardAnimations(card, theme)._animation_type() == "gradient"
+
+
+def test_inherited_card_layout_uses_theme_card_animation() -> None:
+    overrides = {
+        "GAME_CARD_LIST": {"card_animation_type": "glow"},
+    }
+    theme = SimpleNamespace(
+        GAME_CARD_GRID={"cover_radius": 15, "border_radius": 18},
+        border_radius_card="4px",
+        get_theme_override=lambda name: overrides.get(name),
+    )
+
+    config = GameCard._get_layout_config(theme, "GAME_CARD_GRID")
+
+    assert config["card_animation_type"] == "glow"
+    assert config["cover_radius"] == 4
+    assert config["border_radius"] == 4
+
+
+def test_inherited_card_layout_uses_global_animation_as_last_fallback() -> None:
+    theme = SimpleNamespace(
+        GAME_CARD_GRID={},
+        GAME_CARD_ANIMATION={"card_animation_type": "glow"},
+        border_radius_card="4px",
+        get_theme_override=lambda _name: None,
+    )
+
+    assert GameCard._get_layout_config(
+        theme, "GAME_CARD_GRID"
+    )["card_animation_type"] == "glow"
 
 def test_game_card_click_uses_select_callback() -> None:
     select_callback = MagicMock()
@@ -1002,6 +1078,9 @@ def test_game_card_theme_refresh_updates_hidden_badge_styles() -> None:
         favoriteLabelIconSize=18,
     )
     card.card_layout_cfg = {}
+    card._get_layout_config.side_effect = lambda selected_theme, name: getattr(
+        selected_theme, name, {}
+    )
     theme = SimpleNamespace(
         GAME_CARD_GRID={},
         GAME_CARD_ANIMATION=animation_config,
@@ -1029,6 +1108,54 @@ def test_game_card_theme_refresh_updates_hidden_badge_styles() -> None:
     card.anticheatLabel.setStyleSheet.assert_called_once_with("anticheat")
     card.animations.refresh_theme.assert_not_called()
     card.update_scale.assert_not_called()
+
+
+def test_horizontal_card_can_use_vertical_geometry() -> None:
+    card = SimpleNamespace(
+        horizontal_layout=True,
+        card_layout_cfg={"card_orientation": "vertical"},
+    )
+    grid_config = {"cover_aspect_ratio": 1.5, "card_height_ratio": 1.8}
+
+    config = GameCard._get_card_geometry_config(
+        cast(Any, card), SimpleNamespace(GAME_CARD_GRID=grid_config)
+    )
+
+    assert config is grid_config
+    card.card_layout_cfg = {"cover_aspect_ratio": 0.62}
+    assert GameCard._get_card_geometry_config(
+        cast(Any, card), SimpleNamespace(GAME_CARD_GRID=grid_config)
+    ) is card.card_layout_cfg
+
+
+def test_vertical_horizontal_card_does_not_require_grid_config() -> None:
+    card = SimpleNamespace(
+        horizontal_layout=True,
+        card_layout_cfg={"card_orientation": "vertical"},
+    )
+
+    assert GameCard._get_card_geometry_config(
+        cast(Any, card), SimpleNamespace()
+    ) == {}
+
+
+def test_horizontal_card_orientation_overrides_theme(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    card = SimpleNamespace(
+        horizontal_layout=True,
+        card_layout_cfg={"card_orientation": "vertical"},
+    )
+    monkeypatch.setattr(
+        library_tab_module.ui_config,
+        "get_horizontal_card_orientation",
+        lambda _theme_mode: "horizontal",
+    )
+
+    assert GameCard._get_card_geometry_config(
+        cast(Any, card), SimpleNamespace(GAME_CARD_GRID={})
+    ) is card.card_layout_cfg
+
 
 def test_source_corner_does_not_shadow_generic_theme_refresh() -> None:
     assert hasattr(SourceCorner, "refresh_source_theme")
@@ -1733,6 +1860,19 @@ def test_alt_package_check_uses_install_script(
     )
     process_events.assert_called()
 
+
+def test_alt_dependency_check_can_be_disabled(monkeypatch: MonkeyPatch) -> None:
+    window: Any = MainWindow.__new__(MainWindow)
+    window._is_alt_x86_64 = lambda: True
+    window._has_alt_biarch_repo = MagicMock()
+    monkeypatch.setattr(
+        "portprotonqt.main_window.ui_config.get_disable_alt_i586_dependency_check",
+        lambda: True,
+    )
+
+    assert window._check_alt_i586_dependencies_before_launch()
+    window._has_alt_biarch_repo.assert_not_called()
+
 def test_initial_library_card_focus_does_not_use_navigation_reason() -> None:
     focus_reasons: list[Qt.FocusReason] = []
     card = SimpleNamespace(
@@ -2198,6 +2338,74 @@ def test_installed_filter_reuses_loaded_store_games(monkeypatch: MonkeyPatch) ->
     assert manager.games == [installed, uninstalled]
     assert manager.filtered_games == [installed, uninstalled]
     window.loadGames.assert_not_called()
+
+
+def test_library_layout_control_rebuilds_both_libraries(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    manager = SimpleNamespace(rebuild_library_layout=MagicMock())
+    window = cast(Any, SimpleNamespace(
+        library_layout_keys=["theme", "grid", "horizontal"],
+        theme=SimpleNamespace(LIBRARY_LAYOUT_MODE="horizontal"),
+        game_library_manager=manager,
+        refresh_autoinstall_layout=MagicMock(),
+    ))
+    set_mode = MagicMock()
+    set_orientation = MagicMock()
+    monkeypatch.setattr(
+        library_tab_module.ui_config, "set_library_layout_mode", set_mode
+    )
+    monkeypatch.setattr(
+        library_tab_module.ui_config,
+        "set_horizontal_card_orientation",
+        set_orientation,
+    )
+    monkeypatch.setattr(
+        library_tab_module.ui_config,
+        "get_library_layout_mode",
+        lambda theme_mode: "grid",
+    )
+
+    LibraryMixin._on_library_layout_changed(window, 1)
+
+    set_mode.assert_called_once_with("grid")
+    set_orientation.assert_called_once_with("theme")
+    manager.rebuild_library_layout.assert_called_once_with("grid")
+    window.refresh_autoinstall_layout.assert_called_once_with()
+
+
+@mark.parametrize("layout_mode", ["horizontal", "horizontal_top"])
+def test_vertical_horizontal_layout_saves_card_orientation(
+    layout_mode: str, monkeypatch: MonkeyPatch,
+) -> None:
+    manager = SimpleNamespace(rebuild_library_layout=MagicMock())
+    window = cast(Any, SimpleNamespace(
+        library_layout_keys=[layout_mode, f"{layout_mode}_vertical"],
+        theme=SimpleNamespace(LIBRARY_LAYOUT_MODE="grid"),
+        game_library_manager=manager,
+        refresh_autoinstall_layout=MagicMock(),
+    ))
+    set_mode = MagicMock()
+    set_orientation = MagicMock()
+    monkeypatch.setattr(
+        library_tab_module.ui_config, "set_library_layout_mode", set_mode
+    )
+    monkeypatch.setattr(
+        library_tab_module.ui_config,
+        "set_horizontal_card_orientation",
+        set_orientation,
+    )
+    monkeypatch.setattr(
+        library_tab_module.ui_config,
+        "get_library_layout_mode",
+        lambda _theme_mode: layout_mode,
+    )
+
+    LibraryMixin._on_library_layout_changed(window, 1)
+
+    set_mode.assert_called_once_with(layout_mode)
+    set_orientation.assert_called_once_with("vertical")
+    manager.rebuild_library_layout.assert_called_once_with(layout_mode)
 
 
 def test_incremental_game_add_updates_search_index() -> None:

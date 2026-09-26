@@ -22,6 +22,52 @@ wineSettingsSetSpacing = 10
 themeStorePageSpacing = 10
 themeStoreCardDefaultWidth = 280
 themeStoreDetailCarouselMinHeight = 300
+horizontalTopGameLimit = 10
+fullLibraryTileGameCount = 4
+fullLibraryTileSize = (180, 180)
+fullLibraryTileColumns = 2
+fullLibraryTileRows = 2
+fullLibraryTileRadius = 10
+GAME_CARD_LIST = {
+    "extra_margin": 8,
+    "spacing": 12,
+    "cover_load_size": 64,
+    "cover_size": 56,
+    "min_cover_size": 48,
+    "cover_left_margin": 10,
+    "row_height": 72,
+    "min_row_height": 68,
+    "cover_radius": 8,
+    "border_radius": 18,
+}
+GAME_CARD_GRID = {
+    "extra_margin": 20,
+    "spacing": 5,
+    "cover_aspect_ratio": 1.5,
+    "card_height_ratio": 1.8,
+    "cover_radius": 15,
+    "border_radius": 18,
+}
+GAME_CARD_HORIZONTAL = {
+    "extra_margin": 20,
+    "spacing": 5,
+    "cover_aspect_ratio": 0.56,
+    "card_height_ratio": 0.78,
+    "cover_radius": 15,
+    "border_radius": 18,
+    "layout_margins": (20, 20, 20, 20),
+    "layout_spacing": 20,
+}
+GAME_CARD_VERTICAL = {
+    **GAME_CARD_LIST,
+    "layout_margins": (0, 0, 0, 0),
+    "layout_spacing": 0,
+    "header_height": 40,
+    "header_margins": (4, 0, 4, 0),
+    "header_spacing": 12,
+    "header_cover_width": 66,
+    "column_stretches": (4, 2, 2, 2),
+}
 downloadsSummaryHeight = 96
 downloadsTableHeaderHeight = 38
 downloadsTableRowHeight = 68

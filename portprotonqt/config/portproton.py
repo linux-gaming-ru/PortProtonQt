@@ -455,7 +455,42 @@ def migrate_legacy_shortcut(
 def parse_desktop_entry(file_path: str) -> configparser.SectionProxy | None:
     """Read and parse a .desktop file using configparser."""
     cp = configparser.ConfigParser(interpolation=None)
-    cp.read(file_path, encoding="utf-8")
+    content = ""
+    try:
+        content = Path(file_path).read_text(encoding="utf-8")
+        cp.read_string(content, source=file_path)
+    except configparser.ParsingError:
+        lines = []
+        for line in content.splitlines():
+            stripped = line.strip()
+            if stripped and "=" not in line and not stripped.startswith(("[", "#", ";")):
+                if not lines or "=" not in lines[-1]:
+                    return None
+                lines[-1] = f"{lines[-1]} {stripped}"
+                continue
+            lines.append(line)
+        repaired_content = "\n".join(lines) + ("\n" if content.endswith("\n") else "")
+        try:
+            cp.read_string(repaired_content, source=file_path)
+        except configparser.Error as error:
+            logger.warning("Failed to parse desktop file %s: %s", file_path, error)
+            return None
+        desktop_path = Path(file_path)
+        temp_path = desktop_path.with_name(f".{desktop_path.name}.tmp")
+        try:
+            temp_path.write_text(repaired_content, encoding="utf-8")
+            os.chmod(temp_path, desktop_path.stat().st_mode)
+            os.replace(temp_path, desktop_path)
+            logger.warning("Repaired malformed desktop file %s", file_path)
+        except OSError as error:
+            logger.warning("Failed to save repaired desktop file %s: %s", file_path, error)
+            try:
+                temp_path.unlink(missing_ok=True)
+            except OSError as cleanup_error:
+                logger.debug("Failed to remove temporary file %s: %s", temp_path, cleanup_error)
+    except (configparser.Error, OSError, UnicodeError) as error:
+        logger.warning("Failed to parse desktop file %s: %s", file_path, error)
+        return None
     if "Desktop Entry" not in cp:
         return None
     return cp["Desktop Entry"]
@@ -563,6 +598,7 @@ def create_desktop_file(
 
     if not game_name:
         game_name = os.path.splitext(os.path.basename(exe_path))[0]
+    game_name = " ".join(game_name.splitlines()).strip()
     base_path = os.path.join(portproton_path, "data")
     icon_name = _sanitize_icon_name(game_name)
     has_icon_source = bool(icon_source and os.path.isfile(icon_source))

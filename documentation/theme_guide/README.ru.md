@@ -291,6 +291,7 @@ GAME_CARD_GRID = {
 }
 
 GAME_CARD_HORIZONTAL = {
+    "card_orientation": "vertical",
     "card_animation_type": "scale",
     "extra_margin": 20,
     "spacing": 5,
@@ -301,6 +302,10 @@ GAME_CARD_HORIZONTAL = {
     "layout_spacing": 20,
 }
 ```
+
+Укажите `card_orientation = "vertical"`, чтобы использовать в горизонтальной
+ленте вертикальные пропорции карточек из сетки. Без параметра сохраняются
+пропорции горизонтальных блоков.
 
 Значения задаются в логических пикселях. `cover_radius` применяется к
 статическим и анимированным обложкам, а `border_radius` — к отрисовываемой
@@ -313,7 +318,8 @@ GAME_CARD_HORIZONTAL = {
 fill/stripe/glow, масштаб, длительности и easing-кривые. Например,
 `horizontal_top` может задавать собственные тип `scale`, значения масштаба,
 длительность и easing, а полная сетка — отдельные параметры `gradient`.
-Отсутствующие в режиме параметры берутся из `GAME_CARD_ANIMATION`.
+Отсутствующие в режиме параметры берутся из `GAME_CARD_ANIMATION`, а
+`card_animation_type` по умолчанию использует `gradient`.
 
 ```python
 GAME_CARD_HORIZONTAL = {

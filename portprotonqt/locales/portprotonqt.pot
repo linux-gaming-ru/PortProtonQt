@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PortProtonQt 0.1.1\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-09-24 20:08+0500\n"
+"POT-Creation-Date: 2026-09-26 12:00+0500\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -2152,6 +2152,33 @@ msgstr ""
 msgid "Badge View Type:"
 msgstr ""
 
+msgid "Theme"
+msgstr ""
+
+msgid "Grid"
+msgstr ""
+
+msgid "List"
+msgstr ""
+
+msgid "Table"
+msgstr ""
+
+msgid "Horizontal Blocks"
+msgstr ""
+
+msgid "Horizontal Cards"
+msgstr ""
+
+msgid "Horizontal Top Blocks"
+msgstr ""
+
+msgid "Horizontal Top Cards"
+msgstr ""
+
+msgid "Grid Type:"
+msgstr ""
+
 #, python-brace-format
 msgid ""
 "Are you sure you want to delete {count} cards without executable? This "
@@ -2213,6 +2240,9 @@ msgid "Enable UI Sounds"
 msgstr ""
 
 msgid "Show compatibility report after game crash"
+msgstr ""
+
+msgid "Disable ALT Linux i586 dependency check"
 msgstr ""
 
 msgid "Disable runtime download"

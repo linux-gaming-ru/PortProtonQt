@@ -291,6 +291,7 @@ GAME_CARD_GRID = {
 }
 
 GAME_CARD_HORIZONTAL = {
+    "card_orientation": "vertical",
     "card_animation_type": "scale",
     "extra_margin": 20,
     "spacing": 5,
@@ -302,6 +303,9 @@ GAME_CARD_HORIZONTAL = {
 }
 ```
 
+Set `card_orientation` to `"vertical"` to reuse the grid card proportions in
+the horizontal strip. Omit it to keep the horizontal block proportions.
+
 Values are logical pixels. `cover_radius` applies to static and animated covers;
 `border_radius` applies to the painted focus and hover border. Grid cover width
 continues to follow the library card-size setting.
@@ -312,7 +316,8 @@ widths, pulse settings, gradient angles and colors, fill/stripe/glow colors and
 opacity, scale values, animation durations, and easing curves. For example,
 `horizontal_top` can define its own `scale` type, scale values, duration, and
 easing while the complete grid uses separately configured `gradient` values.
-Keys omitted from a layout continue to use `GAME_CARD_ANIMATION` as fallback.
+Keys omitted from a layout continue to use `GAME_CARD_ANIMATION` as fallback;
+`card_animation_type` defaults to `gradient`.
 
 ```python
 GAME_CARD_HORIZONTAL = {

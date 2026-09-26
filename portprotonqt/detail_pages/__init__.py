@@ -1448,6 +1448,8 @@ class DetailPageManager:
         resolved_exe_path = self.main_window.resolve_launch_file_path(exe_path)
         if resolved_exe_path is None:
             return
+        if not self.main_window._check_alt_i586_dependencies_before_launch():
+            return
 
         start_command = get_portproton_start_command()
         if not start_command:

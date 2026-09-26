@@ -258,6 +258,26 @@ def test_compact_layout_rebuild_preserves_debug_log_button(monkeypatch: MonkeyPa
     new_button.setIcon.assert_called_once_with(stop_icon)
 
 
+def test_debug_log_checks_alt_i586_dependencies(monkeypatch: MonkeyPatch) -> None:
+    manager = DetailPageManager.__new__(DetailPageManager)
+    manager.main_window = SimpleNamespace(
+        resolve_launch_file_path=lambda path: path,
+        _check_alt_i586_dependencies_before_launch=MagicMock(return_value=False),
+    )
+    cast(Any, manager).debug_log_manager = SimpleNamespace(start=MagicMock())
+    monkeypatch.setattr(
+        "portprotonqt.detail_pages.get_portproton_start_command",
+        MagicMock(return_value=["portproton"]),
+    )
+
+    manager._start_debug_log("/games/game.exe", MagicMock())
+
+    main_window = cast(Any, manager.main_window)
+    debug_log_manager = cast(Any, manager.debug_log_manager)
+    main_window._check_alt_i586_dependencies_before_launch.assert_called_once_with()
+    debug_log_manager.start.assert_not_called()
+
+
 def _make_palette(colors):
     """Create mock palette with name() returning hex colors."""
     palette = []
