@@ -2955,6 +2955,9 @@ start_portproton () {
 
     if [[ "${PW_USE_NVAPI_AND_DLSS}" == "1" ]] ; then
         export DXVK_ENABLE_NVAPI="1"
+        if [[ -f "${WINEDIR}/share/dxvk-nvapi-vkreflex-layer/implicit_layer.d/VkLayer_DXVK_NVAPI_reflex.json" ]] ; then
+            PW_VKREFLEX=1
+        fi
         if echo "$LSPCI_VGA" | grep -i -q 'nvidia' ; then
             FIND_NVNGX="$(dirname $(find /usr/* -type f -name "nvngx.dll" 2>/dev/null | head -n 1 | awk '{print $1}'))"
             if [[ -n "$FIND_NVNGX" ]] ; then
@@ -2966,6 +2969,7 @@ start_portproton () {
         fi
     else
         export DXVK_ENABLE_NVAPI="0"
+        unset PW_VKREFLEX DXVK_NVAPI_VKREFLEX
     fi
 
     if [[ "${PW_HEAP_DELAY_FREE}" == 1 ]]
@@ -4044,6 +4048,10 @@ steamplay_launch () {
             unset PW_VK_LAYER_PATH
         else
             export PW_VK_LAYER_PATH="${PW_PLUGINS_PATH}/portable/share/vulkan/implicit_layer.d"
+        fi
+        if [[ "${PW_VKREFLEX}" == "1" ]] ; then
+            export DXVK_NVAPI_VKREFLEX="1"
+            export PW_VK_LAYER_PATH="${PW_VK_LAYER_PATH:+${PW_VK_LAYER_PATH}:}${WINEDIR}/share/dxvk-nvapi-vkreflex-layer/implicit_layer.d"
         fi
 
         pw_mangohud_check
