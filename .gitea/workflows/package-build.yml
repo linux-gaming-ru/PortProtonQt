@@ -80,11 +80,11 @@ jobs:
     needs: changes
     if: needs.changes.outputs.appimage == 'true' || github.event_name == 'workflow_dispatch'
     container:
-      image: archlinux:base-devel@sha256:4894f5a268c696fad671966f383175a13faf433c9d9c88cdd4e32eaa2d18838b
+      image: archlinux:base-devel@sha256:8745817f349ed24373341ddb92776209eeec3f0364ea48f7f645ac5800d30a50
       options: --privileged --device /dev/fuse
     steps:
       - name: Prepare container
-        uses: https://git.linux-gaming.ru/actions/anylinux-setup-action@7ff2bdc2fe97f9a4c6a4007f5f42fb4941f49fee # v4
+        uses: https://git.linux-gaming.ru/actions/anylinux-setup-action@b2d1ce4216f71162e00ae58fa11ee9aeb723d0d5 # v5
 
       - name: Install CI dependencies
         run: pacman -S --noconfirm --needed nodejs npm
@@ -185,7 +185,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.arch == 'true' || github.event_name == 'workflow_dispatch'
     container:
-      image: archlinux:base-devel@sha256:4894f5a268c696fad671966f383175a13faf433c9d9c88cdd4e32eaa2d18838b
+      image: archlinux:base-devel@sha256:8745817f349ed24373341ddb92776209eeec3f0364ea48f7f645ac5800d30a50
 
     steps:
       - name: Prepare container
