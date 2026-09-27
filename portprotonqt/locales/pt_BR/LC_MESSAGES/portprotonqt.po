@@ -9,7 +9,7 @@ msgstr ""
 "Project-Id-Version: PortProtonQt 0.1.1\n"
 "Report-Msgid-Bugs-To: support@linux-gaming.ru\n"
 "POT-Creation-Date: 2026-06-04 10:32+0500\n"
-"PO-Revision-Date: 2026-09-09 00:26+0000\n"
+"PO-Revision-Date: 2026-09-24 06:40+0000\n"
 "Last-Translator: rogerio-mattos <rogerio-mattos@noreply.codeberg.org>\n"
 "Language-Team: Portuguese (Brazil) <https://translate.codeberg.org/projects/"
 "portprotonqt/portprotonqt/pt_BR/>\n"
@@ -18,7 +18,7 @@ msgstr ""
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=n > 1;\n"
-"X-Generator: Weblate 2026.8.1\n"
+"X-Generator: Weblate 2026.9.1\n"
 "Generated-By: Babel 2.18.0\n"
 
 msgid "Stop Game"
@@ -258,17 +258,16 @@ msgstr "Área de Trabalho"
 msgid "Failed to save custom data: {error}"
 msgstr "Falha ao salvar os dados personalizados: {error}"
 
-#, fuzzy, python-brace-format
+#, python-brace-format
 msgid "Executable not found"
-msgstr "Executável não encontrado: {0}"
+msgstr "Executável não encontrado"
 
 #, python-brace-format
 msgid "Executable not found: {0}"
 msgstr "Executável não encontrado: {0}"
 
-#, fuzzy
 msgid "Select another executable"
-msgstr "Excluir atalhos sem executável"
+msgstr "Selecione outro executável"
 
 msgid "Game name and executable path are required"
 msgstr "O nome do jogo e o caminho do executável são obrigatórios"
@@ -840,9 +839,8 @@ msgstr "min."
 msgid "sec."
 msgstr "s."
 
-#, fuzzy
 msgid "Pause Game"
-msgstr "Iniciar Jogo"
+msgstr "Pausar jogo"
 
 msgid "Exit"
 msgstr "Sair"
@@ -856,13 +854,11 @@ msgstr "Favoritos"
 msgid "Recent Games"
 msgstr "Jogos Recentes"
 
-#, fuzzy
 msgid "Resume Game"
-msgstr "Jogos Recentes"
+msgstr "Retomar jogo"
 
-#, fuzzy
 msgid "Failed to pause game"
-msgstr "Falha ao parar o jogo"
+msgstr "Falha ao pausar o jogo"
 
 msgid "No recent games"
 msgstr "Nenhum jogo recente"
@@ -1581,17 +1577,14 @@ msgstr "Opacidade do fundo"
 msgid "Round corners (px)"
 msgstr "Cantos arredondados (px)"
 
-#, fuzzy
 msgid "Font scale"
-msgstr "Fontes"
+msgstr "Escala da fonte"
 
-#, fuzzy
 msgid "Font size"
-msgstr "Fontes"
+msgstr "Tamanho da fonte"
 
-#, fuzzy
 msgid "Font"
-msgstr "Fontes"
+msgstr "Fonte"
 
 msgid "Top-left"
 msgstr "Superior esquerdo"
