@@ -84,7 +84,7 @@ jobs:
       options: --privileged --device /dev/fuse
     steps:
       - name: Prepare container
-        uses: https://git.linux-gaming.ru/actions/anylinux-setup-action@7ff2bdc2fe97f9a4c6a4007f5f42fb4941f49fee # v4
+        uses: https://git.linux-gaming.ru/actions/anylinux-setup-action@b2d1ce4216f71162e00ae58fa11ee9aeb723d0d5 # v5
 
       - name: Install CI dependencies
         run: pacman -S --noconfirm --needed nodejs npm
