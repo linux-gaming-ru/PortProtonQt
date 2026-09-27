@@ -1900,6 +1900,11 @@
     "slug": "tekken-7-for-esl"
   },
   {
+    "normalized_name": "rocket league",
+    "status": "Supported",
+    "slug": "rocket-league"
+  },
+  {
     "normalized_name": "rocket league (faceit)",
     "status": "Broken",
     "slug": "rocket-league-for-faceit"
@@ -3341,7 +3346,7 @@
   },
   {
     "normalized_name": "the crew motorfest",
-    "status": "Broken",
+    "status": "Supported",
     "slug": "the-crew-motorfest"
   },
   {
@@ -3776,7 +3781,7 @@
   },
   {
     "normalized_name": "exoborne",
-    "status": "Broken",
+    "status": "Denied",
     "slug": "exoborne"
   },
   {
