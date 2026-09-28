@@ -2165,7 +2165,7 @@ msgstr ""
 msgid "List"
 msgstr ""
 
-msgid "Table"
+msgid "Vertical"
 msgstr ""
 
 msgid "Horizontal Blocks"
@@ -2174,13 +2174,13 @@ msgstr ""
 msgid "Horizontal Cards"
 msgstr ""
 
-msgid "Horizontal Top Blocks"
+msgid "Horizontal endless Blocks"
 msgstr ""
 
-msgid "Horizontal Top Cards"
+msgid "Horizontal endless Cards"
 msgstr ""
 
-msgid "Grid Type:"
+msgid "Layout"
 msgstr ""
 
 #, python-brace-format

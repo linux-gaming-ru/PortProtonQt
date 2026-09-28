@@ -389,12 +389,12 @@ class MainWindowLibraryTabMixin(_MainWindowTypingBase):
             "horizontal_vertical", "horizontal_top", "horizontal_top_vertical",
         ]
         self.library_layout_labels = [
-            _("Theme"), _("Grid"), _("List"), _("Table"),
+            _("Theme"), _("Grid"), _("List"), _("Vertical"),
             _("Horizontal Blocks"), _("Horizontal Cards"),
-            _("Horizontal Top Blocks"), _("Horizontal Top Cards"),
+            _("Horizontal endless Blocks"), _("Horizontal endless Cards"),
         ]
         self.gamesLayoutCombo = self._create_library_combo(
-            self.library_layout_labels, _("Grid Type:")
+            self.library_layout_labels, _("Layout")
         )
         selected_layout = ui_config.get_library_layout_mode("theme")
         if (

@@ -2277,8 +2277,8 @@ msgid "List"
 msgstr ""
 
 #, fuzzy
-msgid "Table"
-msgstr "Estable"
+msgid "Vertical"
+msgstr "parcial"
 
 msgid "Horizontal Blocks"
 msgstr ""
@@ -2286,13 +2286,13 @@ msgstr ""
 msgid "Horizontal Cards"
 msgstr ""
 
-msgid "Horizontal Top Blocks"
+msgid "Horizontal endless Blocks"
 msgstr ""
 
-msgid "Horizontal Top Cards"
+msgid "Horizontal endless Cards"
 msgstr ""
 
-msgid "Grid Type:"
+msgid "Layout"
 msgstr ""
 
 #, fuzzy, python-brace-format
