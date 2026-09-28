@@ -2255,8 +2255,8 @@ msgstr "Сетка"
 msgid "List"
 msgstr "Список"
 
-msgid "Table"
-msgstr "Таблица"
+msgid "Vertical"
+msgstr "Вертикальная"
 
 msgid "Horizontal Blocks"
 msgstr "Горизонтальные блоки"
@@ -2264,14 +2264,14 @@ msgstr "Горизонтальные блоки"
 msgid "Horizontal Cards"
 msgstr "Горизонтальные карточки"
 
-msgid "Horizontal Top Blocks"
-msgstr "Горизонтальные верхние блоки"
+msgid "Horizontal endless Blocks"
+msgstr "Бесконечные горизонтальные блоки"
 
-msgid "Horizontal Top Cards"
-msgstr "Горизонтальные верхние карточки"
+msgid "Horizontal endless Cards"
+msgstr "Бесконечные горизонтальные карточки"
 
-msgid "Grid Type:"
-msgstr "Тип сетки:"
+msgid "Layout"
+msgstr "Режим отображения"
 
 #, python-brace-format
 msgid ""

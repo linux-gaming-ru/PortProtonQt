@@ -2263,8 +2263,8 @@ msgstr "Gitter"
 msgid "List"
 msgstr "Liste"
 
-msgid "Table"
-msgstr "Tabelle"
+msgid "Vertical"
+msgstr "Vertikal"
 
 msgid "Horizontal Blocks"
 msgstr "Horizontale Blöcke"
@@ -2272,14 +2272,14 @@ msgstr "Horizontale Blöcke"
 msgid "Horizontal Cards"
 msgstr "Horizontale Karten"
 
-msgid "Horizontal Top Blocks"
-msgstr "Horizontale Blöcke"
+msgid "Horizontal endless Blocks"
+msgstr "Endlose horizontale Blöcke"
 
-msgid "Horizontal Top Cards"
-msgstr "Horizontale Karten"
+msgid "Horizontal endless Cards"
+msgstr "Endlose horizontale Karten"
 
-msgid "Grid Type:"
-msgstr "Rastertyp:"
+msgid "Layout"
+msgstr "Layout"
 
 #, python-brace-format
 msgid ""

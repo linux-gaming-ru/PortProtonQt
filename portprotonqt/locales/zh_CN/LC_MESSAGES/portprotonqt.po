@@ -2239,8 +2239,8 @@ msgid "List"
 msgstr "浅色"
 
 #, fuzzy
-msgid "Table"
-msgstr "稳定"
+msgid "Vertical"
+msgstr "部分"
 
 #, fuzzy
 msgid "Horizontal Blocks"
@@ -2251,15 +2251,16 @@ msgid "Horizontal Cards"
 msgstr "水平 HUD 布局"
 
 #, fuzzy
-msgid "Horizontal Top Blocks"
+msgid "Horizontal endless Blocks"
 msgstr "水平 HUD 布局"
 
-msgid "Horizontal Top Cards"
-msgstr ""
+#, fuzzy
+msgid "Horizontal endless Cards"
+msgstr "水平 HUD 布局"
 
 #, fuzzy
-msgid "Grid Type:"
-msgstr "游戏手柄类型："
+msgid "Layout"
+msgstr "注销"
 
 #, python-brace-format
 msgid ""

@@ -2266,28 +2266,23 @@ msgstr ""
 msgid "List"
 msgstr "Claro"
 
-#, fuzzy
-msgid "Table"
-msgstr "Estável"
+msgid "Vertical"
+msgstr "Vertical"
 
-#, fuzzy
 msgid "Horizontal Blocks"
-msgstr "Layout horizontal do HUD"
+msgstr "Blocos horizontais"
 
-#, fuzzy
 msgid "Horizontal Cards"
-msgstr "Layout horizontal do HUD"
+msgstr "Cartões horizontais"
 
-#, fuzzy
-msgid "Horizontal Top Blocks"
-msgstr "Layout horizontal do HUD"
+msgid "Horizontal endless Blocks"
+msgstr "Blocos horizontais infinitos"
 
-msgid "Horizontal Top Cards"
-msgstr ""
+msgid "Horizontal endless Cards"
+msgstr "Cartões horizontais infinitos"
 
-#, fuzzy
-msgid "Grid Type:"
-msgstr "Tipo de Controle:"
+msgid "Layout"
+msgstr "Layout"
 
 #, python-brace-format
 msgid ""
