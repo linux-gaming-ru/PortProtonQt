@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<node name="/ru/linux_gaming/PortProton">
+  <interface name="ru.linux_gaming.PortProton1">
+    <method name="GetAPIVersion">
+      <arg name="version" type="u" direction="out"/>
+    </method>
+    <method name="GetCapabilities">
+      <arg name="capabilities" type="as" direction="out"/>
+    </method>
+    <method name="ListGames">
+      <arg name="filters" type="a{sv}" direction="in"/>
+      <arg name="games" type="aa{sv}" direction="out"/>
+    </method>
+    <method name="ListWines"><arg name="wines" type="as" direction="out"/></method>
+    <method name="ListPrefixes"><arg name="prefixes" type="as" direction="out"/></method>
+    <method name="ListAutoinstalls"><arg name="games" type="aa{sv}" direction="out"/></method>
+    <method name="RefreshAutoinstalls"><arg name="games" type="aa{sv}" direction="out"/></method>
+    <method name="GetExeSettings">
+      <arg name="path" type="s" direction="in"/>
+      <arg name="settings" type="s" direction="out"/>
+    </method>
+    <method name="SetExeSettings">
+      <arg name="path" type="s" direction="in"/>
+      <arg name="settings" type="as" direction="in"/>
+      <arg name="saved" type="b" direction="out"/>
+    </method>
+    <method name="GetGlobalSettings"><arg name="settings" type="s" direction="out"/></method>
+    <method name="SetGlobalSetting">
+      <arg name="setting" type="s" direction="in"/>
+      <arg name="saved" type="b" direction="out"/>
+    </method>
+    <method name="LaunchExe">
+      <arg name="path" type="s" direction="in"/>
+      <arg name="pid" type="u" direction="out"/>
+    </method>
+    <method name="StopExe">
+      <arg name="pid" type="u" direction="in"/>
+      <arg name="stopped" type="b" direction="out"/>
+    </method>
+  </interface>
+</node>

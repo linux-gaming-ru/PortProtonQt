@@ -37,14 +37,62 @@ pythondir = purelibdir_opt != '' ? purelibdir_opt: python3.get_install_dir(pure:
 pkgdatadir = pythondir / meson.project_name()
 
 # Native C build dependencies and sources
-cc = meson.get_compiler('c')
-sdl3_dep = dependency('sdl3', required: true)
-gamepad_sources = files('build-aux/src/gamepad_backend.c')
+gui_enabled = get_option('gui')
+if gui_enabled
+  cc = meson.get_compiler('c')
+  sdl3_dep = dependency('sdl3', required: true)
+  gamepad_sources = files('build-aux/src/gamepad_backend.c')
+endif
+
+subdir('portproton')
+
+server_bundle_dependencies = files(
+  'portproton/__init__.py',
+  'portproton/library.py',
+  'portproton/operations.py',
+  'portproton/server.py',
+  'build-aux/share/portproton/scripts/start.sh',
+  'build-aux/share/portproton/scripts/functions_helper',
+  'build-aux/share/portproton/scripts/var',
+)
 
 # Install Python package
-subdir('portprotonqt')
+if gui_enabled
+  subdir('portprotonqt')
+endif
+
+configured_portproton_server = configure_file(
+  input: 'build-aux/portproton-server',
+  output: 'portproton-server-script',
+  configuration: conf,
+)
+
+install_data(configured_portproton_server,
+  install_dir: bindir,
+  install_mode: 'rwxr-xr-x',
+  rename: 'portproton-server',
+  install_tag: 'headless',
+)
+
+server_service_conf = configuration_data()
+server_service_conf.set('SERVER_EXEC', bindir / 'portproton-server')
+configured_dbus_service = configure_file(
+  input: 'build-aux/share/dbus-1/services/ru.linux_gaming.PortProton1.service.in',
+  output: 'ru.linux_gaming.PortProton1.service',
+  configuration: server_service_conf,
+)
+install_data(configured_dbus_service,
+  install_dir: datadir / 'dbus-1' / 'services',
+  install_tag: 'headless',
+)
+install_data(
+  'build-aux/share/dbus-1/interfaces/ru.linux_gaming.PortProton1.xml',
+  install_dir: datadir / 'dbus-1' / 'interfaces',
+  install_tag: 'headless',
+)
 
 # Install entry point script
+if gui_enabled
 configured_portprotonqt = configure_file(
   input: 'build-aux/portprotonqt',
   output: 'portprotonqt-script',
@@ -136,3 +184,4 @@ install_data(
   'build-aux/lib/sysusers.d/portprotonqt.conf',
   install_dir: prefix / 'lib' / 'sysusers.d',
 )
+endif

@@ -1,11 +1,22 @@
 import argparse
+import configparser
+import hashlib
+import json
 import os
 import re
+import shlex
 import shutil
 import sys
 from pathlib import Path
 
-from portprotonqt.steam_api import get_steam_home
+from portprotonqt.config.portproton import (
+    PortProtonConfig,
+    extract_exec_target_path,
+    read_portdata_path_from_config,
+    resolve_custom_data_dir,
+)
+from portprotonqt.icon_extractor import generate_thumbnail, get_exe_icon_cache_path
+from portprotonqt.steam_api import get_cached_steam_game_info, get_steam_home
 
 LAUNCH_FILE_EXTENSIONS = ('.exe', '.bat', '.cmd', '.msi', '.reg', '.iso', '.mdf', '.nrg')
 PP_EXTENSIONS = ('.ppack', '.ppai')
@@ -70,6 +81,16 @@ def parse_args():
         help="Launch supported Windows file in tray without showing the main window"
     )
     parser.add_argument(
+        "--list-games",
+        action="store_true",
+        help="List games registered in the PortProtonQt library",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output the game list as JSON (use with --list-games)",
+    )
+    parser.add_argument(
         "--log",
         action="store_true",
         help="Enable PortProton logging for the launched Windows file"
@@ -108,6 +129,115 @@ def parse_args():
 
     args.launch_args = launch_args
     return args
+
+
+def get_library_games() -> list[dict]:
+    """Return PortProtonQt desktop games with their launch command and cover."""
+    portproton_dir = read_portdata_path_from_config() or PortProtonConfig().get_location()
+    if not portproton_dir:
+        return []
+
+    data_home = Path(os.getenv("XDG_DATA_HOME", Path.home() / ".local/share"))
+    custom_data_dir = data_home / "PortProtonQt" / "custom_data"
+    try:
+        desktop_files = sorted(Path(portproton_dir).glob("*.desktop"))
+    except OSError:
+        return []
+    return [
+        game for desktop_file in desktop_files
+        if (game := _get_desktop_game(desktop_file, custom_data_dir)) is not None
+    ]
+
+
+def _get_desktop_game(desktop_file: Path, custom_data_dir: Path) -> dict | None:
+    parser = configparser.ConfigParser(interpolation=None)
+    try:
+        parser.read(desktop_file, encoding="utf-8")
+        entry = parser["Desktop Entry"]
+        name = entry.get("Name", "").strip()
+        command = shlex.split(entry.get("Exec", "").strip())
+        hidden = entry.get("NoDisplay", "false").strip().lower() == "true"
+    except (KeyError, configparser.Error, OSError, UnicodeError, ValueError):
+        return None
+    if not name or name.casefold() in {"portproton", "readme"} or not command:
+        return None
+
+    game_exe = extract_exec_target_path(command)
+    cover = _get_desktop_game_cover(
+        desktop_file, custom_data_dir, name, command, game_exe
+    )
+
+    launch_args = [
+        part for part in command[1:]
+        if part not in {"%f", "%F", "%u", "%U", "%i", "%c", "%k"}
+    ]
+    game_id = hashlib.sha256(desktop_file.name.encode("utf-8")).hexdigest()[:16]
+    return {
+        "id": game_id,
+        "name": name,
+        "source": "portproton",
+        "installed": True,
+        "hidden": hidden,
+        "cover": cover,
+        "command": command[0],
+        "args": launch_args,
+    }
+
+
+def _get_desktop_game_cover(
+    desktop_file: Path,
+    custom_data_dir: Path,
+    name: str,
+    command: list[str],
+    game_exe: str | None,
+) -> str:
+    if game_exe:
+        game_data_dir = Path(resolve_custom_data_dir(str(custom_data_dir), game_exe))
+        for suffix in (
+            ".png", ".apng", ".jpg", ".jpeg", ".gif", ".webp", ".jxl", ".svg"
+        ):
+            cover = game_data_dir / f"cover{suffix}"
+            if cover.is_file():
+                return str(cover)
+
+    cached_cover = get_cached_steam_game_info(name, shlex.join(command)).get("cover", "")
+    if cached_cover and Path(cached_cover).is_file():
+        return cached_cover
+
+    parser = configparser.ConfigParser(interpolation=None)
+    try:
+        parser.read(desktop_file, encoding="utf-8")
+        icon = parser["Desktop Entry"].get("Icon", "").strip()
+    except (KeyError, configparser.Error, OSError, UnicodeError):
+        icon = ""
+    if icon:
+        icon_path = Path(icon).expanduser()
+        if icon_path.is_file():
+            return str(icon_path)
+        image_path = desktop_file.parent / "data" / "img" / icon
+        if not image_path.suffix:
+            image_path = image_path.with_suffix(".png")
+        if image_path.is_file():
+            return str(image_path)
+
+    if game_exe and game_exe.lower().endswith(".exe") and Path(game_exe).is_file():
+        icon_cache = Path(get_exe_icon_cache_path(game_exe))
+        if not icon_cache.is_file():
+            icon_cache.parent.mkdir(parents=True, exist_ok=True)
+            generate_thumbnail(game_exe, str(icon_cache), size=128)
+        if icon_cache.is_file():
+            return str(icon_cache)
+    return ""
+
+
+def print_library_games(as_json: bool = False) -> None:
+    """Print the PortProtonQt game list for CLI consumers."""
+    games = get_library_games()
+    if as_json:
+        print(json.dumps(games, ensure_ascii=False))
+        return
+    for game in games:
+        print(game["name"])
 
 
 def add_steam_compat_tool(force_install: bool = False) -> bool:

@@ -46,6 +46,7 @@ from portprotonqt.cli import (
     clear_cache,
     reset_settings,
     parse_resolution,
+    print_library_games,
 )
 from portprotonqt.localization import _, get_steam_language
 
@@ -201,6 +202,12 @@ def is_restore_prefix_request(args: argparse.Namespace) -> bool:
 def main():
     parsed_args = parse_args()
     os.environ["PORTPROTONQT_PYTHON"] = sys.executable
+
+    if parsed_args.json and not parsed_args.list_games:
+        raise SystemExit("--json requires --list-games")
+    if parsed_args.list_games:
+        print_library_games(parsed_args.json)
+        return 0
 
     if os.environ.get("PORTPROTONQT_INTEGRATE_APPIMAGE") == "1":
         from portprotonqt.appimage_integration import integrate_appimage

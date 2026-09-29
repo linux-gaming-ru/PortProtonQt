@@ -176,6 +176,8 @@ def test_app_restarts_installed_appimage_after_integration(
         "parse_args",
         lambda: SimpleNamespace(
             debug_level="NOTSET",
+            json=False,
+            list_games=False,
             reinstall_steam_compat_tool=True,
         ),
     )

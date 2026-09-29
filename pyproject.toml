@@ -41,9 +41,10 @@ dependencies = [
 
 [project.scripts]
 portprotonqt = "portprotonqt.app:main"
+portproton-server = "portproton.server:main"
 
 [tool.setuptools.packages.find]
-include = ["portprotonqt*"]
+include = ["portprotonqt*", "portproton*"]
 
 [tool.uv]
 package = true
