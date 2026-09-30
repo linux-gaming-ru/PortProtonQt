@@ -217,7 +217,12 @@ class GamepadRuntimeMixin(InputMixin):
 
     def _poll_button_events(self, gamepad: SDLGamepad, current_time: float) -> None:
         """Emit button changes using SDL's standardized controller mapping."""
-        for button_index, button_code in SDL_CONTROLLER_BUTTON_TO_PAD.items():
+        # Deliver Guide before Select when both change in the same SDL snapshot.
+        buttons = sorted(
+            SDL_CONTROLLER_BUTTON_TO_PAD.items(),
+            key=lambda item: item[1] not in BUTTONS['guide'],
+        )
+        for button_index, button_code in buttons:
             value = gamepad.get_button(button_index)
             self._handle_button_value(button_index, button_code, value, current_time)
 
@@ -227,6 +232,8 @@ class GamepadRuntimeMixin(InputMixin):
         self._button_states[button_index] = value
         if button_code in BUTTONS['guide']:
             self.guide_held = value == 1
+            if self.guide_held:
+                self.pending_menu_fullscreen_time = 0.0
         if button_code in BUTTONS['menu']:
             self.select_held = value == 1
         if button_code == PAD_BUTTON_START:
@@ -259,7 +266,8 @@ class GamepadRuntimeMixin(InputMixin):
         return (
             value == 1 and button_code in BUTTONS['menu'] and
             not emulation_combo and
-            not self._is_gamescope_session and not self.in_guide_combination_attempt and
+            not self._is_gamescope_session and not self.guide_held and
+            not self.in_guide_combination_attempt and
             self._parent.isActiveWindow()
         )
 
