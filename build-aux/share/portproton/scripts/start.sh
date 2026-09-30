@@ -222,8 +222,8 @@ fi
 print_info "The first mirror in used: $MIRROR"
 
 if check_gamescope_session
-then PW_TERM="env LANG=C python3 -m portprotonqt.scripts_utils.easyterm --fullscreen -e"
-else PW_TERM="env LANG=C python3 -m portprotonqt.scripts_utils.easyterm -e"
+then PW_TERM="env LANG=C ${PORTPROTONQT_PYTHON:-python3} -m portprotonqt.scripts_utils.easyterm --fullscreen -e"
+else PW_TERM="env LANG=C ${PORTPROTONQT_PYTHON:-python3} -m portprotonqt.scripts_utils.easyterm -e"
 fi
 
 pw_cleanup () {

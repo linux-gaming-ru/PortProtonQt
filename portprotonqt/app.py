@@ -200,6 +200,7 @@ def is_restore_prefix_request(args: argparse.Namespace) -> bool:
 
 def main():
     parsed_args = parse_args()
+    os.environ["PORTPROTONQT_PYTHON"] = sys.executable
 
     if os.environ.get("PORTPROTONQT_INTEGRATE_APPIMAGE") == "1":
         from portprotonqt.appimage_integration import integrate_appimage
