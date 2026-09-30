@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 from PySide6.QtCore import QEvent, QObject, QStringListModel, Qt
 from PySide6.QtWidgets import QApplication, QCheckBox, QComboBox, QDialog, QFrame, QHBoxLayout, QLineEdit, QListView, QMenu, QPushButton, QSlider, QStackedWidget, QTableWidget, QTableWidgetItem, QWidget
-from pytest import MonkeyPatch, raises
+from pytest import MonkeyPatch, raises, mark
 
 import portprotonqt.input_manager as input_manager
 import portprotonqt.input_manager.buttons as input_buttons
@@ -19,6 +19,8 @@ from portprotonqt.input_manager.constants import (
     KEY_LEFT,
     PAD_BUTTON_SOUTH,
     PAD_BUTTON_SELECT,
+    PAD_BUTTON_GUIDE,
+    PAD_BUTTON_START,
     SDL_GAMEPAD_TYPE_PS5,
     SDL_GAMEPAD_BUTTON_DPAD_DOWN,
     SDL_GAMEPAD_BUTTON_DPAD_UP,
@@ -215,6 +217,48 @@ def test_disabling_mouse_emulation_keeps_gamepad_events_working() -> None:
 
     assert manager.emulation_triggered is False
     assert emitted == [(PAD_BUTTON_SOUTH, 1)]
+
+
+@mark.parametrize("partner", [PAD_BUTTON_GUIDE, PAD_BUTTON_START])
+def test_sdl_simultaneous_button_combinations(partner: int) -> None:
+    app = QApplication.instance() or QApplication([])
+    manager: Any = InputManager.__new__(InputManager)
+    QObject.__init__(manager)
+    manager._parent = SimpleNamespace(refreshGames=MagicMock(), isActiveWindow=lambda: True)
+    manager._button_states = {}
+    manager.guide_held = manager.select_held = manager.start_held = False
+    manager.guide_pressed_time = manager.select_pressed_time = 0
+    manager.guide_combination_timeout = 0.3
+    manager.in_guide_combination_attempt = False
+    manager.guide_timer = SimpleNamespace(start=MagicMock(), stop=MagicMock())
+    manager.pending_menu_fullscreen_time = 0.0
+    manager._is_gamescope_session = False
+    manager.mouse_emulation_enabled = False
+    manager.emulation_triggered = False
+    manager.button_event.connect(
+        lambda code, value: manager._handle_guide_combination(code, 1.0) if value else None,
+        Qt.ConnectionType.QueuedConnection,
+    )
+    pressed: set[int] = set()
+    gamepad = cast(SDLGamepad, SimpleNamespace(
+        get_button=lambda index: int(input_runtime.SDL_CONTROLLER_BUTTON_TO_PAD[index] in pressed),
+    ))
+    manager._poll_button_events(gamepad, 0.0)
+    app.processEvents()
+    for expected_emulation in (True, False):
+        pressed.update((PAD_BUTTON_SELECT, partner))
+        manager._poll_button_events(gamepad, 1.0)
+        app.processEvents()
+        assert manager.pending_menu_fullscreen_time == 0.0
+        if partner == PAD_BUTTON_START:
+            assert manager.emulation_triggered is expected_emulation
+            manager._parent.refreshGames.assert_not_called()
+        else:
+            manager._parent.refreshGames.assert_called_once()
+            manager._parent.refreshGames.reset_mock()
+        pressed.clear()
+        manager._poll_button_events(gamepad, 1.1)
+        app.processEvents()
 
 
 class DummyCard(QFrame):
