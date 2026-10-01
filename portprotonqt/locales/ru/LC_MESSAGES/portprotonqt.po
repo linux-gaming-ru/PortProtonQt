@@ -1286,6 +1286,10 @@ msgstr "Стандартный"
 msgid "disabled"
 msgstr "отключено"
 
+#, fuzzy
+msgid "Download Wine/Proton..."
+msgstr "Скачивать Proton в Steam"
+
 msgid "Enter prefix name"
 msgstr "Введите имя префикса"
 

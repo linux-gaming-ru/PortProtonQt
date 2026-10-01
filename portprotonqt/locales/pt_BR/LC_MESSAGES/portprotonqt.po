@@ -1292,6 +1292,10 @@ msgstr "Padrão"
 msgid "disabled"
 msgstr "desativado"
 
+#, fuzzy
+msgid "Download Wine/Proton..."
+msgstr "Baixar WINE/Proton para a Steam"
+
 msgid "Enter prefix name"
 msgstr "Digite o nome do prefixo"
 
