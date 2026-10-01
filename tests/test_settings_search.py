@@ -11,6 +11,8 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QGridLayout,
     QGroupBox,
+    QLabel,
+    QTableWidget,
     QStackedWidget,
     QWidget,
 )
@@ -293,3 +295,87 @@ def test_gamescope_search_uses_description_and_selects_category(
     settings._filter_gamescope_settings("full")
     QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
     assert fullscreen.text() == "Fullscreen window"
+
+
+def test_settings_table_descriptions_and_centered_controls() -> None:
+    from PySide6.QtCore import Qt
+    from portprotonqt.dialogs.settings_dialog import ExeSettingsDialog
+    from portprotonqt.theme_manager import ThemeWrapper
+    from portprotonqt.themes.standart import styles
+
+    theme = ThemeWrapper(styles)
+    table = QTableWidget()
+    table.setStyleSheet(theme.WINETRICKS_TABBLE_STYLE)
+    table.viewport().setProperty("ppqt_settings_values", True)
+    table.resize(1000, 600)
+    table.setColumnCount(3)
+    table.setColumnHidden(2, True)
+    table.setRowCount(2)
+    table.setColumnWidth(0, 700)
+    dialog = SimpleNamespace(favorites_table=table, theme=theme)
+    for row, description in enumerate(("Short description", "Long description " * 30)):
+        ExeSettingsDialog._set_favorite_text_cells(
+            cast(ExeSettingsDialog, dialog), row, "key", "Setting", description,
+        )
+        combo = CustomComboBox(theme=theme)
+        combo.addItem("Value")
+        table.setCellWidget(row, 1, combo)
+    table.resizeRowsToContents()
+    table.show()
+    QApplication.processEvents()
+    ExeSettingsDialog.eventFilter(
+        cast(ExeSettingsDialog, dialog), table.viewport(), QEvent(QEvent.Type.Paint),
+    )
+    assert table.rowHeight(1) > table.rowHeight(0)
+    for row in range(2):
+        combo = table.cellWidget(row, 1)
+        assert isinstance(combo, CustomComboBox)
+        rect = table.visualRect(table.model().index(row, 1))
+        assert combo.height() == combo.sizeHint().height()
+        assert abs(combo.geometry().center().y() - rect.center().y()) <= 1
+        name_item = table.item(row, 0)
+        description_item = table.item(row, 2)
+        assert name_item is not None and description_item is not None
+        text = name_item.data(Qt.ItemDataRole.AccessibleTextRole)
+        assert text == f"Setting\n{description_item.text()}"
+        label = table.cellWidget(row, 0)
+        assert isinstance(label, QLabel)
+        assert label is not None
+        assert theme.color_text_muted in label.text()
+        assert name_item.text() == ""
+        assert not label.autoFillBackground()
+    table.selectRow(1)
+    ExeSettingsDialog.eventFilter(cast(ExeSettingsDialog, dialog), table.viewport(), QEvent(QEvent.Type.Paint))
+    label = table.cellWidget(1, 0)
+    assert isinstance(label, QLabel)
+    assert theme.color_text_muted in label.text()
+    table.close()
+
+
+def test_settings_row_frame_does_not_cover_contents() -> None:
+    from PySide6.QtWidgets import QAbstractItemView, QRubberBand, QTableWidget, QTableWidgetItem
+
+    from portprotonqt.dialogs.settings_dialog import ExeSettingsDialog
+    from portprotonqt.theme_manager import ThemeWrapper
+    from portprotonqt.themes.standart import styles
+
+    table = QTableWidget(1, 3)
+    table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+    table.viewport().setProperty("ppqt_settings_values", True)
+    table.setItem(0, 0, QTableWidgetItem("Setting\nDescription"))
+    table.setCurrentCell(0, 0)
+    frame = QRubberBand(QRubberBand.Shape.Rectangle, table.viewport())
+    frame.setObjectName("settingsRowFrame")
+    dialog = SimpleNamespace(theme=ThemeWrapper(styles))
+    ExeSettingsDialog.eventFilter(
+        cast(ExeSettingsDialog, dialog), table.viewport(), QEvent(QEvent.Type.Paint),
+    )
+    table.selectRow(0)
+    assert table.currentRow() == 0
+    assert not table.selectedItems()
+    assert frame.mask().contains(frame.rect().topLeft())
+    assert not frame.mask().contains(frame.rect().center())
+    label = table.cellWidget(0, 0)
+    assert isinstance(label, QLabel)
+    assert label.text()
+    table.close()

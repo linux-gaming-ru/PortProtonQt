@@ -20,7 +20,7 @@ python_module () {
     local python3_module="$1"
     shift
     print_info "Running python3 module: $python3_module $@" >&2
-    python3 -m portprotonqt.scripts_utils.$python3_module "$@"
+    "${PORTPROTONQT_PYTHON:-python3}" -m portprotonqt.scripts_utils.$python3_module "$@"
 }
 
 pw_alt_i586_dependencies () {
@@ -177,7 +177,7 @@ pw_enable_idle_inhibit() {
         return
     fi
 
-    PW_INHIBIT_SLR="python3 -m portprotonqt.scripts_utils.idle_inhibit"
+    PW_INHIBIT_SLR="${PORTPROTONQT_PYTHON:-python3} -m portprotonqt.scripts_utils.idle_inhibit"
     print_info "Screensaver will be inhibited using D-Bus"
 }
 
@@ -1214,7 +1214,7 @@ pw_init_runtime () {
         export PW_LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${PW_PLUGINS_PATH}/portable/lib/lib64:${PW_PLUGINS_PATH}/portable/lib/lib32"
         export PW_VK_LAYER_PATH="${PW_PLUGINS_PATH}/portable/share/vulkan/implicit_layer.d"
         if [[ -z "$PW_TERM" ]] ; then
-            export PW_TERM="env LD_LIBRARY_PATH=\"${PW_LD_LIBRARY_PATH}\" python3 -m portprotonqt.scripts_utils.easyterm -e"
+            export PW_TERM="env LD_LIBRARY_PATH=\"${PW_LD_LIBRARY_PATH}\" ${PORTPROTONQT_PYTHON:-python3} -m portprotonqt.scripts_utils.easyterm -e"
         fi
         export pw_runtime="env"
         return 0
@@ -1305,7 +1305,7 @@ ${PW_PV_OVERRIDES}/i386-linux-gnu/aliases:\
     for PWRTMRW in "${PW_RT_MOUNT_RW[@]}" ; do
         export PRESSURE_VESSEL_FILESYSTEMS_RW="${PRESSURE_VESSEL_FILESYSTEMS_RW:+$PRESSURE_VESSEL_FILESYSTEMS_RW:}${PWRTMRW}"
     done
-    export PW_TERM="env LD_LIBRARY_PATH=\"${PW_LD_LIBRARY_PATH}\" python3 -m portprotonqt.scripts_utils.easyterm -e"
+    export PW_TERM="env LD_LIBRARY_PATH=\"${PW_LD_LIBRARY_PATH}\" ${PORTPROTONQT_PYTHON:-python3} -m portprotonqt.scripts_utils.easyterm -e"
 
     print_info "RUNTIME is enabled"
 }
@@ -1514,14 +1514,25 @@ kill_portwine () {
             bwrap_pids=$(pgrep -f wrap | grep PortProton | head -n 1)
         else
             wine_pids=$(ls -l /proc/*/exe 2>/dev/null | grep -ie PortProton | grep -E 'wine(64)?-preloader|wineserver' | awk -F/ '{print $3}')
-            bwrap_pids="$(pgrep -a wrap | grep PortProton | head -n 1 | awk '{print $1}')"
+            bwrap_pids="$(pgrep -a wrap | grep PortProton | awk '{print $1}')"
         fi
     else
         wine_pids=$(ls -l /proc/*/exe 2>/dev/null | grep -E 'wine(64)?-preloader|wineserver' | awk -F/ '{print $3}')
         unset bwrap_pids
     fi
 
+    # bwrap hosts steam-run's FHS container on NixOS.
+    # Killing an ancestor would terminate this launch with the container.
+    local pw_ancestor_pids=" " pw_ancestor_pid=$BASHPID
+    if [[ -n "${bwrap_pids:-}" ]] ; then
+        while [[ -n "$pw_ancestor_pid" && "$pw_ancestor_pid" -gt 1 ]] ; do
+            pw_ancestor_pids+="$pw_ancestor_pid "
+            pw_ancestor_pid=$(ps -o ppid= -p "$pw_ancestor_pid" 2>/dev/null | tr -d '[:space:]')
+        done
+    fi
+
     for pw_kill_pids in ${bwrap_pids} ${wine_pids}; do
+        [[ "$pw_ancestor_pids" == *" $pw_kill_pids "* ]] && continue
         if ps cax | grep "${pw_kill_pids}" ; then
             kill -n 9 "${pw_kill_pids}" &>/dev/null
         fi
@@ -4935,7 +4946,7 @@ pw_create_prefix_backup_cli () {
     PW_PREFIX_NAME="$1"
     PW_PREFIX_TO_BACKUP="$2"
 
-    python3 -m portprotonqt.scripts_utils.prefix_backup --port-data-path "${PORT_DATA_PATH}" \
+    python_module prefix_backup --port-data-path "${PORT_DATA_PATH}" \
         backup "${PW_PREFIX_NAME}" "${PW_PREFIX_TO_BACKUP}"
     return $?
 }
@@ -4989,7 +5000,7 @@ pw_unpack_prefix () {
         return $?
     fi
 
-    python3 -m portprotonqt.scripts_utils.prefix_backup --port-data-path "${PORT_DATA_PATH}" \
+    python_module prefix_backup --port-data-path "${PORT_DATA_PATH}" \
         restore "${PW_BACKUP_FILE}"
     return $?
 }
