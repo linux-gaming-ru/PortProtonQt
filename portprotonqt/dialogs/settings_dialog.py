@@ -3,15 +3,17 @@
 import os
 import re
 import subprocess
+from html import escape
 from typing import cast, TYPE_CHECKING
 
 from PySide6.QtCore import Qt, QObject, QEvent, QPoint, QProcess, QTimer, QUrl
-from PySide6.QtGui import QColor, QContextMenuEvent, QDesktopServices, QGuiApplication, QIcon
+from PySide6.QtGui import QColor, QContextMenuEvent, QDesktopServices, QGuiApplication, QIcon, QPalette, QRegion
 from PySide6.QtWidgets import (
     QApplication,
     QAbstractItemView,
     QCheckBox,
     QComboBox,
+    QRubberBand,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -326,7 +328,6 @@ class ExeSettingsDialog(
         self.tab_widget.addTab(self.vkbasalt_tab, "vkBasalt")
         if self.gamescope_available:
             self.tab_widget.addTab(self.gamescope_tab, "Gamescope")
-        self.tab_widget.currentChanged.connect(self.on_table_selection_changed)
 
         self.settings_table = QTableWidget()
         self.settings_table.setAlternatingRowColors(True)
@@ -368,8 +369,6 @@ class ExeSettingsDialog(
         self.settings_container.addWidget(settings_preloader_container)
         self.settings_container.addWidget(self.settings_table)
         self.main_tab_layout.addWidget(self.settings_container)
-        self.settings_table.currentCellChanged.connect(self.on_table_selection_changed)
-        self.settings_table.cellEntered.connect(self.on_table_cell_hovered)
         self.settings_table.installEventFilter(self)
 
         self.advanced_table = QTableWidget()
@@ -421,9 +420,27 @@ class ExeSettingsDialog(
         self.favorites_table.customContextMenuRequested.connect(
             lambda pos: self.show_setting_context_menu(self.favorites_table, pos)
         )
+        for table in (self.settings_table, self.advanced_table, self.favorites_table):
+            table.setStyleSheet(re.sub(
+                r"QTableWidget::item:selected.*?\}", "", table.styleSheet(), flags=re.DOTALL,
+            ))
+            table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+            table.setStyleSheet(
+                table.styleSheet() + "QTableWidget::item:focus { background: transparent; }"
+            )
+            frame = QRubberBand(QRubberBand.Shape.Rectangle, table.viewport())
+            frame.setObjectName("settingsRowFrame")
+            frame.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+            frame.setAutoFillBackground(False)
+            palette = frame.palette()
+            palette.setColor(QPalette.ColorRole.Highlight, QColor(self.theme.color_accent))
+            frame.setPalette(palette)
+            table.viewport().setProperty("ppqt_settings_values", True)
+            table.viewport().installEventFilter(self)
+            table.setColumnHidden(2, True)
+            table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+            table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         self.favorites_tab_layout.addWidget(self.favorites_table)
-        self.favorites_table.currentCellChanged.connect(self.on_table_selection_changed)
-        self.favorites_table.cellEntered.connect(self.on_table_cell_hovered)
 
         self.advanced_preloader = Preloader()
         advanced_preloader_container = QWidget()
@@ -442,8 +459,6 @@ class ExeSettingsDialog(
         self.advanced_container.addWidget(advanced_preloader_container)
         self.advanced_container.addWidget(self.advanced_table)
         self.advanced_tab_layout.addWidget(self.advanced_container)
-        self.advanced_table.currentCellChanged.connect(self.on_table_selection_changed)
-        self.advanced_table.cellEntered.connect(self.on_table_cell_hovered)
         self.advanced_table.installEventFilter(self)
 
         self.setup_mangohud_tab()
@@ -769,6 +784,7 @@ class ExeSettingsDialog(
                 desc_item.setForeground(QColor(self.theme.color_disabled_text))
             self.settings_table.setItem(row, 2, desc_item)
 
+            name_item.setText(f"{name_item.text()}\n{description}")
             self.settings_table.setItem(row, 0, name_item)
             self.value_widgets[(row, 1)] = value_widget
 
@@ -782,7 +798,6 @@ class ExeSettingsDialog(
             else:
                 self.settings_table.setFocus(Qt.FocusReason.OtherFocusReason)
 
-        self.on_table_selection_changed()
 
     def populate_advanced(self):
         """Populate the advanced tab with table format."""
@@ -958,6 +973,7 @@ class ExeSettingsDialog(
                 self.advanced_widgets[setting['key']] = line_edit
                 self.original_display_values[setting['key']] = current_val
 
+            name_item.setText(f"{setting['name']}\n{setting['description']}")
             desc_item = QTableWidgetItem(setting['description'])
             desc_item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
             desc_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
@@ -965,8 +981,7 @@ class ExeSettingsDialog(
                 desc_item.setForeground(QColor(self.theme.color_disabled_text))
             self.advanced_table.setItem(row, 2, desc_item)
 
-        if self.advanced_table.rowCount() > 0:
-            self.on_table_selection_changed()
+        self.advanced_table.resizeRowsToContents()
         self._install_line_edit_event_filters()
 
     def _get_current_settings_table(self) -> QTableWidget | None:
@@ -1074,7 +1089,7 @@ class ExeSettingsDialog(
 
         source_header = source_table.horizontalHeader()
         target_header = self.favorites_table.horizontalHeader()
-        target_header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        target_header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         target_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
         target_header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         target_header.resizeSection(0, source_header.sectionSize(0))
@@ -1148,7 +1163,7 @@ class ExeSettingsDialog(
             self._add_favorite_line_edit(row, source_widget)
 
     def _set_favorite_text_cells(self, row: int, key: str, name: str, description: str) -> None:
-        name_item = QTableWidgetItem(name)
+        name_item = QTableWidgetItem(f"{name}\n{description}")
         name_item.setData(Qt.ItemDataRole.UserRole, key)
         name_item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
         desc_item = QTableWidgetItem(description)
@@ -1291,7 +1306,7 @@ class ExeSettingsDialog(
             desc_item = self.favorites_table.item(row, 2)
             should_show = False
 
-            if name_item and search_text in name_item.text().lower():
+            if name_item and search_text in (name_item.data(Qt.ItemDataRole.AccessibleTextRole) or name_item.text()).lower():
                 should_show = True
             elif desc_item and search_text in desc_item.text().lower():
                 should_show = True
@@ -1303,7 +1318,7 @@ class ExeSettingsDialog(
             desc_item = self.settings_table.item(row, 2)
             should_show = False
 
-            if name_item and search_text in name_item.text().lower():
+            if name_item and search_text in (name_item.data(Qt.ItemDataRole.AccessibleTextRole) or name_item.text()).lower():
                 should_show = True
             elif desc_item and search_text in desc_item.text().lower():
                 should_show = True
@@ -1315,7 +1330,7 @@ class ExeSettingsDialog(
             desc_item = self.advanced_table.item(row, 2)
             should_show = False
 
-            if name_item and search_text in name_item.text().lower():
+            if name_item and search_text in (name_item.data(Qt.ItemDataRole.AccessibleTextRole) or name_item.text()).lower():
                 should_show = True
             elif desc_item and search_text in desc_item.text().lower():
                 should_show = True
@@ -1507,6 +1522,63 @@ class ExeSettingsDialog(
         super().closeEvent(event)
 
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
+        if event.type() == QEvent.Type.MouseButtonPress and obj.property("ppqt_settings_values"):
+            cast(QTableWidget, obj.parent()).clearFocus()
+            return False
+
+        if event.type() == QEvent.Type.Paint and obj.property("ppqt_settings_values"):
+            table = cast(QTableWidget, obj.parent())
+            for row in range(table.rowCount()):
+                item = table.item(row, 0)
+                if item is None:
+                    continue
+                label = cast(QLabel | None, table.cellWidget(row, 0))
+                if label is None:
+                    text = item.text()
+                    title, _, description = text.partition("\n")
+                    label = QLabel()
+                    label.setTextFormat(Qt.TextFormat.RichText)
+                    label.setWordWrap(True)
+                    label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+                    item.setData(Qt.ItemDataRole.AccessibleTextRole, text)
+                    item.setText("")
+                    table.setCellWidget(row, 0, label)
+                    label.setAutoFillBackground(False)
+                    label.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
+                text = item.data(Qt.ItemDataRole.AccessibleTextRole)
+                title, _, description = text.partition("\n")
+                color = self.theme.color_text_muted
+                content = (
+                    f'<p style="color: {self.theme.color_text}">{escape(title)}</p>'
+                    f'<p style="color: {color}">{escape(description).replace(chr(10), "<br>")}</p>'
+                )
+                if label.text() != content:
+                    label.setText(content)
+                width = max(1, table.columnWidth(0))
+                table.setRowHeight(row, label.heightForWidth(width) + table.fontMetrics().height())
+            for row in range(table.rowCount()):
+                widget = table.cellWidget(row, 1)
+                if widget is None:
+                    continue
+                rect = table.visualRect(table.model().index(row, 1))
+                height = widget.sizeHint().height()
+                widget.setFixedHeight(height)
+                widget.setGeometry(
+                    rect.left(), rect.top() + (rect.height() - height) // 2,
+                    rect.width(), height,
+                )
+            frame = table.viewport().findChild(QRubberBand, "settingsRowFrame")
+            if frame is not None:
+                row = table.currentRow()
+                frame.setVisible(row >= 0 and not table.isRowHidden(row))
+                if row >= 0:
+                    rect = table.visualRect(table.model().index(row, 0))
+                    rect.setRight(table.visualRect(table.model().index(row, 1)).right())
+                    frame.setGeometry(rect)
+                    frame.setMask(QRegion(frame.rect()) - QRegion(frame.rect().adjusted(1, 1, -1, -1)))
+                    frame.raise_()
+            return False
+
         if isinstance(obj, QWidget) and self._handle_vkbasalt_key_button_event(obj, event):
             return True
 
@@ -1614,93 +1686,6 @@ class ExeSettingsDialog(
         else:
             self.gamepad_tooltip_timer.stop()
             self.gamepad_tooltip.setVisible(False)
-
-    def get_current_description(self):
-        """Get the description text for the currently selected row."""
-        current_table = self._get_current_settings_table()
-        if current_table is None:
-            return ""
-        current_row = current_table.currentRow()
-        if current_row >= 0:
-            desc_item = current_table.item(current_row, 2)
-            if desc_item:
-                return desc_item.text()
-        return ""
-
-    def _is_description_clipped(self, table: QTableWidget, row: int) -> bool:
-        """Check whether description text is clipped in the table cell."""
-        if row < 0:
-            return False
-
-        desc_item = table.item(row, 2)
-        if not desc_item:
-            return False
-
-        description = desc_item.text()
-        if not description:
-            return False
-
-        item_rect = table.visualRect(table.model().index(row, 2))
-        if not item_rect.isValid() or item_rect.width() <= 0 or item_rect.height() <= 0:
-            return False
-
-        wrap_rect = table.fontMetrics().boundingRect(
-            0,
-            0,
-            max(1, item_rect.width() - 12),
-            10000,
-            Qt.TextFlag.TextWordWrap | Qt.TextFlag.TextExpandTabs,
-            description
-        )
-        if wrap_rect.height() > (item_rect.height() - 6):
-            return True
-
-        single_line_width = table.fontMetrics().horizontalAdvance(description)
-        return single_line_width > (item_rect.width() - 12)
-
-    def on_table_selection_changed(self):
-        """Called when table selection changes to update the gamepad tooltip."""
-        current_table = self._get_current_settings_table()
-        if current_table is None:
-            self.show_gamepad_tooltip(show=False)
-            return
-
-        current_column = current_table.currentColumn() if current_table else -1
-        if current_column != 2:
-            self.show_gamepad_tooltip(show=False)
-            return
-
-        current_row = current_table.currentRow()
-        if not self._is_description_clipped(current_table, current_row):
-            self.show_gamepad_tooltip(show=False)
-            return
-
-        description = self.get_current_description()
-        if description:
-            self.show_gamepad_tooltip(show=True, text=description)
-        else:
-            self.show_gamepad_tooltip(show=False)
-
-    def on_table_cell_hovered(self, row, column):
-        """Show custom tooltip on hover for description cells."""
-        if column != 2:
-            self.show_gamepad_tooltip(show=False)
-            return
-
-        table = cast(QTableWidget | None, self.sender())
-        if table is None:
-            self.show_gamepad_tooltip(show=False)
-            return
-
-        desc_item = table.item(row, 2)
-        description = desc_item.text() if desc_item else ""
-        should_show_tooltip = self._is_description_clipped(table, row) or len(description) > 80
-        if description and should_show_tooltip:
-            item_rect = table.visualRect(table.model().index(row, 2))
-            cell_pos = table.mapToGlobal(item_rect.bottomLeft())
-            self.show_gamepad_tooltip(show=True, text=description, anchor_global_pos=cell_pos)
-        else:
-            self.show_gamepad_tooltip(show=False)
 
     def reject(self):
         if hasattr(self, 'keyboard') and self.keyboard.isVisible():
