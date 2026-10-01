@@ -6,30 +6,29 @@ from typing import Any, cast
 
 from PySide6.QtCore import QMimeData, QUrl
 
-from portprotonqt.dialogs.proton_manager import ProtonManager, sort_wine_entries
+from portprotonqt.dialogs.proton_manager import ProtonManager
 from portprotonqt.dialogs.wine_extractor import ExtractionThread
 from portprotonqt.tabs import library_tab
 
 
-def test_cachyos_releases_alternate_with_wineland() -> None:
-    names = [
-        "proton-cachyos-wineland-11.0-20260713.4-slr-x86_64",
-        "proton-cachyos-wineland-11.0-20260713.4-slr-x86_64_v3",
-        "proton-cachyos-wineland-11.0-20260713.3-slr-x86_64",
-        "proton-cachyos-11.0-20260703-slr-x86_64",
-        "proton-cachyos-11.0-20260703-slr-x86_64_v3",
-        "proton-cachyos-11.0-20260702-slr-x86_64",
+def test_cachyos_v3_builds_require_supported_cpu_level(monkeypatch) -> None:
+    manager = ProtonManager.__new__(ProtonManager)
+    manager.cpu_level = 2
+    monkeypatch.setattr(
+        "portprotonqt.dialogs.proton_manager.platform.machine", lambda: "x86_64"
+    )
+    entries = [
+        {
+            "name": "proton-wineland-11.0-20260930-x86_64",
+            "url": "https://example.com/proton-wineland-11.0-20260930-x86_64.tar.xz",
+        },
+        {
+            "name": "proton-wineland-11.0-20260930-x86_64_v3",
+            "url": "https://example.com/proton-wineland-11.0-20260930-x86_64_v3.tar.xz",
+        },
     ]
-    entries = [{"name": name} for name in names]
 
-    assert [entry["name"] for entry in sort_wine_entries(entries, "proton_cachyos")] == [
-        "proton-cachyos-11.0-20260703-slr-x86_64",
-        "proton-cachyos-11.0-20260703-slr-x86_64_v3",
-        "proton-cachyos-wineland-11.0-20260713.4-slr-x86_64",
-        "proton-cachyos-wineland-11.0-20260713.4-slr-x86_64_v3",
-        "proton-cachyos-11.0-20260702-slr-x86_64",
-        "proton-cachyos-wineland-11.0-20260713.3-slr-x86_64",
-    ]
+    assert manager.filter_entries_by_cpu_level(entries, "proton_wineland") == entries[:1]
 
 
 def test_wine_entries_match_host_architecture(monkeypatch) -> None:
