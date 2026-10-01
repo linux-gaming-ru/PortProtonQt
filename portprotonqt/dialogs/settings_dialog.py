@@ -41,6 +41,7 @@ from portprotonqt.config import (
 from portprotonqt.custom_widgets import AutoSizeButton, CustomComboBox
 from portprotonqt.dialogs.base import DraggableDialog
 from portprotonqt.dialogs.dialog_utils import create_dialog_hints_widget, update_dialog_hints
+from portprotonqt.dialogs.proton_manager import show_proton_manager
 from portprotonqt.dialogs.settings_mangohud import MANGOHUD_ENV_KEYS, MangoHudSettingsMixin
 from portprotonqt.dialogs.settings_gamescope import GAMESCOPE_ENV_KEYS, GamescopeSettingsMixin
 from portprotonqt.dialogs.settings_vkbasalt import VKBASALT_ENV_KEYS, VkBasaltSettingsMixin
@@ -846,6 +847,14 @@ class ExeSettingsDialog(
                     Qt.WidgetAttribute.WA_TranslucentBackground
                 )
                 combo.addItems(setting['options'])
+                if setting['key'] in ('PW_WINE_USE', 'PW_DEFAULT_WINE_USE'):
+                    combo.insertSeparator(combo.count())
+                    combo.addItem(_('Download Wine/Proton...'), 'download_wine')
+                    combo.activated.connect(
+                        lambda index, c=combo, k=setting['key']: self._open_wine_manager_from_combo(
+                            index, c, k
+                        )
+                    )
                 if setting['key'] in ('PW_PREFIX_NAME', 'PW_DEFAULT_PREFIX_NAME'):
                     combo.setEditable(True)
                     combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
@@ -1272,6 +1281,43 @@ class ExeSettingsDialog(
         self.gamepad_tooltip.move(pos)
         self.gamepad_tooltip.setVisible(True)
         self.gamepad_tooltip_timer.start(max(2500, min(12000, 1500 + len(text) * 30)))
+
+    def _open_wine_manager_from_combo(self, index: int, combo: QComboBox, key: str) -> None:
+        if combo.itemData(index) != 'download_wine':
+            return
+        combo.setCurrentText(self.original_display_values.get(key, ''))
+        show_proton_manager(
+            self, self.portproton_path, input_manager=self.input_manager
+        )
+
+    def refresh_wine_combo(self) -> None:
+        wine_key = 'PW_DEFAULT_WINE_USE' if self.user_conf else 'PW_WINE_USE'
+        combo = self.advanced_widgets.get(wine_key)
+        if not self.portproton_path or not isinstance(combo, QComboBox):
+            return
+
+        current_text = combo.currentText()
+        self.dist_options = get_available_wine_options(
+            self.portproton_path,
+            '' if self.game_source == 'steam' else _('System WINE'),
+            self.game_source == 'steam',
+        )
+        options = next(setting['options'] for setting in get_advanced_settings(
+            disabled_text=_('disabled'),
+            logical_core_options=self.logical_core_options,
+            numa_nodes=self.numa_nodes,
+            dist_options=self.dist_options,
+            prefix_options=self.prefix_options,
+        ) if setting['key'] == 'PW_WINE_USE')
+        if self.user_conf:
+            options = [_('Default')] + options
+        combo.clear()
+        combo.addItems(options)
+        if current_text and current_text not in options:
+            combo.addItem(current_text)
+        combo.insertSeparator(combo.count())
+        combo.addItem(_('Download Wine/Proton...'), 'download_wine')
+        combo.setCurrentText(current_text)
 
     def _select_checkbox_row(self, widget: QCheckBox) -> bool:
         for (row, column), checkbox in self.value_widgets.items():
