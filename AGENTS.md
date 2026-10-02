@@ -420,6 +420,7 @@ tests/
 ├── test_sound_manager.py    # UI sound playback, widget events, gamepad connection, theme sound files
 ├── test_main_window.py      # Main window data processing and callback regressions
 ├── test_library_resize.py   # Library resize batching, cover reuse, and flow layout regressions
+├── test_library_loading.py  # Incremental loading, source switching, first-paint focus, and cover callbacks
 ├── test_store_games.py      # GOG and EGS library, launch, install, and stop regressions
 ├── test_portproton_config.py # exec_line parsing, launcher tail, extensions
 ├── test_portproton_api.py   # PPDB API helpers, autoinstall localization fallback

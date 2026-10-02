@@ -185,6 +185,12 @@ class FlowLayout(QLayout):
         self.itemList.append(item)
         self._invalidate_cache()
 
+    def insertWidget(self, index: int, widget: QWidget) -> None:
+        self.addWidget(widget)
+        item = self.takeAt(self.count() - 1)
+        self.itemList.insert(index, item)
+        self.invalidate()
+
     def takeAt(self, index: int) -> QLayoutItem:
         if 0 <= index < len(self.itemList):
             self._invalidate_cache()

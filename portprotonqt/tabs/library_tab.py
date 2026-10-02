@@ -101,10 +101,7 @@ class MainWindowLibraryTabMixin(_MainWindowTypingBase):
             display_filter not in ("steam", "portproton")
         )
         self._position_library_controls_widget()
-        self.searchEdit.clear()
-        self.games = []
-        self._preserve_library_focus_after_load = True
-        self.loadGames(force_load=True)
+        self._on_only_installed_changed(game_config.get_only_installed())
 
     def _on_only_installed_changed(self, checked: bool) -> None:
         game_config.set_only_installed(checked)

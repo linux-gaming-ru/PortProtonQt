@@ -322,6 +322,7 @@ class AnimatedCard(QFrame):
 
 
 class GameCard(AnimatedCard):
+    coverReady = Signal(object)
     editShortcutRequested = Signal(str, str, str)
     deleteGameRequested = Signal(str, str)
     addToMenuRequested = Signal(str, str)
@@ -340,6 +341,7 @@ class GameCard(AnimatedCard):
         card_width=250, parent=None, context_menu_manager=None
     ):
         super().__init__(parent)
+        self.coverReady.connect(self.on_cover_loaded, Qt.ConnectionType.QueuedConnection)
         self.name = name
         self.description = description
         self.cover_path = cover_path
@@ -454,6 +456,7 @@ class GameCard(AnimatedCard):
         self.favoriteLabel = ClickableLabel(self.coverWidget)
         self.favoriteLabel.clicked.connect(self.toggle_favorite)
         self.is_favorite = self.name in set(favorites_config.get_games())
+        self._favorite_icon_state = self.is_favorite
         self.update_favorite_icon()
         self.favoriteLabel.raise_()
         if self.list_layout:
@@ -727,7 +730,7 @@ class GameCard(AnimatedCard):
             cover_path,
             width,
             height,
-            self.on_cover_loaded,
+            self.coverReady.emit,
             app_name=str(self.appid or ""),
             fallback_exe=fallback_exe,
             fallback_icon_path=fallback_icon_path,
@@ -1205,6 +1208,9 @@ class GameCard(AnimatedCard):
             # Handle the case where the Qt object was deleted
             return
 
+        if self._favorite_icon_state == self.is_favorite:
+            return
+        self._favorite_icon_state = self.is_favorite
         try:
             parent = self.parent()
             while parent:
