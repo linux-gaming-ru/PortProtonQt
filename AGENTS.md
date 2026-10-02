@@ -275,7 +275,7 @@ AI agents MAY:
 
 - No blocking I/O in UI thread
 - No synchronous HTTP in UI thread
-- Cache API responses in `~/.cache/PortProtonQt`
+- Cache API responses in `$XDG_DATA_HOME/PortProtonQt/cache` (default: `~/.local/share/PortProtonQt/cache`)
 - Avoid repeated disk reads in loops
 - Avoid O(n²) in game lists
 - Lazy load images
@@ -288,10 +288,10 @@ Rule intent: avoid shared mutable globals that hold application state or cause h
 This does not prohibit:
 - Module-level cache constants (e.g., cache TTL values)
 - Dedicated cache managers or classes with explicit lifecycle
-- Disk caches under `~/.cache/PortProtonQt`
+- Disk caches under `$XDG_DATA_HOME/PortProtonQt/cache` (default: `~/.local/share/PortProtonQt/cache`)
 - `requests.Session()` objects if they are encapsulated and not mutated unpredictably
 
-Do not delete or disable caching or downloaders to satisfy this rule. Caching is required by the Performance Rules ("Cache API responses in `~/.cache/PortProtonQt`" and "Avoid repeated disk reads in loops").
+Do not delete or disable caching or downloaders to satisfy this rule. Caching is required by the Performance Rules ("Cache API responses in `$XDG_DATA_HOME/PortProtonQt/cache`" and "Avoid repeated disk reads in loops").
 
 ---
 
@@ -419,6 +419,7 @@ tests/
 ├── test_input_manager.py    # Gamepad input navigation and focus regressions
 ├── test_sound_manager.py    # UI sound playback, widget events, gamepad connection, theme sound files
 ├── test_main_window.py      # Main window data processing and callback regressions
+├── test_library_resize.py   # Library resize batching, cover reuse, and flow layout regressions
 ├── test_store_games.py      # GOG and EGS library, launch, install, and stop regressions
 ├── test_portproton_config.py # exec_line parsing, launcher tail, extensions
 ├── test_portproton_api.py   # PPDB API helpers, autoinstall localization fallback
@@ -990,7 +991,7 @@ PortProtonQt/
 │   ├── tabs/                        # Main window tabs and workers
 │   │   ├── autoinstall_tab.py
 │   │   ├── control_hints.py
-│   │   ├── gog_tab.py
+│   │   ├── download_tab.py
 │   │   ├── library_tab.py
 │   │   ├── settings_tab.py
 │   │   ├── system_tab.py
@@ -1067,8 +1068,6 @@ PortProtonQt/
 
 - [Theme documentation](documentation/theme_guide)
 - [Localization guide](documentation/localization_guide)
-- [Metadata override guide](documentation/metadata_override)
-- [TODO list](TODO.md)
 - [Changelog](CHANGELOG.md)
 
 ---

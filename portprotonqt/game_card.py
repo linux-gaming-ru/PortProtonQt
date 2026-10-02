@@ -1006,23 +1006,17 @@ class GameCard(AnimatedCard):
             # Handle the case where the Qt object was deleted
             pass
 
-        # Ensure parent layout is updated safely
-        try:
-            parent = self.parentWidget()
-            if parent:
-                layout = parent.layout()
-                if layout:
-                    layout.invalidate()
-                    layout.activate()
-                    layout.update()
-                parent.updateGeometry()
-        except RuntimeError:
-            # Handle the case where the Qt object was deleted
-            pass
-
     def update_card_size(self, new_width: int):
+        if self.base_card_width == new_width:
+            return
         self.base_card_width = new_width
-        self._load_cover_image(self.cover_path or "")
+        cover_height = int(new_width * self.card_geometry_cfg.get("cover_aspect_ratio", 1.5))
+        if not self.animated_cover_path and (
+            self.base_pixmap is None or self.base_pixmap.isNull()
+            or self.base_pixmap.width() < new_width
+            or self.base_pixmap.height() < cover_height
+        ):
+            self._load_cover_image(self.cover_path or "")
         self.update_scale()
 
     def update_badge_visibility(self, display_filter: str):

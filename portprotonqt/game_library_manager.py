@@ -88,6 +88,9 @@ class GameLibraryManager:
         self.full_library_open = False
         self.sizeSlider: QSlider | None = None
         self._update_timer: QTimer | None = None
+        self._card_resize_timer: QTimer | None = None
+        self._card_resize_queue: deque[tuple[str, str]] = deque()
+        self._card_resize_batch_size: int = 8
         self._incremental_add_timer: QTimer | None = None
         self._incremental_add_queue: deque[tuple[str, str]] = deque()
         self._incremental_new_games_map: dict[tuple[str, str], tuple] = {}
@@ -191,6 +194,9 @@ class GameLibraryManager:
         self._update_timer.setSingleShot(True)
         self._update_timer.setInterval(100)  # 100ms debounce
         self._update_timer.timeout.connect(self._perform_update)
+        self._card_resize_timer = QTimer(self.gamesListWidget)
+        self._card_resize_timer.setSingleShot(True)
+        self._card_resize_timer.timeout.connect(self._resize_next_card_batch)
         self._incremental_add_timer = QTimer()
         self._incremental_add_timer.setSingleShot(True)
         self._incremental_add_timer.timeout.connect(self._process_incremental_add_batch)
@@ -308,9 +314,28 @@ class GameLibraryManager:
             self.main_window._gamepad_tooltip_map[self.sizeSlider] = f"{self.card_width} px"
         ui_config.set_card_width(self.card_width)
         self.main_window.card_width = self.card_width
-        for card in self.game_card_cache.values():
-            card.update_card_size(self.card_width)
-        self.update_game_grid()
+        self._card_resize_queue = deque(self.game_card_cache)
+        self._resize_next_card_batch()
+
+    def _resize_next_card_batch(self) -> None:
+        if self.gamesListWidget is None or self.gamesListLayout is None:
+            self._card_resize_queue.clear()
+            return
+        self.gamesListLayout.setEnabled(False)
+        try:
+            for _ in range(min(self._card_resize_batch_size, len(self._card_resize_queue))):
+                card = self.game_card_cache.get(self._card_resize_queue.popleft())
+                if card is not None:
+                    card.update_card_size(self.card_width)
+        finally:
+            self.gamesListLayout.invalidate()
+            self.gamesListLayout.setEnabled(True)
+            self.gamesListLayout.activate()
+        if self._card_resize_queue and self._card_resize_timer is not None:
+            self._card_resize_timer.start()
+        else:
+            self.force_update_cards_library()
+            self.load_visible_images()
 
     def _set_card_width_from_slider(self):
         """Use max card width for fixed-size layouts."""
