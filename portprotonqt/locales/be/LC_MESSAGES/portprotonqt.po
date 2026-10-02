@@ -1207,6 +1207,9 @@ msgstr ""
 msgid "disabled"
 msgstr ""
 
+msgid "Download Wine/Proton..."
+msgstr ""
+
 msgid "Enter prefix name"
 msgstr ""
 

@@ -893,17 +893,13 @@ class MainWindow(
     @Slot(list)
     def on_games_loaded(self, games: list[tuple]):
         self._loading_games = False
-        self.games = games
-        if not game_config.get_only_installed():
-            display_filter = game_config.get_display_filter()
+        current_filter = (game_config.get_display_filter(), game_config.get_only_installed())
+        loaded_filter = getattr(self, "_loading_library_filter", current_filter)
+        if not loaded_filter[1]:
+            display_filter = loaded_filter[0]
             library_cache = getattr(self, "_loaded_library_cache", {})
             library_cache[display_filter] = games
             self._loaded_library_cache = library_cache
-        focus_first_card = not getattr(self, "_preserve_library_focus_after_load", False)
-        self._preserve_library_focus_after_load = False
-        self.game_library_manager.set_games(games, focus_first_card=focus_first_card)
-        self._known_portproton_desktops = self._get_portproton_desktop_files()
-
         # Clear the refresh in progress flag
         if hasattr(self, '_refresh_in_progress'):
             self._refresh_in_progress = False
@@ -912,6 +908,15 @@ class MainWindow(
         if hasattr(self, 'refreshButton'):
             self.refreshButton.setEnabled(True)
             self._gamepad_tooltip_map[self.refreshButton] = _("Refresh Grid")
+
+        if loaded_filter != current_filter:
+            self._on_only_installed_changed(current_filter[1])
+            return
+        self.games = games
+        focus_first_card = not getattr(self, "_preserve_library_focus_after_load", False)
+        self._preserve_library_focus_after_load = False
+        self.game_library_manager.set_games(games, focus_first_card=focus_first_card)
+        self._known_portproton_desktops = self._get_portproton_desktop_files()
 
     def loadGames(self, force_load: bool = False):
         if self._loading_games:
@@ -926,6 +931,7 @@ class MainWindow(
 
         self._loading_games = True
         display_filter = game_config.get_display_filter()
+        self._loading_library_filter = (display_filter, game_config.get_only_installed())
         favorites = favorites_config.get_games()
         self.pending_games = []
         self.games = []

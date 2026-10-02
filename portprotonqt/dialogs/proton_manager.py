@@ -2,7 +2,6 @@
 
 import os
 import platform
-import re
 import shutil
 import tempfile
 import urllib.parse
@@ -35,40 +34,6 @@ logger = get_logger(__name__)
 theme_manager = ThemeManager()
 WINE_TABLE_ROW_BATCH_SIZE = 8
 WINE_ARCHIVE_EXTENSIONS = ('.tar.xz', '.tar.gz')
-
-
-def sort_wine_entries(entries: list[dict], source_name: str) -> list[dict]:
-    """Sort Wine entries, alternating CachyOS and WineLand releases."""
-    if source_name.lower() != 'proton_cachyos':
-        return sorted(entries, key=version_sort_key)
-
-    release_groups = []
-    for is_wineland in (False, True):
-        family_entries = sorted(
-            (
-                entry for entry in entries
-                if ('proton-cachyos-wineland-' in entry.get('name', '').lower())
-                == is_wineland
-            ),
-            key=version_sort_key,
-        )
-        groups = []
-        for entry in family_entries:
-            release_name = re.sub(
-                r'-(?:x86_64|arm64|aarch64)(?:_v\d+|-wow64)?$',
-                '', entry.get('name', '').lower(),
-            )
-            if not groups or groups[-1][0] != release_name:
-                groups.append((release_name, []))
-            groups[-1][1].append(entry)
-        release_groups.append(groups)
-
-    sorted_entries = []
-    for index in range(max(map(len, release_groups), default=0)):
-        for groups in release_groups:
-            if index < len(groups):
-                sorted_entries.extend(groups[index][1])
-    return sorted_entries
 
 
 class ProtonManager(DraggableDialog):
@@ -352,7 +317,7 @@ class ProtonManager(DraggableDialog):
         tabs = []
         for source_name, entries in metadata.items():
             filtered_entries = self.filter_entries_by_cpu_level(entries, source_name)
-            tabs.append((source_name, sort_wine_entries(filtered_entries, source_name)))
+            tabs.append((source_name, sorted(filtered_entries, key=version_sort_key)))
         tabs.sort(key=lambda item: (item[0] != 'proton_lg', item[0]))
         self.selected_assets.clear()
         self.tab_widget.clear()
@@ -425,7 +390,7 @@ class ProtonManager(DraggableDialog):
             if entry_is_arm == is_arm:
                 filtered_entries.append(entry)
         entries = filtered_entries
-        if source_name.lower() != 'proton_cachyos':
+        if source_name.lower() not in ('proton_cachyos', 'proton_wineland'):
             return entries
         if self.cpu_level >= 4:
             return entries
@@ -482,7 +447,7 @@ class ProtonManager(DraggableDialog):
                     if url_filename:
                         entry['filename'] = url_filename
                 all_entries.append(entry)
-            all_entries = sort_wine_entries(all_entries, source_name)
+            all_entries.sort(key=version_sort_key)
             table = self._create_empty_wine_tab(source_name, len(all_entries))
             for row_index, entry in enumerate(all_entries):
                 self.add_asset_row_from_json(table, row_index, entry, source_name)

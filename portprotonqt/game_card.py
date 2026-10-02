@@ -322,6 +322,7 @@ class AnimatedCard(QFrame):
 
 
 class GameCard(AnimatedCard):
+    coverReady = Signal(object)
     editShortcutRequested = Signal(str, str, str)
     deleteGameRequested = Signal(str, str)
     addToMenuRequested = Signal(str, str)
@@ -340,6 +341,7 @@ class GameCard(AnimatedCard):
         card_width=250, parent=None, context_menu_manager=None
     ):
         super().__init__(parent)
+        self.coverReady.connect(self.on_cover_loaded, Qt.ConnectionType.QueuedConnection)
         self.name = name
         self.description = description
         self.cover_path = cover_path
@@ -454,6 +456,7 @@ class GameCard(AnimatedCard):
         self.favoriteLabel = ClickableLabel(self.coverWidget)
         self.favoriteLabel.clicked.connect(self.toggle_favorite)
         self.is_favorite = self.name in set(favorites_config.get_games())
+        self._favorite_icon_state = self.is_favorite
         self.update_favorite_icon()
         self.favoriteLabel.raise_()
         if self.list_layout:
@@ -727,7 +730,7 @@ class GameCard(AnimatedCard):
             cover_path,
             width,
             height,
-            self.on_cover_loaded,
+            self.coverReady.emit,
             app_name=str(self.appid or ""),
             fallback_exe=fallback_exe,
             fallback_icon_path=fallback_icon_path,
@@ -1006,23 +1009,17 @@ class GameCard(AnimatedCard):
             # Handle the case where the Qt object was deleted
             pass
 
-        # Ensure parent layout is updated safely
-        try:
-            parent = self.parentWidget()
-            if parent:
-                layout = parent.layout()
-                if layout:
-                    layout.invalidate()
-                    layout.activate()
-                    layout.update()
-                parent.updateGeometry()
-        except RuntimeError:
-            # Handle the case where the Qt object was deleted
-            pass
-
     def update_card_size(self, new_width: int):
+        if self.base_card_width == new_width:
+            return
         self.base_card_width = new_width
-        self._load_cover_image(self.cover_path or "")
+        cover_height = int(new_width * self.card_geometry_cfg.get("cover_aspect_ratio", 1.5))
+        if not self.animated_cover_path and (
+            self.base_pixmap is None or self.base_pixmap.isNull()
+            or self.base_pixmap.width() < new_width
+            or self.base_pixmap.height() < cover_height
+        ):
+            self._load_cover_image(self.cover_path or "")
         self.update_scale()
 
     def update_badge_visibility(self, display_filter: str):
@@ -1211,6 +1208,9 @@ class GameCard(AnimatedCard):
             # Handle the case where the Qt object was deleted
             return
 
+        if self._favorite_icon_state == self.is_favorite:
+            return
+        self._favorite_icon_state = self.is_favorite
         try:
             parent = self.parent()
             while parent:

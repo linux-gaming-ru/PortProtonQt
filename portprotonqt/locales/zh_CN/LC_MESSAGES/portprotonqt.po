@@ -1255,6 +1255,10 @@ msgstr "默认"
 msgid "disabled"
 msgstr "已禁用"
 
+#, fuzzy
+msgid "Download Wine/Proton..."
+msgstr "将 WINE/Proton 下载到 Steam"
+
 msgid "Enter prefix name"
 msgstr "输入前缀名称"
 

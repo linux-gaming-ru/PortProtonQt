@@ -1310,6 +1310,10 @@ msgstr ""
 msgid "disabled"
 msgstr ""
 
+#, fuzzy
+msgid "Download Wine/Proton..."
+msgstr "Versión de WINE/Proton"
+
 msgid "Enter prefix name"
 msgstr ""
 

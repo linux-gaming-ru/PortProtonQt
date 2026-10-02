@@ -582,7 +582,7 @@ def test_game_card_uses_exe_fallback_without_valid_cover(
         appid="game",
         list_layout=False,
         base_card_width=100,
-        on_cover_loaded=lambda _pixmap: None,
+        coverReady=SimpleNamespace(emit=lambda _pixmap: None),
         _set_animated_cover=lambda *_args: False,
         _get_exe_icon_fallback=lambda: ("/games/game.exe", "/cache/images/Game.png"),
     )

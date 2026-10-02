@@ -1,4 +1,5 @@
 import os
+from itertools import accumulate
 from PySide6.QtWidgets import QLabel, QPushButton, QStyle, QStyleOptionButton, QWidget, QLayout, QLayoutItem, QScrollArea, QGraphicsOpacityEffect, QComboBox
 from PySide6.QtCore import Qt, Signal, QRect, QRectF, QSize, Property, QPropertyAnimation, QEasingCurve, QTimer, QEvent
 from PySide6.QtGui import QFont, QFontMetrics, QIcon, QPainter, QPalette, QColor, QWheelEvent
@@ -40,6 +41,7 @@ def compute_layout(nat_sizes, rect_width, spacing, max_scale, center_rows=True):
     result = [[0, 0, 0, 0] for _ in range(N)]
     min_margin = 20
     available_width = rect_width - 2 * min_margin
+    width_sums = list(accumulate((size[0] for size in nat_sizes), initial=0))
 
     # Fast search for max items per row
     max_items_per_row = 1
@@ -55,7 +57,7 @@ def compute_layout(nat_sizes, rect_width, spacing, max_scale, center_rows=True):
         while left <= right:
             mid = (left + right) // 2
             end_idx = min(i + mid, N)
-            sum_w = sum(nat_sizes[j][0] for j in range(i, end_idx))
+            sum_w = width_sums[end_idx] - width_sums[i]
             needed_width = sum_w + spacing * (mid - 1)
 
             if needed_width <= available_width:
@@ -65,7 +67,7 @@ def compute_layout(nat_sizes, rect_width, spacing, max_scale, center_rows=True):
                 right = mid - 1
 
         count = best_count
-        sum_width = sum(nat_sizes[j][0] for j in range(i, i + count))
+        sum_width = width_sums[i + count] - width_sums[i]
 
         if count > max_items_per_row:
             max_items_per_row = count
@@ -89,7 +91,7 @@ def compute_layout(nat_sizes, rect_width, spacing, max_scale, center_rows=True):
         while left <= right:
             mid = (left + right) // 2
             end_idx = min(i + mid, N)
-            sum_w = sum(nat_sizes[j][0] for j in range(i, end_idx))
+            sum_w = width_sums[end_idx] - width_sums[i]
             needed_width = sum_w + spacing * (mid - 1)
 
             if needed_width <= available_width:
@@ -151,9 +153,13 @@ class FlowLayout(QLayout):
         self._cache_width = None
         self._cache_visible_hash = None
         self._cache_result = None
+        self._cache_visible_data = None
+        self._cache_minimum_size = None
 
     def _get_visible_data(self):
         """Return list of visible items and their sizes"""
+        if self._cache_visible_data is not None:
+            return self._cache_visible_data
         visible_items = []
         visible_indices = []
         visible_sizes = []
@@ -163,10 +169,13 @@ class FlowLayout(QLayout):
             if widget and not widget.isHidden():
                 visible_items.append(item)
                 visible_indices.append(i)
-                s = item.sizeHint()
+                s = widget.minimumSize()
+                if s != widget.maximumSize():
+                    s = item.sizeHint()
                 visible_sizes.append((s.width(), s.height()))
 
-        return visible_items, visible_indices, visible_sizes
+        self._cache_visible_data = (visible_items, visible_indices, visible_sizes)
+        return self._cache_visible_data
 
     def _make_visible_hash(self, visible_sizes):
         """Create hash for change detection"""
@@ -175,6 +184,12 @@ class FlowLayout(QLayout):
     def addItem(self, item: QLayoutItem) -> None:
         self.itemList.append(item)
         self._invalidate_cache()
+
+    def insertWidget(self, index: int, widget: QWidget) -> None:
+        self.addWidget(widget)
+        item = self.takeAt(self.count() - 1)
+        self.itemList.insert(index, item)
+        self.invalidate()
 
     def takeAt(self, index: int) -> QLayoutItem:
         if 0 <= index < len(self.itemList):
@@ -186,6 +201,8 @@ class FlowLayout(QLayout):
         self._cache_width = None
         self._cache_visible_hash = None
         self._cache_result = None
+        self._cache_visible_data = None
+        self._cache_minimum_size = None
 
     def invalidate(self) -> None:
         self._invalidate_cache()
@@ -247,12 +264,20 @@ class FlowLayout(QLayout):
         return self.minimumSize()
 
     def minimumSize(self):
+        if self._cache_minimum_size is not None:
+            return QSize(self._cache_minimum_size)
         size = QSize()
         for item in self.itemList:
-            size = size.expandedTo(item.minimumSize())
+            widget = item.widget()
+            if (widget is not None and not widget.isHidden()
+                    and widget.minimumSize() == widget.maximumSize()):
+                size = size.expandedTo(widget.minimumSize())
+            else:
+                size = size.expandedTo(item.minimumSize())
         margins = self.contentsMargins()
         size += QSize(margins.left() + margins.right(),
                       margins.top() + margins.bottom())
+        self._cache_minimum_size = QSize(size)
         return size
 
     def doLayout(self, rect, testOnly):
