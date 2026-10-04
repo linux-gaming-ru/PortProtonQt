@@ -3,7 +3,6 @@
 import os
 import re
 import subprocess
-from html import escape
 from typing import cast, TYPE_CHECKING
 
 from PySide6.QtCore import Qt, QObject, QEvent, QPoint, QProcess, QTimer, QUrl
@@ -1599,9 +1598,8 @@ class ExeSettingsDialog(
                 label = cast(QLabel | None, table.cellWidget(row, 0))
                 if label is None:
                     text = item.text()
-                    title, _, description = text.partition("\n")
                     label = QLabel()
-                    label.setTextFormat(Qt.TextFormat.RichText)
+                    label.setTextFormat(Qt.TextFormat.PlainText)
                     label.setWordWrap(True)
                     label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
                     item.setData(Qt.ItemDataRole.AccessibleTextRole, text)
@@ -1609,15 +1607,14 @@ class ExeSettingsDialog(
                     table.setCellWidget(row, 0, label)
                     label.setAutoFillBackground(False)
                     label.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
+                palette = table.palette()
+                if item.data(Qt.ItemDataRole.ForegroundRole) is not None:
+                    palette.setBrush(QPalette.ColorRole.Text, item.foreground())
+                label.setPalette(palette)
+                label.setForegroundRole(QPalette.ColorRole.Text)
                 text = item.data(Qt.ItemDataRole.AccessibleTextRole)
-                title, _, description = text.partition("\n")
-                color = self.theme.color_text_muted
-                content = (
-                    f'<p style="color: {self.theme.color_text}">{escape(title)}</p>'
-                    f'<p style="color: {color}">{escape(description).replace(chr(10), "<br>")}</p>'
-                )
-                if label.text() != content:
-                    label.setText(content)
+                if label.text() != text:
+                    label.setText(text)
                 width = max(1, table.columnWidth(0))
                 table.setRowHeight(row, label.heightForWidth(width) + table.fontMetrics().height())
             for row in range(table.rowCount()):

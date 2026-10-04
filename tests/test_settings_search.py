@@ -297,13 +297,13 @@ def test_gamescope_search_uses_description_and_selects_category(
     assert fullscreen.text() == "Fullscreen window"
 
 
-def test_settings_table_descriptions_and_centered_controls() -> None:
+@pytest.mark.parametrize("theme_name", ["standart", "standart-light", "classic-light"])
+def test_settings_table_descriptions_and_centered_controls(theme_name: str) -> None:
     from PySide6.QtCore import Qt
     from portprotonqt.dialogs.settings_dialog import ExeSettingsDialog
-    from portprotonqt.theme_manager import ThemeWrapper
-    from portprotonqt.themes.standart import styles
+    from portprotonqt.theme_manager import ThemeWrapper, load_theme
 
-    theme = ThemeWrapper(styles)
+    theme = ThemeWrapper(load_theme(theme_name))
     table = QTableWidget()
     table.setStyleSheet(theme.WINETRICKS_TABBLE_STYLE)
     table.viewport().setProperty("ppqt_settings_values", True)
@@ -336,19 +336,19 @@ def test_settings_table_descriptions_and_centered_controls() -> None:
         name_item = table.item(row, 0)
         description_item = table.item(row, 2)
         assert name_item is not None and description_item is not None
-        text = name_item.data(Qt.ItemDataRole.AccessibleTextRole)
-        assert text == f"Setting\n{description_item.text()}"
         label = table.cellWidget(row, 0)
         assert isinstance(label, QLabel)
-        assert label is not None
-        assert theme.color_text_muted in label.text()
+        assert label.textFormat() == Qt.TextFormat.PlainText
+        assert label.text() == f"Setting\n{description_item.text()}"
+        assert label.palette().color(label.foregroundRole()) == table.palette().color(label.foregroundRole())
         assert name_item.text() == ""
-        assert not label.autoFillBackground()
+    if theme_name.endswith("-light"):
+        from PySide6.QtGui import QColor, QPalette
+
+        assert table.palette().color(QPalette.ColorRole.Text) == QColor(theme.color_text_dark)
     table.selectRow(1)
     ExeSettingsDialog.eventFilter(cast(ExeSettingsDialog, dialog), table.viewport(), QEvent(QEvent.Type.Paint))
-    label = table.cellWidget(1, 0)
-    assert isinstance(label, QLabel)
-    assert theme.color_text_muted in label.text()
+    assert isinstance(table.cellWidget(1, 0), QLabel)
     table.close()
 
 
