@@ -12,7 +12,7 @@ authors = [
 ]
 keywords = ["portproton", "wine", "game", "steam"]
 classifiers = [
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 5 - Production",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.11",
