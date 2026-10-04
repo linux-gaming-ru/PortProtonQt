@@ -593,6 +593,90 @@ def test_confirm_button_opens_combo_popup() -> None:
     assert app is not None
 
 
+def test_settings_gamepad_skips_separator_and_activates_download(monkeypatch: MonkeyPatch) -> None:
+    from portprotonqt.dialogs.settings_dialog import ExeSettingsDialog
+    from portprotonqt.input_manager.constants import BUTTONS
+    from portprotonqt.input_manager.settings import SettingsInputMixin
+
+    app = QApplication.instance() or QApplication([])
+    dialog = QDialog()
+    table = QTableWidget(1, 2, dialog)
+    combo = QComboBox()
+    combo.addItem("Proton")
+    combo.insertSeparator(1)
+    combo.addItem("Download Wine/Proton...", "download_wine")
+    table.setCellWidget(0, 1, combo)
+    table.setCurrentCell(0, 1)
+    highlighted = []
+    combo.highlighted.connect(highlighted.append)
+    settings = SimpleNamespace(
+        original_display_values={"PW_WINE_USE": "Proton"},
+        portproton_path=None, input_manager=None,
+    )
+    opened = MagicMock()
+    monkeypatch.setattr("portprotonqt.dialogs.settings_dialog.show_proton_manager", opened)
+    combo.activated.connect(lambda index: ExeSettingsDialog._open_wine_manager_from_combo(
+        cast(ExeSettingsDialog, settings), index, combo, "PW_WINE_USE",
+    ))
+    manager = SimpleNamespace(
+        settings_dialog=SimpleNamespace(advanced_table=table, settings_table=None, favorites_table=None),
+        _is_current_settings_tool_tab=lambda: False,
+        _get_current_settings_table=lambda: table,
+        _get_open_settings_combo=lambda: combo,
+        _handle_common_ui_elements=lambda _code: False,
+    )
+    dialog.show()
+    combo.showPopup()
+    app.processEvents()
+    SettingsInputMixin.handle_settings_dpad(cast(SettingsInputMixin, manager), PAD_DPAD_Y, 1, 0)
+    assert combo.view().currentIndex().row() == 2
+    assert highlighted[-1] == 2
+    assert combo.currentData() == "download_wine"
+    SettingsInputMixin.handle_settings_button(
+        cast(SettingsInputMixin, manager), next(iter(BUTTONS["confirm"])), 1,
+    )
+    opened.assert_called_once()
+    assert combo.currentText() == "Proton"
+    assert not combo.view().isVisible()
+    dialog.close()
+
+
+def test_settings_combo_navigation_with_keyboard_events_intercepted() -> None:
+    from portprotonqt.input_manager.settings import SettingsInputMixin
+
+    class KeyFilter(QObject):
+        def eventFilter(self, obj: QObject, event: QEvent) -> bool:
+            return event.type() == QEvent.Type.KeyPress
+
+    app = QApplication.instance() or QApplication([])
+    dialog = QDialog()
+    table = QTableWidget(1, 2, dialog)
+    combo = QComboBox()
+    combo.addItems(["First", "Second", "Third"])
+    table.setCellWidget(0, 1, combo)
+    table.setCurrentCell(0, 1)
+    manager = SimpleNamespace(
+        settings_dialog=SimpleNamespace(advanced_table=table, settings_table=None),
+        _is_current_settings_tool_tab=lambda: False,
+        _get_current_settings_table=lambda: table,
+    )
+    key_filter = KeyFilter()
+    app.installEventFilter(key_filter)
+    try:
+        dialog.show()
+        combo.showPopup()
+        app.processEvents()
+        for direction, expected in ((1, 1), (1, 2), (1, 2), (-1, 1), (-1, 0), (-1, 0)):
+            SettingsInputMixin.handle_settings_dpad(cast(SettingsInputMixin, manager), PAD_DPAD_Y, direction, 0)
+            assert combo.currentIndex() == expected
+            assert combo.view().currentIndex().row() == expected
+            assert combo.view().isVisible()
+    finally:
+        app.removeEventFilter(key_filter)
+        combo.hidePopup()
+        dialog.close()
+
+
 def test_user_conf_table_combo_gets_focus_and_opens() -> None:
     app = QApplication.instance() or QApplication([])
     table = QTableWidget(1, 2)

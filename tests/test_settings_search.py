@@ -352,6 +352,54 @@ def test_settings_table_descriptions_and_centered_controls() -> None:
     table.close()
 
 
+@pytest.mark.parametrize("close_dialog", [False, True])
+@pytest.mark.parametrize("themed", [False, True])
+def test_combo_tooltip_only_for_clipped_visible_popup(close_dialog: bool, themed: bool) -> None:
+    from PySide6.QtCore import Qt, QTimer
+    from PySide6.QtWidgets import QComboBox, QDialog
+    from portprotonqt.dialogs.settings_dialog import ExeSettingsDialog
+
+    dialog = ExeSettingsDialog.__new__(ExeSettingsDialog)
+    QDialog.__init__(dialog)
+    dialog.vkbasalt_toggle_key_button = None
+    dialog.input_manager = None
+    dialog.gamepad_tooltip = QLabel(dialog, Qt.WindowType.ToolTip)
+    dialog.gamepad_tooltip_timer = QTimer(dialog)
+    dialog.gamepad_tooltip_timer.setSingleShot(True)
+    combo = QComboBox(dialog)
+    if themed:
+        from portprotonqt.theme_manager import ThemeWrapper
+        from portprotonqt.themes.standart import styles
+
+        combo.setStyleSheet(ThemeWrapper(styles).COMBOBOX_STYLE)
+    combo.addItems(["Proton", "WINE-11.18-AMD64-WOW64" if themed else "Proton " * 40])
+    combo.view().setFixedWidth(180)
+    combo.highlighted.connect(lambda row: dialog._on_combo_highlighted(row, combo))
+    combo.setCurrentIndex(1)
+    dialog.show()
+    combo.showPopup()
+    QApplication.processEvents()
+
+    assert dialog.gamepad_tooltip.isVisible()
+    assert dialog.gamepad_tooltip.text() == combo.itemText(1)
+    dialog._on_combo_highlighted(0, combo)
+    assert not dialog.gamepad_tooltip.isVisible()
+    assert not dialog.gamepad_tooltip_timer.isActive()
+    dialog._on_combo_highlighted(1, combo)
+    assert dialog.gamepad_tooltip.isVisible()
+
+    if close_dialog:
+        dialog.hide()
+    else:
+        combo.hidePopup()
+    assert not dialog.gamepad_tooltip.isVisible()
+    assert not dialog.gamepad_tooltip_timer.isActive()
+    dialog._on_combo_highlighted(1, combo)
+    assert not dialog.gamepad_tooltip.isVisible()
+    combo.hidePopup()
+    dialog.close()
+
+
 def test_settings_row_frame_does_not_cover_contents() -> None:
     from PySide6.QtWidgets import QAbstractItemView, QRubberBand, QTableWidget, QTableWidgetItem
 

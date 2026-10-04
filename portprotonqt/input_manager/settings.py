@@ -128,6 +128,7 @@ class SettingsInputMixin(InputMixin):
                             open_combo.lineEdit().setFocus()
                         else:
                             open_combo.setFocus()
+                        open_combo.activated.emit(open_combo.currentIndex())
                         return
 
                     # Standard interaction
@@ -341,9 +342,14 @@ class SettingsInputMixin(InputMixin):
                 if isinstance(cell_widget, QComboBox) and cell_widget.view().isVisible():
                     if code == PAD_DPAD_Y and value != 0:
                         idx = cell_widget.currentIndex()
-                        new_idx = max(0, idx - 1) if value < 0 else min(cell_widget.count() - 1, idx + 1)
-                        if new_idx != idx:
-                            cell_widget.setCurrentIndex(new_idx)
+                        step = -1 if value < 0 else 1
+                        model = cell_widget.model()
+                        end = -1 if step < 0 else cell_widget.count()
+                        new_idx = next((
+                            row for row in range(idx + step, end, step)
+                            if model.flags(model.index(row, 0)) & Qt.ItemFlag.ItemIsEnabled
+                        ), idx)
+                        cell_widget.setCurrentIndex(new_idx)
                     return  # Consume event
 
             # 3. Standard Table Navigation
