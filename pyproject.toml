@@ -35,7 +35,7 @@ dependencies = [
     "tqdm>=4.70.1",
     "vdf>=3.4",
     "websocket-client>=1.9.2",
-    "dbus-fast>=5.0.22",
+    "dbus-fast>=5.2.0",
     "pefile>=2024.8.26",
 ]
 
@@ -53,7 +53,7 @@ dev = [
     "pre-commit>=4.6.2",
     "pyright>=1.1.414",
     "pytest>=9.1.1",
-    "pytest-mock>=3.15.1",
+    "pytest-mock>=3.16.0",
 ]
 
 [tool.ruff.lint]
