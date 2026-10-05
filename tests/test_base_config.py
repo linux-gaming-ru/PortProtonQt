@@ -5,6 +5,7 @@ import runpy
 import pytest
 
 from portprotonqt.config.base import BaseConfig
+from portprotonqt.config.display import DisplayConfig
 from portprotonqt.config.game import GameConfig
 from portprotonqt.config.ui import UIConfig
 import portprotonqt.localization as localization
@@ -17,6 +18,16 @@ def isolate_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr("portprotonqt.config.base._config_cache", {})
     monkeypatch.setattr("portprotonqt.config.base._config_mtime", {})
     return config_file
+
+
+def test_boot_animation_setting_persists(tmp_path: Path) -> None:
+    config_file = tmp_path / "display.conf"
+    config = DisplayConfig(config_file=config_file)
+    assert config.get_boot_animation_enabled() is True
+    config.set_boot_animation_enabled(False)
+    assert DisplayConfig(config_file=config_file).get_boot_animation_enabled() is False
+    config.set_boot_animation_enabled(True)
+    assert DisplayConfig(config_file=config_file).get_boot_animation_enabled() is True
 
 
 class TestBaseConfigRead:

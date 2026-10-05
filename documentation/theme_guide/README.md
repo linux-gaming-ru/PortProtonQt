@@ -958,6 +958,20 @@ When no `ICON_COLORS` entry matches an `AutoSizeButton` state, the button falls 
 
 ---
 
+## Boot animation (optional)
+
+Place `bootanimation.webm` beside the theme's `styles.py`; missing videos are
+inherited from parent themes. It plays with audio inside the main window only
+in fullscreen, including the automatic transition when a gamepad is connected.
+Minimized and windowed launches skip it, including windowed ppqtos.
+The “Disable Boot Animation” checkbox in settings disables playback.
+A key press, mouse click, or gamepad button skips playback. `bootAnimationTimeoutMs` defaults to
+30000; `color_boot_animation` sets the background and letterbox color.
+
+Video specifications: WebM container, VP9 video, optional Opus audio;
+1920×1080 or 1280×800, 30 or 60 FPS. Recommended duration: 3–5 seconds;
+the default playback timeout is 30 seconds. Aspect ratio is preserved.
+
 ## Sound Effects (optional)
 
 Place UI sound effects in the theme's `sounds/` directory. File names must match an event name; do not add numeric suffixes such as `_001`:

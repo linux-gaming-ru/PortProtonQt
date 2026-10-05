@@ -4,6 +4,7 @@ install_data(
    'appimage_integration.py',
    'appimage_updater.py',
    'cli.py',
+   'boot_animation.py',
    'context_menu_manager.py',
    'custom_widgets.py',
    'dialogs.py',
