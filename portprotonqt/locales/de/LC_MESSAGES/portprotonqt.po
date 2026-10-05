@@ -2326,6 +2326,9 @@ msgstr "Anwendung im Vollbildmodus starten"
 msgid "Auto Fullscreen on Gamepad connected"
 msgstr "Automatischer Vollbildmodus bei angeschlossenem Gamepad"
 
+msgid "Disable Boot Animation"
+msgstr ""
+
 msgid "Minimize to tray on close"
 msgstr "Beim Schließen in die Taskleiste minimieren"
 

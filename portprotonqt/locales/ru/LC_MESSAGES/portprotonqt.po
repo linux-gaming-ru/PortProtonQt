@@ -2317,6 +2317,9 @@ msgstr "Запускать приложение в полноэкранном р
 msgid "Auto Fullscreen on Gamepad connected"
 msgstr "Режим полноэкранного отображения приложения при подключении геймпада"
 
+msgid "Disable Boot Animation"
+msgstr ""
+
 msgid "Minimize to tray on close"
 msgstr "Сворачивать в область уведомления при закрытии"
 

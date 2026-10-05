@@ -2225,6 +2225,9 @@ msgstr ""
 msgid "Auto Fullscreen on Gamepad connected"
 msgstr ""
 
+msgid "Disable Boot Animation"
+msgstr ""
+
 msgid "Minimize to tray on close"
 msgstr ""
 
