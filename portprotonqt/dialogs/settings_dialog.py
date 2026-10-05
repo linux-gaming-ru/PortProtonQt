@@ -3,11 +3,10 @@
 import os
 import re
 import subprocess
-from html import escape
 from typing import cast, TYPE_CHECKING
 
 from PySide6.QtCore import Qt, QObject, QEvent, QPoint, QProcess, QTimer, QUrl
-from PySide6.QtGui import QColor, QContextMenuEvent, QDesktopServices, QGuiApplication, QIcon, QPalette, QRegion
+from PySide6.QtGui import QColor, QContextMenuEvent, QDesktopServices, QGuiApplication, QHideEvent, QIcon, QPalette, QRegion
 from PySide6.QtWidgets import (
     QApplication,
     QAbstractItemView,
@@ -1251,6 +1250,10 @@ class ExeSettingsDialog(
 
     def _on_combo_highlighted(self, row: int, combo: QComboBox) -> None:
         view = combo.view()
+        view.installEventFilter(self)
+        if not self.isVisible() or not combo.isVisible() or not view.isVisible():
+            self.show_gamepad_tooltip(show=False)
+            return
         index = view.model().index(row, 0)
         if not index.isValid():
             self.gamepad_tooltip.hide()
@@ -1260,10 +1263,14 @@ class ExeSettingsDialog(
             self.gamepad_tooltip.hide()
             return
         fm = view.fontMetrics()
+        item_rect = view.visualRect(index)
+        text_width = max(fm.horizontalAdvance(text), view.sizeHintForIndex(index).width())
+        if text_width <= item_rect.intersected(view.viewport().rect()).width():
+            self.show_gamepad_tooltip(show=False)
+            return
         text_rect = fm.boundingRect(0, 0, 480, 1000, Qt.TextFlag.TextWordWrap, text)
         w = min(500, text_rect.width() + 25)
         h = min(300, text_rect.height() + 25)
-        item_rect = view.visualRect(index)
         item_center_y = view.viewport().mapToGlobal(item_rect.center()).y()
         combo_right_x = combo.mapToGlobal(combo.rect().topRight()).x()
         pos = QPoint(combo_right_x + 4, item_center_y - h // 2)
@@ -1568,6 +1575,16 @@ class ExeSettingsDialog(
         super().closeEvent(event)
 
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
+        if isinstance(obj, QAbstractItemView) and event.type() == QEvent.Type.Show:
+            combo = obj.window().parentWidget()
+            if isinstance(combo, QComboBox):
+                self._on_combo_highlighted(obj.currentIndex().row(), combo)
+            return False
+
+        if isinstance(obj, QAbstractItemView) and event.type() == QEvent.Type.Hide:
+            self.show_gamepad_tooltip(show=False)
+            return False
+
         if event.type() == QEvent.Type.MouseButtonPress and obj.property("ppqt_settings_values"):
             cast(QTableWidget, obj.parent()).clearFocus()
             return False
@@ -1581,9 +1598,8 @@ class ExeSettingsDialog(
                 label = cast(QLabel | None, table.cellWidget(row, 0))
                 if label is None:
                     text = item.text()
-                    title, _, description = text.partition("\n")
                     label = QLabel()
-                    label.setTextFormat(Qt.TextFormat.RichText)
+                    label.setTextFormat(Qt.TextFormat.PlainText)
                     label.setWordWrap(True)
                     label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
                     item.setData(Qt.ItemDataRole.AccessibleTextRole, text)
@@ -1591,15 +1607,14 @@ class ExeSettingsDialog(
                     table.setCellWidget(row, 0, label)
                     label.setAutoFillBackground(False)
                     label.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
+                palette = table.palette()
+                if item.data(Qt.ItemDataRole.ForegroundRole) is not None:
+                    palette.setBrush(QPalette.ColorRole.Text, item.foreground())
+                label.setPalette(palette)
+                label.setForegroundRole(QPalette.ColorRole.Text)
                 text = item.data(Qt.ItemDataRole.AccessibleTextRole)
-                title, _, description = text.partition("\n")
-                color = self.theme.color_text_muted
-                content = (
-                    f'<p style="color: {self.theme.color_text}">{escape(title)}</p>'
-                    f'<p style="color: {color}">{escape(description).replace(chr(10), "<br>")}</p>'
-                )
-                if label.text() != content:
-                    label.setText(content)
+                if label.text() != text:
+                    label.setText(text)
                 width = max(1, table.columnWidth(0))
                 table.setRowHeight(row, label.heightForWidth(width) + table.fontMetrics().height())
             for row in range(table.rowCount()):
@@ -1732,6 +1747,10 @@ class ExeSettingsDialog(
         else:
             self.gamepad_tooltip_timer.stop()
             self.gamepad_tooltip.setVisible(False)
+
+    def hideEvent(self, event: QHideEvent) -> None:
+        self.show_gamepad_tooltip(show=False)
+        super().hideEvent(event)
 
     def reject(self):
         if hasattr(self, 'keyboard') and self.keyboard.isVisible():
