@@ -27,7 +27,7 @@ jobs:
       - name: Install system dependencies
         run: |
           pacman -Syuu --noconfirm --disable-download-timeout
-          pacman -S --noconfirm --needed git nodejs npm mesa libarchive sdl3 pyside6 qt6-svg qt6-imageformats uv
+          pacman -S --noconfirm --needed git nodejs npm mesa libarchive libpulse sdl3 pyside6 qt6-svg qt6-imageformats uv
           pacman -Scc --noconfirm
 
       - uses: https://git.linux-gaming.ru/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
