@@ -6,7 +6,7 @@
   <img src="build-aux/share/icons/hicolor/scalable/apps/ru.linux_gaming.PortProtonQt.svg" width="64">
   <h1 align="center">PortProtonQt</h1>
   <a href="https://git.linux-gaming.ru/Linux-Gaming/PortProtonQt/releases"><img src="https://img.shields.io/badge/Downloads-14.1k-green?style=flat-square" alt="Total Downloads"></a>
-  <p align="center">A modern and convenient interface for managing and launching games from PortProton, Steam, Epic Games Store, and GOG. It brings libraries together in one place and simplifies launching Windows games on Linux.</p>
+  <p align="center">An application for managing a game library and launching games on Linux. It brings games from different sources together in one place.</p>
 </div>
 
 ### Installation (devel)

@@ -1,7 +1,7 @@
-pkgname=('portprotonqt')
+pkgname='portprotonqt'
 pkgver=1.4.1
 pkgrel=1
-pkgdesc="Modern GUI for managing and launching games from PortProton and Steam"
+pkgdesc="Game library manager and launcher for Linux"
 arch=('x86_64')
 url="https://git.linux-gaming.ru/Linux-Gaming/PortProtonQt"
 license=('GPL-3.0')
@@ -19,8 +19,8 @@ build() {
     meson compile -C build
 }
 
-package_portprotonqt() {
-    pkgdesc="Modern GUI for managing and launching games from PortProton and Steam"
+package() {
+    pkgdesc="Game library manager and launcher for Linux"
     optdepends=(
         'networkmanager: System tab network management'
         'bluez: System tab bluetooth management'
