@@ -3,10 +3,21 @@
 ---
 
 <div align="center">
-  <img src="build-aux/share/icons/hicolor/scalable/apps/ru.linux_gaming.PortProtonQt.svg" width="64">
-  <h1 align="center">PortProtonQt</h1>
-  <a href="https://git.linux-gaming.ru/Linux-Gaming/PortProtonQt/releases"><img src="https://img.shields.io/badge/Downloads-14.1k-green?style=flat-square" alt="Total Downloads"></a>
+  <img src="build-aux/share/icons/hicolor/scalable/apps/ru.linux_gaming.PortProtonQt.svg" width="128">
+
   <p align="center">An application for managing a game library and launching games on Linux. It brings games from different sources together in one place.</p>
+
+  <p>
+    <a href="https://github.com/linux-gaming-ru/PortProtonQt/releases"><img src="https://img.shields.io/github/v/release/linux-gaming-ru/PortProtonQt?style=flat-square&amp;label=Release" alt="Releases"></a>
+    <a href="https://github.com/linux-gaming-ru/PortProtonQt/releases"><img src="https://img.shields.io/badge/Downloads-14.1k-green?style=flat-square" alt="Total Downloads"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue?style=flat-square" alt="License: GPL-3.0"></a>
+    <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-3.11%2B-blue?style=flat-square&amp;logo=python" alt="Python 3.11+"></a>
+    <a href="https://github.com/linux-gaming-ru/PortProtonQt"><img src="https://img.shields.io/badge/Platform-Linux-blue?style=flat-square&amp;logo=linux" alt="Platform: Linux"></a>
+    <a href="https://translate.codeberg.org/engage/portprotonqt/"><img src="https://img.shields.io/badge/Translations-Weblate-2eccaa?style=flat-square&amp;logo=weblate" alt="Translate on Weblate"></a>
+    <a href="https://repology.org/project/portprotonqt/versions"><img src="https://repology.org/badge/tiny-repos/portprotonqt.svg" alt="Packaging status on Repology"></a>
+  </p>
+
+  <p><a href="https://github.com/linux-gaming-ru/PortProtonQt/releases">Releases</a> · <a href="https://github.com/linux-gaming-ru/PortProtonQt/issues">Issue tracker</a> · <a href="https://translate.codeberg.org/engage/portprotonqt/">Translations</a> · <a href="https://repology.org/project/portprotonqt/versions">Packages</a></p>
 </div>
 
 ### Installation (devel)
@@ -57,7 +68,7 @@ pre-commit run --all-files
 
 ### Contributors
 
-We thank everyone who has contributed to the development of PortProtonQt, including those who participate through commits as well as those who help in other ways (testing, ideas, translations, documentation, etc.). A full list of participants can be found in the [repository activity list](https://git.linux-gaming.ru/Linux-Gaming/PortProtonQt/activity/contributors). Additional participants are also listed in the [CHANGELOG.md](CHANGELOG.md) file. If you have contributed but are not listed, please contact the lead developers so we can acknowledge you!
+We thank everyone who has contributed to the development of PortProtonQt, including those who participate through commits as well as those who help in other ways (testing, ideas, translations, documentation, etc.). A full list of participants can be found in the [repository activity list](https://github.com/linux-gaming-ru/PortProtonQt/graphs/contributors). Additional participants are also listed in the [CHANGELOG.md](CHANGELOG.md) file. If you have contributed but are not listed, please contact the lead developers so we can acknowledge you!
 
 ## Dependencies and Licenses
 

@@ -1,12 +1,23 @@
-📖 This documentation is also available in [English](README.md)
+📘 This documentation is also available in [English](README.md)
 
 ---
 
 <div align="center">
-  <img src="build-aux/share/icons/hicolor/scalable/apps/ru.linux_gaming.PortProtonQt.svg" width="64">
-  <h1 align="center">PortProtonQt</h1>
-  <a href="https://git.linux-gaming.ru/Linux-Gaming/PortProtonQt/releases"><img src="https://img.shields.io/badge/%D0%97%D0%B0%D0%B3%D1%80%D1%83%D0%B7%D0%BA%D0%B8-14.1k-green?style=flat-square" alt="Всего загрузок"></a>
+  <img src="build-aux/share/icons/hicolor/scalable/apps/ru.linux_gaming.PortProtonQt.svg" width="128">
+
   <p align="center">Приложение для управления игровой библиотекой и запуска игр на Linux. Объединяет игры из разных источников в одном месте.</p>
+
+  <p>
+    <a href="https://git.linux-gaming.ru/Linux-Gaming/PortProtonQt/releases"><img src="https://img.shields.io/github/v/release/linux-gaming-ru/PortProtonQt?style=flat-square&amp;label=Релиз" alt="Релизы"></a>
+    <a href="https://git.linux-gaming.ru/Linux-Gaming/PortProtonQt/releases"><img src="https://img.shields.io/badge/Загрузки-14.1k-green?style=flat-square" alt="Всего загрузок"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/Лицензия-GPL--3.0-blue?style=flat-square" alt="Лицензия: GPL-3.0"></a>
+    <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-3.11+-blue?style=flat-square&amp;logo=python" alt="Python 3.11+"></a>
+    <a href="https://git.linux-gaming.ru/Linux-Gaming/PortProtonQt"><img src="https://img.shields.io/badge/Платформа-Linux-blue?style=flat-square&amp;logo=linux" alt="Платформа: Linux"></a>
+    <a href="https://translate.codeberg.org/engage/portprotonqt/"><img src="https://img.shields.io/badge/Переводы-Weblate-2eccaa?style=flat-square&amp;logo=weblate" alt="Перевести на Weblate"></a>
+    <a href="https://repology.org/project/portprotonqt/versions"><img src="https://repology.org/badge/tiny-repos/portprotonqt.svg?header=Репозитории" alt="Пакеты в Repology"></a>
+  </p>
+
+  <p><a href="https://git.linux-gaming.ru/Linux-Gaming/PortProtonQt/releases">Релизы</a> · <a href="https://git.linux-gaming.ru/Linux-Gaming/PortProtonQt/issues">Сообщить о проблеме</a> · <a href="https://translate.codeberg.org/engage/portprotonqt/">Переводы</a> · <a href="https://repology.org/project/portprotonqt/versions">Пакеты</a></p>
 </div>
 
 ### Установка (devel)
