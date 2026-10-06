@@ -529,12 +529,18 @@ class InputManager(
             window = self._parent
             if not isinstance(window, QWidget):
                 return
-            if enable and not self._is_fullscreen:
+            if enable and not window.isFullScreen():
                 if not window.isFullScreen():
                     window_config.set_geometry(window.width(), window.height())
                 window.showFullScreen()
                 self._is_fullscreen = True
-            elif not enable and self._is_fullscreen:
+                start_animation = getattr(window, "start_boot_animation", None)
+                if callable(start_animation):
+                    start_animation()
+            elif not enable and window.isFullScreen():
+                animation = getattr(window, "boot_animation", None)
+                if animation is not None:
+                    animation.finish()
                 window.showNormal()
                 width, height = window_config.get_geometry()
                 if width > 0 and height > 0:

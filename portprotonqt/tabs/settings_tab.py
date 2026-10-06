@@ -309,6 +309,21 @@ class MainWindowSettingsTabMixin(_MainWindowTypingBase):
         auto_fullscreen_layout.addStretch()
         uiForm.addRow(auto_fullscreen_layout)
 
+        self.disableBootAnimationCheckBox = QCheckBox()
+        self.disableBootAnimationCheckBox.setStyleSheet(self.theme.CHECKBOX_STYLE)
+        self.disableBootAnimationCheckBox.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.disableBootAnimationTitle = QLabel(_("Disable Boot Animation"))
+        self.disableBootAnimationTitle.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.disableBootAnimationTitle.setStyleSheet(self.theme.SETTINGS_TITLE_CHECKBOX_STYLE)
+        self.disableBootAnimationTitle.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.disableBootAnimationCheckBox.setChecked(not display_config.get_boot_animation_enabled())
+        boot_animation_layout = QHBoxLayout()
+        boot_animation_layout.setContentsMargins(0, 0, 0, 0)
+        boot_animation_layout.addWidget(self.disableBootAnimationCheckBox)
+        boot_animation_layout.addWidget(self.disableBootAnimationTitle)
+        boot_animation_layout.addStretch()
+        uiForm.addRow(boot_animation_layout)
+
         self.minimizeToTrayCheckBox = QCheckBox()
         self.minimizeToTrayCheckBox.setStyleSheet(self.theme.CHECKBOX_STYLE)
         self.minimizeToTrayCheckBox.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -968,6 +983,7 @@ class MainWindowSettingsTabMixin(_MainWindowTypingBase):
 
         auto_fullscreen_gamepad = self.autoFullscreenGamepadCheckBox.isChecked()
         display_config.set_auto_fullscreen_gamepad(auto_fullscreen_gamepad)
+        display_config.set_boot_animation_enabled(not self.disableBootAnimationCheckBox.isChecked())
 
         hide_control_hints = self.hideControlHintsCheckBox.isChecked()
         ui_config.set_hide_control_hints(hide_control_hints)

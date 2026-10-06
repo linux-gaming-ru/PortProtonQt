@@ -418,6 +418,7 @@ tests/
 ├── test_easyterm.py         # Terminal final output, exit status, keyboard and gamepad closing
 ├── test_input_manager.py    # Gamepad input navigation and focus regressions
 ├── test_sound_manager.py    # UI sound playback, widget events, gamepad connection, theme sound files
+├── test_boot_animation.py   # Theme video inheritance, fullscreen boot rendering, gamepad skip, loading transitions, and shutdown
 ├── test_main_window.py      # Main window data processing and callback regressions
 ├── test_library_resize.py   # Library resize batching, cover reuse, and flow layout regressions
 ├── test_library_loading.py  # Incremental loading, source switching, first-paint focus, and cover callbacks

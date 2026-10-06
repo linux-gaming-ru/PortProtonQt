@@ -35,6 +35,42 @@ HIDDEN_CARD_X = 20
 NEXT_CARD_X = 40
 
 
+@mark.parametrize("initial", [True, False])
+def test_gamepad_auto_fullscreen_shows_boot_on_hotplug(monkeypatch: MonkeyPatch, initial: bool) -> None:
+    app = QApplication.instance() or QApplication([])
+    window = cast(Any, QWidget())
+    window.start_boot_animation = MagicMock()
+    manager: Any = InputManager.__new__(InputManager)
+    QObject.__init__(manager)
+    manager._parent = window
+    manager._is_fullscreen = False
+    manager._initial_gamepad_check = initial
+    manager._gamepad_polling_suspended = False
+    manager.gamepad = None
+    manager.find_gamepad = lambda: SimpleNamespace(path="test", name="test")
+    manager.detect_gamepad_axes = MagicMock()
+    manager._reset_input_state = MagicMock()
+    manager._refresh_gamepad_ui = MagicMock()
+    manager._get_effective_gamepad_type = MagicMock()
+    manager.toggle_fullscreen.connect(manager.handle_fullscreen_slot)
+    monkeypatch.setattr(input_runtime.display_config, "get_auto_fullscreen_gamepad", lambda: True)
+    monkeypatch.setattr(input_runtime.display_config, "get_fullscreen", lambda: False)
+    monkeypatch.setattr(input_manager.window_config, "set_geometry", MagicMock())
+    monkeypatch.setattr(input_manager.window_config, "get_geometry", lambda: (640, 480))
+    manager.check_gamepad()
+    assert window.isFullScreen() is (not initial)
+    assert window.start_boot_animation.call_count == (0 if initial else 1)
+    if not initial:
+        manager.handle_fullscreen_slot(True)
+        assert window.start_boot_animation.call_count == 1
+        window.boot_animation = MagicMock()
+        manager.handle_fullscreen_slot(False)
+        window.boot_animation.finish.assert_called_once_with()
+        assert not window.isFullScreen()
+    window.close()
+    assert app is not None
+
+
 def _tile_theme() -> Any:
     return SimpleNamespace(
         fullLibraryTileSize=(180, 180),
@@ -203,6 +239,7 @@ def test_disabling_mouse_emulation_keeps_gamepad_events_working() -> None:
     emitted: list[tuple[int, int]] = []
     manager = InputManager.__new__(InputManager)
     QObject.__init__(manager)
+    cast(Any, manager)._parent = SimpleNamespace(boot_animation=None)
     manager._button_states = {}
     manager.mouse_emulation_enabled = True
     manager.emulation_active = True
@@ -907,6 +944,7 @@ def test_dialog_surface_receives_connected_input_signals() -> None:
     default_events: list[tuple[int, int]] = []
     manager: Any = InputManager.__new__(InputManager)
     QObject.__init__(manager)
+    manager._parent = SimpleNamespace(boot_animation=None)
     manager._input_surfaces = []
     manager._input_surface_base_state = None
     manager._gamepad_handling_enabled = False
@@ -940,6 +978,7 @@ def test_gamepad_ui_events_are_queued_after_polling() -> None:
     events: list[tuple[int, int]] = []
     manager: Any = InputManager.__new__(InputManager)
     QObject.__init__(manager)
+    manager._parent = SimpleNamespace(boot_animation=None)
     manager._input_surfaces = []
     manager._handle_default_button = lambda code, value: events.append((code, value))
     manager.button_event.connect(

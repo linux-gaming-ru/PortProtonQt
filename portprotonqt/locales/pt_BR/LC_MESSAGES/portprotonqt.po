@@ -2329,6 +2329,9 @@ msgstr "Iniciar Aplicativo em Tela Cheia"
 msgid "Auto Fullscreen on Gamepad connected"
 msgstr "Tela Cheia Automática ao Conectar o Controle"
 
+msgid "Disable Boot Animation"
+msgstr ""
+
 msgid "Minimize to tray on close"
 msgstr "Minimizar para a bandeja ao fechar"
 

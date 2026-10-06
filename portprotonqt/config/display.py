@@ -33,6 +33,15 @@ class DisplayConfig(BaseConfig):
         validate_bool(auto, "auto_fullscreen_gamepad")
         self._save_value("auto_fullscreen_gamepad", auto, "bool")
 
+    def get_boot_animation_enabled(self) -> bool:
+        """Return whether fullscreen boot videos are enabled."""
+        return self._get_bool("boot_animation_enabled", True)
+
+    def set_boot_animation_enabled(self, enabled: bool) -> None:
+        """Enable or disable fullscreen boot videos."""
+        validate_bool(enabled, "boot_animation_enabled")
+        self._save_value("boot_animation_enabled", enabled, "bool")
+
     def get_minimize_to_tray(self) -> bool:
         """Get minimize-to-tray setting."""
         return self._get_bool("minimize_to_tray", False)

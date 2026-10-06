@@ -620,12 +620,12 @@ def main():
                         if ":fullscreen" in msg:
                             logger.info("Switching to fullscreen via IPC")
                             display_config.set_fullscreen(True)
-                            window.showFullScreen()
+                            window.input_manager.handle_fullscreen_slot(True)
                         else:
                             if msg.startswith("show"):
                                 logger.info("Switching to normal window via IPC")
                                 display_config.set_fullscreen(False)
-                                window.showNormal()
+                                window.input_manager.handle_fullscreen_slot(False)
 
                         if msg.startswith("silent:"):
                             target = unquote(msg[7:].strip())
@@ -724,7 +724,7 @@ def main():
             f"Launching in fullscreen mode ({'--fullscreen' if args.fullscreen else 'config'})"
         )
         display_config.set_fullscreen(True)
-        window.showFullScreen()
+        window.input_manager.handle_fullscreen_slot(True)
     elif launch_auto_fullscreen:
         logger.info("Launching in fullscreen mode (gamepad)")
         window.input_manager.handle_fullscreen_slot(True)

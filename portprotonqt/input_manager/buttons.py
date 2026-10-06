@@ -34,6 +34,11 @@ logger = get_logger(__name__)
 class ButtonInputMixin(InputMixin):
     @Slot(int, int)
     def handle_button_slot(self, button_code: int, value: int) -> None:
+        animation = getattr(self._parent, "boot_animation", None)
+        if animation is not None:
+            if value:
+                animation.finish()
+            return
         if self._route_surface_button(button_code, value):
             return
         self._handle_default_button(button_code, value)

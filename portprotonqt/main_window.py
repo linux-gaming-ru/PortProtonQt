@@ -93,6 +93,7 @@ STORE_LAUNCH_GRACE_SECONDS = 10
 
 if TYPE_CHECKING:
     from portprotonqt.appimage_updater import AppImageUpdateWorker
+    from portprotonqt.boot_animation import BootAnimation
 
 logger = get_logger(__name__)
 DISC_IMAGE_EXTENSIONS = (".iso", ".mdf", ".nrg")
@@ -367,7 +368,11 @@ class MainWindow(
 
         # Central widget and main layout
         centralWidget = QWidget()
-        self.setCentralWidget(centralWidget)
+        self.startup_stack = QStackedWidget(self)
+        self.startup_stack.addWidget(centralWidget)
+        self.setCentralWidget(self.startup_stack)
+        self.boot_animation: BootAnimation | None = None
+        self._boot_pending_load = False
         mainLayout = QVBoxLayout(centralWidget)
         mainLayout.setSpacing(0)
         mainLayout.setContentsMargins(0, 0, 0, 0)
@@ -504,31 +509,59 @@ class MainWindow(
             )
             self.system_theme_watcher.start()
 
-        auto_fullscreen_gamepad = (
-            display_config.get_auto_fullscreen_gamepad()
-            and self.input_manager.gamepad is not None
-        )
-        if display_config.get_fullscreen() or auto_fullscreen_gamepad:
-            self.showFullScreen()
-        elif self._pending_resolution:
+        if self._pending_resolution:
             # Apply resolution from command line
             self.resize(self._pending_resolution[0], self._pending_resolution[1])
-            self.showNormal()
         else:
             width, height = window_config.get_geometry()
             if width > 0 and height > 0:
                 self.resize(width, height)
-            else:
-                self.showNormal()
-
-        # Process events to ensure UI is responsive before starting heavy operations
-        QApplication.processEvents()
         self.updateControlHints("force")
 
-        # Delay game loading until after the UI is fully displayed to prevent blocking
-        # Use a longer delay to ensure window is fully rendered and responsive
-        # Use a custom event processing approach to make sure UI stays responsive
-        QTimer.singleShot(500, self.loadGames)  # Reduced delay but ensure UI gets event processing
+        self.startup_load_timer = QTimer(self)
+        self.startup_load_timer.setSingleShot(True)
+        self.startup_load_timer.setInterval(self.theme.startupLibraryLoadDelayMs)
+        self.startup_load_timer.timeout.connect(self.loadGames)
+        self.startup_load_timer.start()
+
+    def start_boot_animation(self) -> None:
+        """Show the boot page when entering fullscreen."""
+        if not self.isFullScreen() or self.boot_animation is not None:
+            return
+        if not display_config.get_boot_animation_enabled():
+            return
+        from portprotonqt.boot_animation import BootAnimation, find_boot_video
+
+        path = find_boot_video(self.current_theme_name)
+        if path is None:
+            return
+        try:
+            animation = BootAnimation(self.theme, path, self.startup_stack)
+        except ImportError as error:
+            logger.warning("Qt Multimedia unavailable for boot video: %s", error)
+            return
+        self.boot_animation = animation
+        self._boot_pending_load = self.startup_load_timer.isActive()
+        self.startup_load_timer.stop()
+        self.startup_stack.addWidget(animation)
+        self.startup_stack.setCurrentWidget(animation)
+        animation.finished.connect(self._finish_boot_animation)
+        app = QApplication.instance()
+        if app is not None:
+            app.aboutToQuit.connect(animation.stop)
+        QTimer.singleShot(0, animation.start)
+
+    def _finish_boot_animation(self) -> None:
+        animation = self.boot_animation
+        if animation is None:
+            return
+        self.boot_animation = None
+        self.startup_stack.setCurrentIndex(0)
+        self.startup_stack.removeWidget(animation)
+        animation.deleteLater()
+        if self._boot_pending_load:
+            self._boot_pending_load = False
+            self.startup_load_timer.start()
 
     def on_slider_released(self) -> None:
         """Delegate to game library manager."""

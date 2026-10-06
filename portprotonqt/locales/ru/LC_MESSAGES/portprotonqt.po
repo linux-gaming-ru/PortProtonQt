@@ -9,7 +9,7 @@ msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: support@linux-gaming.ru\n"
 "POT-Creation-Date: 2026-03-22 13:50+0500\n"
-"PO-Revision-Date: 2026-10-02 03:32+0000\n"
+"PO-Revision-Date: 2026-10-05 12:41+0000\n"
 "Last-Translator: Boria138 <boria138@noreply.codeberg.org>\n"
 "Language-Team: Russian <https://translate.codeberg.org/projects/portprotonqt/"
 "portprotonqt/ru/>\n"
@@ -2316,6 +2316,9 @@ msgstr "Запускать приложение в полноэкранном р
 
 msgid "Auto Fullscreen on Gamepad connected"
 msgstr "Режим полноэкранного отображения приложения при подключении геймпада"
+
+msgid "Disable Boot Animation"
+msgstr "Отключить анимацию загрузки"
 
 msgid "Minimize to tray on close"
 msgstr "Сворачивать в область уведомления при закрытии"

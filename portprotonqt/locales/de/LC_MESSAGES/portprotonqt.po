@@ -9,7 +9,7 @@ msgstr ""
 "Project-Id-Version: PortProtonQt 0.1.1\n"
 "Report-Msgid-Bugs-To: support@linux-gaming.ru\n"
 "POT-Creation-Date: 2026-06-18 23:41+0500\n"
-"PO-Revision-Date: 2026-09-27 04:30+0000\n"
+"PO-Revision-Date: 2026-10-03 07:27+0000\n"
 "Last-Translator: Rubin13 <rubin13@noreply.codeberg.org>\n"
 "Language-Team: German <https://translate.codeberg.org/projects/portprotonqt/"
 "portprotonqt/de/>\n"
@@ -1289,9 +1289,8 @@ msgstr "Standard"
 msgid "disabled"
 msgstr "deaktiviert"
 
-#, fuzzy
 msgid "Download Wine/Proton..."
-msgstr "Lade WINE/Proton zu Steam herunter"
+msgstr "Lade Wine/Proton herunter..."
 
 msgid "Enter prefix name"
 msgstr "Prefix-Name eingeben"
@@ -2325,6 +2324,9 @@ msgstr "Anwendung im Vollbildmodus starten"
 
 msgid "Auto Fullscreen on Gamepad connected"
 msgstr "Automatischer Vollbildmodus bei angeschlossenem Gamepad"
+
+msgid "Disable Boot Animation"
+msgstr ""
 
 msgid "Minimize to tray on close"
 msgstr "Beim Schließen in die Taskleiste minimieren"

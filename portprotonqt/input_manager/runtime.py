@@ -100,7 +100,7 @@ class GamepadRuntimeMixin(InputMixin):
                 if not self._initial_gamepad_check:
                     SoundManager().play("gamepad_connect")
 
-                if display_config.get_auto_fullscreen_gamepad() and not display_config.get_fullscreen():
+                if not self._initial_gamepad_check and display_config.get_auto_fullscreen_gamepad() and not display_config.get_fullscreen():
                     self.toggle_fullscreen.emit(True)
 
             elif self.gamepad:
@@ -230,6 +230,9 @@ class GamepadRuntimeMixin(InputMixin):
         if self._button_states.get(button_index) == value:
             return
         self._button_states[button_index] = value
+        if getattr(self._parent, "boot_animation", None) is not None:
+            self.button_event.emit(button_code, value)
+            return
         if button_code in BUTTONS['guide']:
             self.guide_held = value == 1
             if self.guide_held:
