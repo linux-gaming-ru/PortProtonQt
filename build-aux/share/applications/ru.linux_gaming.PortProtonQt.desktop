@@ -2,11 +2,11 @@
 Name=PortProtonQt
 Exec=portprotonqt %u
 Type=Application
-Comment=A modern GUI for PortProton project
-Comment[ru]=Современный графический интерфейс для проекта PortProton
-Comment[es]=Una interfaz gráfica moderna para el proyecto PortProton
-Comment[pt]=Uma interface gráfica moderna para o projeto PortProton
-Comment[de]=Eine moderne grafische Benutzeroberfläche für das PortProton-Projekt
+Comment=Game library manager and launcher for Linux
+Comment[ru]=Приложение для управления игровой библиотекой и запуска игр на Linux
+Comment[es]=Gestor de biblioteca de juegos y lanzador para Linux
+Comment[pt]=Gerenciador de biblioteca de jogos e inicializador para Linux
+Comment[de]=Spielebibliotheksverwaltung und Spielestarter für Linux
 Terminal=false
 Icon=ru.linux_gaming.PortProtonQt
 StartupWMClass=ru.linux_gaming.PortProtonQt

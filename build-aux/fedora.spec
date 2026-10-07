@@ -6,7 +6,7 @@
 Name:           %{pypi_name}
 Version:        %{pypi_version}
 Release:        1%{?dist}
-Summary:        Modern GUI for managing and launching games from PortProton and Steam
+Summary:        Game library manager and launcher for Linux
 
 License:        GPL-3.0
 URL:            https://git.linux-gaming.ru/Linux-Gaming/PortProtonQt
@@ -78,7 +78,7 @@ Obsoletes:      %{pypi_name}-steam-compat < %{?epoch:%{epoch}:}%{version}-%{rele
 Provides:       %{pypi_name}-steam-compat = %{?epoch:%{epoch}:}%{version}-%{release}
 
 %description
-A modern and intuitive interface for managing and launching games from PortProton and Steam. Combines libraries in one place and simplifies running Windows games on Linux.
+An application for managing a game library and launching games on Linux. It brings games from different sources together in one place.
 
 %{?python_disable_dependency_generator}
 

@@ -1,7 +1,7 @@
 [project]
 name = "portprotonqt"
 version = "1.4.1"
-description = "A project to rewrite PortProton (PortWINE) using PySide"
+description = "Game library manager and launcher for Linux"
 requires-python = ">=3.11"
 readme = "README.md"
 license = { text = "GPL-3.0" }

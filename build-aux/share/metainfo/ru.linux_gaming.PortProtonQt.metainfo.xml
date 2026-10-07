@@ -5,15 +5,15 @@
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
 
-  <summary>Modern GUI for managing and launching games from PortProton, Steam, and GOG</summary>
-  <summary xml:lang="ru">Современный интерфейс для управления и запуска игр из PortProton, Steam и GOG</summary>
+  <summary>Game library manager and launcher for Linux</summary>
+  <summary xml:lang="ru">Приложение для управления игровой библиотекой и запуска игр на Linux</summary>
 
   <description>
     <p>
-      A modern and intuitive interface for managing and launching games from PortProton, Steam, and GOG. Combines libraries in one place and simplifies running Windows games on Linux.
+      An application for managing a game library and launching games on Linux. It brings games from different sources together in one place.
     </p>
     <p xml:lang="ru">
-      Современный и удобный интерфейс для управления и запуска игр из PortProton, Steam и GOG. Объединяет библиотеки в одном месте и упрощает запуск Windows-игр на Linux.
+      Приложение для управления игровой библиотекой и запуска игр на Linux. Объединяет игры из разных источников в одном месте.
     </p>
   </description>
 
