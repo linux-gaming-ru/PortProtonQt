@@ -518,6 +518,21 @@ class MainWindowSettingsTabMixin(_MainWindowTypingBase):
         steam_compat_layout.addStretch()
         uiForm.addRow(steam_compat_layout)
 
+        self.disableSteamProtonScanningCheckBox = QCheckBox()
+        self.disableSteamProtonScanningCheckBox.setStyleSheet(self.theme.CHECKBOX_STYLE)
+        self.disableSteamProtonScanningCheckBox.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.disableSteamProtonScanningTitle = QLabel(_("Disable Steam Proton scanning"))
+        self.disableSteamProtonScanningTitle.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.disableSteamProtonScanningTitle.setStyleSheet(self.theme.SETTINGS_TITLE_CHECKBOX_STYLE)
+        self.disableSteamProtonScanningTitle.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.disableSteamProtonScanningCheckBox.setChecked(ui_config.get_disable_steam_proton_scanning())
+        disable_steam_proton_scanning_layout = QHBoxLayout()
+        disable_steam_proton_scanning_layout.setContentsMargins(0, 0, 0, 0)
+        disable_steam_proton_scanning_layout.addWidget(self.disableSteamProtonScanningCheckBox)
+        disable_steam_proton_scanning_layout.addWidget(self.disableSteamProtonScanningTitle)
+        disable_steam_proton_scanning_layout.addStretch()
+        uiForm.addRow(disable_steam_proton_scanning_layout)
+
         if get_steam_compatibilitytools_dir() is not None:
             self.downloadWineToSteamCheckBox = QCheckBox()
             self.downloadWineToSteamCheckBox.setStyleSheet(self.theme.CHECKBOX_STYLE)
@@ -1014,6 +1029,8 @@ class MainWindowSettingsTabMixin(_MainWindowTypingBase):
             add_steam_compat_tool()
         elif not steam_compat and currently_installed:
             remove_steam_compat_tool()
+
+        ui_config.set_disable_steam_proton_scanning(self.disableSteamProtonScanningCheckBox.isChecked())
 
         if hasattr(self, 'downloadWineToSteamCheckBox'):
             ui_config.set_download_wine_to_steam(self.downloadWineToSteamCheckBox.isChecked())

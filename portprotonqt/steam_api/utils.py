@@ -9,7 +9,7 @@ from typing import BinaryIO
 from PIL import Image, UnidentifiedImageError
 import vdf
 
-from portprotonqt.config import game_config
+from portprotonqt.config import game_config, ui_config
 from portprotonqt.logger import get_logger
 from portprotonqt.image_utils import COVER_IMAGE_EXTENSIONS
 
@@ -349,6 +349,8 @@ def _is_steam_proton_dir(path: Path) -> bool:
 
 def get_steam_proton_versions() -> list[str]:
     """Return Steam Proton install directories usable by PortProton."""
+    if ui_config.get_disable_steam_proton_scanning():
+        return []
     roots = set()
     for steam_home in _iter_existing_steam_data_dirs():
         roots.add(steam_home / "compatibilitytools.d")

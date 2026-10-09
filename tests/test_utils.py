@@ -758,3 +758,12 @@ class TestIsPortraitImage:
         bad_file = tmp_path / "bad.png"
         bad_file.write_bytes(b"not an image")
         assert _is_portrait_image(bad_file) is False
+
+
+def test_disabled_steam_proton_scanning_skips_discovery(monkeypatch: pytest.MonkeyPatch) -> None:
+    from portprotonqt.steam_api.utils import get_steam_proton_versions
+
+    monkeypatch.setattr("portprotonqt.steam_api.utils.ui_config.get_disable_steam_proton_scanning", lambda: True)
+    with patch("portprotonqt.steam_api.utils._iter_existing_steam_data_dirs") as discover:
+        assert get_steam_proton_versions() == []
+    discover.assert_not_called()

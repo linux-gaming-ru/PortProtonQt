@@ -2,8 +2,10 @@
 
 import io
 import tarfile
+from pathlib import Path
 from typing import Any, cast
 
+import pytest
 from PySide6.QtCore import QMimeData, QUrl
 
 from portprotonqt.dialogs.proton_manager import ProtonManager
@@ -153,3 +155,22 @@ def test_open_wine_folder_creates_and_opens_dist(tmp_path, monkeypatch) -> None:
     wine_folder = tmp_path / "data" / "dist"
     assert wine_folder.is_dir()
     assert opened_urls[0].toLocalFile() == str(wine_folder)
+
+
+def test_disabled_steam_proton_scanning_keeps_local_versions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manager = ProtonManager.__new__(ProtonManager)
+    manager.portproton_location = str(tmp_path)
+    local_wine = tmp_path / "data" / "dist" / "LocalWine"
+    wine_binary = local_wine / "bin" / "wine"
+    wine_binary.parent.mkdir(parents=True)
+    wine_binary.touch()
+    monkeypatch.setattr("portprotonqt.dialogs.proton_manager.ui_config.get_disable_steam_proton_scanning", lambda: True)
+    from unittest.mock import patch
+
+    with patch("portprotonqt.dialogs.proton_manager.get_steam_compatibilitytools_dir") as compat:
+        with patch("portprotonqt.dialogs.proton_manager.get_steam_home") as home:
+            assert manager.get_installed_versions() == [("LocalWine", str(local_wine))]
+    compat.assert_not_called()
+    home.assert_not_called()
