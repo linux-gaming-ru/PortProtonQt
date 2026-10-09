@@ -190,6 +190,26 @@ class TestThemedLaunchIconNames:
         assert "reg" in THEMED_LAUNCH_ICON_NAMES[".reg"]
 
 
+@mark.parametrize("second_name", ["Game.exe", "Trainer.exe"])
+def test_run_after_accepts_same_exe(tmp_path: Path, second_name: str) -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text()
+    condition = helper.split('        if [[ -n "${PW_RUN_AFTER_EXE:-}" ]]', 1)[1].split(
+        "        then", 1,
+    )[0]
+    main_exe = tmp_path / "Game.exe"
+    second_exe = tmp_path / second_name
+    main_exe.touch()
+    second_exe.touch()
+    result = subprocess.run(
+        ["bash", "-c", 'if [[ -n "${PW_RUN_AFTER_EXE:-}" ]]' + condition
+         + "then exit 0; else exit 1; fi"],
+        env={**os.environ, "PW_EXE_FILE": str(main_exe),
+             "PW_RUN_AFTER_EXE": str(second_exe)},
+        capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+
+
 def test_run_after_batch_is_created_next_to_exe() -> None:
     helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text(
         encoding="utf-8",
