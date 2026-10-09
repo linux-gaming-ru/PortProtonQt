@@ -67,6 +67,15 @@ export PW_LOG_FILE="${PORT_DATA_PATH}/PortProton.log"
 # shellcheck source=/dev/null
 source "$PORT_SCRIPTS_PATH/functions_helper"
 
+# Join the session before startup can stop the game's Wine processes.
+if [[ "${1:-}" == "cli" && "${2:-}" == "--wine-session-tool" ]] ; then
+    if ! pw_session_tool "${3:-}" ; then
+        python_module dbus_tools notify -i error "Wine" "Failed to start Wine tool: ${3:-}" &>/dev/null
+        exit 1
+    fi
+    exit 0
+fi
+
 export PORT_WINE_TMP_PATH="${PORT_DATA_PATH}/data/tmp"
 create_new_dir "$PORT_WINE_TMP_PATH"
 rm -f "$PORT_WINE_TMP_PATH"/*.{exe,msi,tar}*
@@ -280,6 +289,7 @@ case "$1" in
 --show-ppdb                                         Show the content of .ppdb file for specified .exe file
 --backup-prefix                                     Backup specified prefix to a file
 --restore-prefix                                    Restore prefix from backup file
+--wine-session-tool                                 Open a Wine tool inside the running session
 --winefile                                          Open wine file explorer, requires WINE version and prefix name
 --winecfg                                           Open wine configuration, requires WINE version and prefix name
 --winecmd                                           Open wine command prompt, requires WINE version and prefix name

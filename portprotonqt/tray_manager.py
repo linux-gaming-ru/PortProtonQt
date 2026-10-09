@@ -3,6 +3,7 @@ import subprocess
 import signal
 import psutil
 import os
+from PySide6.QtCore import QProcess
 from PySide6.QtWidgets import QSystemTrayIcon, QMenu, QApplication, QMessageBox
 from PySide6.QtGui import QIcon, QAction
 from portprotonqt.logger import get_logger
@@ -45,6 +46,39 @@ def _restart_args(args: list[str]) -> list[str]:
     return restart_args
 
 
+def create_wine_tools_menu(parent: QMenu, start_sh: list[str]) -> QMenu:
+    """Create tools that join the running game's Wine session."""
+    menu = QMenu("Wine", parent)
+    tools = (
+        ("winefile", _("File Explorer")),
+        ("taskmgr", "Task Manager"),
+        ("winecfg", _("Wine Configuration")),
+        ("regedit", _("Registry Editor")),
+        ("cmd", _("Command Prompt")),
+        ("uninstaller", _("Uninstaller")),
+    )
+    for tool, title in tools:
+        action = menu.addAction(title)
+        action.triggered.connect(
+            lambda checked=False, name=tool: launch_session_wine_tool(start_sh, name)
+        )
+    return menu
+
+
+def launch_session_wine_tool(start_sh: list[str], tool: str) -> None:
+    """Start a Wine tool without running the game's startup or cleanup."""
+    if not start_sh:
+        logger.error("Cannot launch Wine tool: PortProton command is missing")
+        QMessageBox.warning(None, _("Error"), _("Failed to start process."))
+        return
+    started, _pid = QProcess.startDetached(
+        start_sh[0], start_sh[1:] + ["cli", "--wine-session-tool", tool]
+    )
+    if not started:
+        logger.error("Failed to start Wine tool %s", tool)
+        QMessageBox.warning(None, _("Error"), _("Failed to start process."))
+
+
 class TrayManager:
     """Tray management module for PortProtonQt.
 
@@ -83,8 +117,12 @@ class TrayManager:
         self.pause_game_action.setEnabled(False)
         self.pause_game_action.triggered.connect(self.toggle_game_pause)
 
+        self.wine_tools_menu = create_wine_tools_menu(self.tray_menu, self.main_window.start_sh)
+        self.wine_tools_menu.setEnabled(False)
+
         self.tray_menu.addAction(self.pause_game_action)
         self.tray_menu.addAction(self.stop_game_action)
+        self.tray_menu.addMenu(self.wine_tools_menu)
         self.tray_menu.addSeparator()
         self.tray_menu.addSeparator()
 
@@ -103,6 +141,7 @@ class TrayManager:
 
         self.tray_menu.addAction(self.pause_game_action)
         self.tray_menu.addAction(self.stop_game_action)
+        self.tray_menu.addMenu(self.wine_tools_menu)
         self.update_game_actions()
         if self.minimal_mode:
             return
@@ -151,6 +190,7 @@ class TrayManager:
         target_exe = getattr(self.main_window, "target_exe", None)
         has_running_game = bool(game_processes or target_exe)
         self.stop_game_action.setEnabled(has_running_game)
+        self.wine_tools_menu.setEnabled(has_running_game)
         self.pause_game_action.setEnabled(bool(processes))
         paused = self._are_processes_paused(processes)
         self.pause_game_action.setText(_("Resume Game") if paused else _("Pause Game"))

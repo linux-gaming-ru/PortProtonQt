@@ -110,6 +110,7 @@ def run_silent_tray(app: QApplication, start_sh: list[str], exe_path: str) -> No
 
     from datetime import datetime
     from portprotonqt.time_utils import save_last_launch, save_playtime
+    from portprotonqt.tray_manager import create_wine_tools_menu
     save_last_launch(os.path.splitext(os.path.basename(exe_path))[0], datetime.now())
     start_time = datetime.now()
 
@@ -135,6 +136,7 @@ def run_silent_tray(app: QApplication, start_sh: list[str], exe_path: str) -> No
     stop_action = QAction(_("Stop Game"), tray_menu)
     stop_action.triggered.connect(stop_game)
     tray_menu.addAction(stop_action)
+    tray_menu.addMenu(create_wine_tools_menu(tray_menu, start_sh))
     tray_icon.setContextMenu(tray_menu)
     tray_icon.show()
 

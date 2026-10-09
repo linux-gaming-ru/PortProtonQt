@@ -1572,6 +1572,7 @@ pw_kill_autostart () {
 export -f pw_kill_autostart
 
 stop_portproton () {
+    pw_remove_session_env
     [[ "$int_xneur" == "1" ]] && xneur &
 
     if [[ "$PW_USE_US_LAYOUT" == "1" ]] \
@@ -3840,6 +3841,7 @@ start_portproton () {
     pw_mangohud_check
     pw_vkbasalt_check
     pw_lsfg_vk_check
+    pw_save_session_env || print_warning "Could not save Wine session environment"
 }
 
 pw_run () {
@@ -3990,6 +3992,69 @@ pw_run () {
     return "$pw_game_exit_code"
 }
 export -f pw_run
+
+# Keep the session environment outside the shared /tmp directory.
+pw_save_session_env () {
+    local session_dir="${PORT_DATA_PATH}/data/tmp/wine-session-$(id -u)" session_tmp
+    ( umask 077 ; mkdir -p "$session_dir" ) || return 1
+    [[ ! -L "$session_dir" && -O "$session_dir" ]] || return 1
+    [[ "$(stat -c %a "$session_dir")" == 700 ]] || return 1
+    session_tmp="$(mktemp "$session_dir/env.XXXXXX")" || return 1
+    if ( export PW_TERM ; export -p > "$session_tmp" ) && mv -fT "$session_tmp" "$session_dir/session.env" ; then
+        return 0
+    fi
+    rm -f "$session_tmp"
+    return 1
+}
+
+pw_remove_session_env () {
+    local session_dir="${PORT_DATA_PATH}/data/tmp/wine-session-$(id -u)"
+    [[ ! -L "$session_dir" && -O "$session_dir" ]] || return 0
+    local session_env="$session_dir/session.env"
+    [[ ! -L "$session_env" && -O "$session_env" ]] || return 0
+    if grep -qsx "declare -x PW_START_PID=\"${PW_START_PID}\"" "$session_env" ; then
+        rm -f "$session_env"
+    fi
+}
+
+pw_session_tool () {
+    local tool="$1" session_pid session_env
+    local session_dir="${PORT_DATA_PATH}/data/tmp/wine-session-$(id -u)"
+    local session_wait_seconds=30 wait_left
+    wait_left="$session_wait_seconds"
+    case "$tool" in
+        winefile|taskmgr|winecfg|regedit|cmd|uninstaller) ;;
+        *) print_error "Unsupported Wine tool: $tool" ; return 1 ;;
+    esac
+    session_env="$session_dir/session.env"
+    while (( wait_left > 0 )) ; do
+        if [[ ! -L "$session_dir" && -O "$session_dir" ]] \
+        && [[ "$(stat -c %a "$session_dir")" == 700 ]] \
+        && [[ ! -L "$session_env" && -O "$session_env" ]] \
+        && [[ "$(stat -c %a "$session_env")" == 600 ]] ; then
+            session_pid="$(sed -n 's/^declare -x PW_START_PID="\([0-9]*\)"$/\1/p' "$session_env")"
+            if [[ -n "$session_pid" ]] && kill -0 "$session_pid" 2>/dev/null ; then
+                break
+            fi
+        fi
+        sleep 1
+        (( --wait_left ))
+    done
+    if (( wait_left == 0 )) ; then
+        print_error "Wine session unavailable after ${session_wait_seconds} seconds"
+        return 1
+    fi
+    source "$session_env" || return 1
+    PATH_TO_GAME="${WINEPREFIX}/drive_c"
+    [[ -d "$PATH_TO_GAME" ]] || return 1
+    unset LAUNCH_PARAMETERS PW_RUN_AFTER_EXE PW_RUN_GAMESCOPE PW_USE_TERMINAL
+    PW_TMPFS_PATH="$(mktemp -d "$session_dir/tool.XXXXXX")" || return 1
+    export PW_TMPFS_PATH
+    export PW_LOG_FILE="$PW_TMPFS_PATH/wine.log"
+    [[ "$tool" == cmd ]] && PW_USE_TERMINAL=1
+    [[ "$tool" == winecfg || "$tool" == regedit ]] && export GST_PLUGIN_SYSTEM_PATH_1_0=""
+    pw_run "$tool"
+}
 
 pw_launch_wrapper () {
     if [[ -z "${PW_RUN_AFTER_EXE:-}" ]] ; then
