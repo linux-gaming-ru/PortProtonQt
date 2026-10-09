@@ -2361,6 +2361,9 @@ msgstr "Runtime-Download deaktivieren"
 msgid "Add to Steam compatibility tools"
 msgstr "Zu den Steam-Kompatibilitätswerkzeugen hinzufügen"
 
+msgid "Disable Steam Proton scanning"
+msgstr ""
+
 msgid "Download WINE/Proton to Steam"
 msgstr "Lade WINE/Proton zu Steam herunter"
 

@@ -2376,6 +2376,9 @@ msgstr ""
 msgid "Add to Steam compatibility tools"
 msgstr ""
 
+msgid "Disable Steam Proton scanning"
+msgstr ""
+
 msgid "Download WINE/Proton to Steam"
 msgstr ""
 

@@ -2353,6 +2353,9 @@ msgstr "Отключить скачивание контейнера"
 msgid "Add to Steam compatibility tools"
 msgstr "Добавить в инструменты совместимости Steam"
 
+msgid "Disable Steam Proton scanning"
+msgstr ""
+
 msgid "Download WINE/Proton to Steam"
 msgstr "Скачивать Proton в Steam"
 
