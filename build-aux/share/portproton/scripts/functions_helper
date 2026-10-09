@@ -1651,8 +1651,15 @@ pw_check_and_download_runtime () {
 }
 
 pw_check_and_download_dxvk_and_vkd3d () {
+    case "${PW_VULKAN_USE}" in
+        1) DXVK_VAR_VER="${DXVK_SAREK_VER}"; VKD3D_VAR_VER="${VKD3D_SAREK_VER}" ;;
+        2) DXVK_VAR_VER="${DXVK_OLD_VER}"; VKD3D_VAR_VER="${VKD3D_OLD_VER}" ;;
+        6) DXVK_VAR_VER="${DXVK_NEW_VER}"; VKD3D_VAR_VER="${VKD3D_NEW_VER}" ;;
+        *) DXVK_VAR_VER=""; VKD3D_VAR_VER="" ;;
+    esac
+
     # Download DXVK
-    for DXVK_VAR_VER in "${DXVK_SAREK_VER}" "${DXVK_OLD_VER}" "${DXVK_NEW_VER}" ; do
+    if [[ -n "${DXVK_VAR_VER}" ]] ; then
         if [[ ! -d "${PW_VULKAN_DIR}/dxvk-${DXVK_VAR_VER}" ]] ; then
             print_info "Download and install DXVK v.${DXVK_VAR_VER}"
             if try_download "https://github.com/Castro-Fidel/vulkan/releases/download/dxvk-${DXVK_VAR_VER}/dxvk-${DXVK_VAR_VER}.tar.xz" \
@@ -1679,10 +1686,10 @@ pw_check_and_download_dxvk_and_vkd3d () {
                 fatal "Failed to download and unpack dxvk"
             fi
         fi
-    done
+    fi
 
     # Download VKD3D
-    for VKD3D_VAR_VER in "${VKD3D_SAREK_VER}" "${VKD3D_OLD_VER}" "${VKD3D_NEW_VER}" ; do
+    if [[ -n "${VKD3D_VAR_VER}" ]] ; then
         if [[ ! -d "${PW_VULKAN_DIR}/vkd3d-proton-${VKD3D_VAR_VER}" ]] ; then
             print_info "Download and install VKD3D-PROTON v.${VKD3D_VAR_VER}"
             if try_download "https://github.com/Castro-Fidel/vulkan/releases/download/vkd3d-proton-${VKD3D_VAR_VER}/vkd3d-proton-${VKD3D_VAR_VER}.tar.xz" \
@@ -1707,10 +1714,10 @@ pw_check_and_download_dxvk_and_vkd3d () {
                 fatal "Failed to download and unpack VKD3D"
             fi
         fi
-    done
+    fi
 
     # Download D7VK
-    if [[ ! -d "${PW_VULKAN_DIR}/d7vk-${D7VK_VAR_VER}" ]] ; then
+    if [[ "${PW_USE_D7VK}" == "1" && ! -d "${PW_VULKAN_DIR}/d7vk-${D7VK_VAR_VER}" ]] ; then
         print_info "Download and install D7VK v.${D7VK_VAR_VER}"
         if try_download "https://github.com/Castro-Fidel/vulkan/releases/download/d7vk-${D7VK_VAR_VER}/d7vk-${D7VK_VAR_VER}.tar.xz" \
                                     "${PW_VULKAN_DIR}/d7vk-${D7VK_VAR_VER}.tar.xz" ; then
@@ -1853,11 +1860,6 @@ pw_init_db () {
     [[ -n "${PW_DEFAULT_WINE_USE:-}" ]] && export PW_WINE_USE="${PW_DEFAULT_WINE_USE}"
     [[ -n "${PW_DEFAULT_PREFIX_NAME:-}" ]] && export PW_PREFIX_NAME="${PW_DEFAULT_PREFIX_NAME}"
     [[ -n "${PW_DEFAULT_VULKAN_USE:-}" ]] && export PW_VULKAN_USE="${PW_DEFAULT_VULKAN_USE}"
-
-    if echo "$LSPCI_VGA" | grep -i -q 'nvidia.*rtx' ; then
-        export PW_USE_NVAPI_AND_DLSS="1"
-        export PW_USE_RAY_TRACING="1"
-    fi
 
     if [[ -f "${PW_EXE_FILE}" ]] ; then
         PORTWINE_DB="$(basename "${PW_EXE_FILE%.[Ee][Xx][Ee]}")"
@@ -2617,21 +2619,16 @@ pw_enable_gamemode_basic () {
     if check_flatpak ; then
         export GAMEMODERUN=1
         PW_GAMEMODERUN_SLR="gamemoderun"
-    elif command -v gamemoderun &>/dev/null ; then
-        export GAMEMODERUN=1
-        PW_GAMEMODERUN_SLR="gamemoderun"
-        if command -v gamemoded &>/dev/null && ! pw_is_process_active gamemoded ; then
-            gamemoded &>/dev/null &
-            sleep 0.1
-        fi
     else
         export GAMEMODERUN=1
-        if [[ -n "${PW_LD_PRELOAD}" ]]; then
-            export PW_LD_PRELOAD="${PW_LD_PRELOAD}:libgamemodeauto.so.0"
-        else
-            export PW_LD_PRELOAD="libgamemodeauto.so.0"
-        fi
-        if ! pw_is_process_active gamemoded ; then
+        local GAMEMODEAUTO_NAME="libgamemodeauto.so.0"
+        export PW_LD_PRELOAD="${GAMEMODEAUTO_NAME}${PW_LD_PRELOAD:+:$PW_LD_PRELOAD}"
+        if command -v gamemoderun &>/dev/null ; then
+            if command -v gamemoded &>/dev/null && ! pw_is_process_active gamemoded ; then
+                gamemoded &>/dev/null &
+                sleep 0.1
+            fi
+        elif ! pw_is_process_active gamemoded ; then
             env LD_LIBRARY_PATH="${PW_PLUGINS_PATH}/portable/lib/lib64:${PW_PLUGINS_PATH}/portable/lib/lib32" \
                 "${PW_PLUGINS_PATH}/portable/bin/gamemoded" &>/dev/null &
             sleep 0.1
@@ -2654,6 +2651,10 @@ start_portproton () {
     pw_check_and_download_dxvk_and_vkd3d
 
     pw_skip_get_info
+    if echo "$LSPCI_VGA" | grep -i -q 'nvidia.*rtx' ; then
+        [[ -z "${PW_USE_NVAPI_AND_DLSS:-}" ]] && export PW_USE_NVAPI_AND_DLSS="1"
+        [[ -z "${PW_USE_RAY_TRACING:-}" ]] && export PW_USE_RAY_TRACING="1"
+    fi
     if [[ "${PW_LOCALE_SELECT}" != "disabled" ]] && [[ -n "${PW_LOCALE_SELECT}" ]] ; then
         export LC_ALL="${PW_LOCALE_SELECT}"
         if [[ "${PW_USE_RUNTIME}" == "1" ]] && [[ "${HOST_LC_ALL}" != "${LC_ALL}" ]] ; then
@@ -2923,7 +2924,9 @@ start_portproton () {
 
                 # export WINE_HIDE_AMD_GPU="1"
                 export DXVK_NVAPI_DRIVER_VERSION="99999"
-                export DXVK_NVAPI_ALLOW_OTHER_DRIVERS="1"
+                if [[ $(check_vendor_gpu) != "nvidia" ]] ; then
+                    export DXVK_NVAPI_ALLOW_OTHER_DRIVERS="1"
+                fi
                 export PW_USE_NVAPI_AND_DLSS="1"
                 export PW_USE_RAY_TRACING="1"
                 ;;
@@ -3490,10 +3493,17 @@ start_portproton () {
 
     if [[ "${PW_USE_D7VK}" == "1" ]] ; then
         PATH_TO_D7VK_FILES="${PW_VULKAN_DIR}/d7vk-${D7VK_VAR_VER}"
-        print_info "D7VK ${D7VK_VAR_VER} in use"
+        D7VK_FILE="${PATH_TO_D7VK_FILES}/x32/ddraw.dll"
+        if [[ "$PW_USE_SUPPLIED_DXVK_VKD3D" == "2" ]] \
+        && [[ -f "${WINEDIR}/lib/wine/d7vk/i386-windows/ddraw.dll" ]] ; then
+            D7VK_FILE="${WINEDIR}/lib/wine/d7vk/i386-windows/ddraw.dll"
+            print_info "Bundled D7VK in use"
+        else
+            print_info "D7VK ${D7VK_VAR_VER} in use"
+        fi
         print_info "Try create symlink D7VK files..."
         try_force_link_file "${WINEDIR}/lib/wine/i386-windows/ddraw.dll" "${WINEPREFIX}/drive_c/windows/syswow64/ddraw_.dll"
-        try_force_link_file "${PATH_TO_D7VK_FILES}/x32/ddraw.dll" "${WINEPREFIX}/drive_c/windows/syswow64/ddraw.dll"
+        try_force_link_file "${D7VK_FILE}" "${WINEPREFIX}/drive_c/windows/syswow64/ddraw.dll"
         var_winedlloverride_update "ddraw=n,b"
     else
         try_force_link_file "${WINEDIR}/lib/wine/i386-windows/ddraw.dll" "${WINEPREFIX}/drive_c/windows/syswow64/ddraw.dll"
@@ -3784,10 +3794,19 @@ start_portproton () {
 
     add_in_start_portproton
 
-    if [[ "$FULL_LN" == russian ]] ; then
+    local steam_emu_language=""
+    case "${PW_LOCALE_SELECT}" in
+        ru_*) steam_emu_language="russian" ;;
+        en_*) steam_emu_language="english" ;;
+        zh_*) steam_emu_language="schinese" ;;
+        ja_*) steam_emu_language="japanese" ;;
+        ko_*) steam_emu_language="koreana" ;;
+        disabled|"") steam_emu_language="$FULL_LN" ;;
+    esac
+    if [[ -n "$steam_emu_language" ]] ; then
         for chk_lang_and_uname in "steam_emu.ini" "steam_api.ini" "steam_api64.ini" "SteamConfig.ini" ; do
             if [[ -f "${PATH_TO_GAME}/${chk_lang_and_uname}" ]] ; then
-                sed -i "/^Language/c\Language=${FULL_LN}" "${PATH_TO_GAME}/${chk_lang_and_uname}"
+                sed -i "/^Language/c\Language=${steam_emu_language}" "${PATH_TO_GAME}/${chk_lang_and_uname}"
                 sed -i "/^UserName/c\UserName=${USER}" "${PATH_TO_GAME}/${chk_lang_and_uname}"
                 sed -i "/^PlayerName/c\PlayerName=${USER}" "${PATH_TO_GAME}/${chk_lang_and_uname}"
             fi
@@ -4177,7 +4196,7 @@ portwine_launch () {
         then
             local wait_delay wait_delay_int run_after_bat
             local run_after_dir run_after_name
-            local pw_exe_file_win
+            local pw_exe_file_win run_after_exe_win
             local wine_drive_c
             wait_delay="${PW_RUN_AFTER_DELAY:-3}"
             wait_delay_int="${wait_delay%%.*}"
@@ -4196,16 +4215,27 @@ portwine_launch () {
                 pw_exe_file_win="z:${PW_EXE_FILE//\//\\}"
             fi
             pw_exe_file_win="${pw_exe_file_win//\//\\}"
+            run_after_exe_win="$("${WINELOADER}" winepath -w "${PW_RUN_AFTER_EXE}" 2>/dev/null | tr -d '\r')"
+            if [[ -z "${run_after_exe_win}" ]] ; then
+                if [[ "${PW_RUN_AFTER_EXE}" == "${wine_drive_c}/"* ]] ; then
+                    run_after_exe_win="c:\\${PW_RUN_AFTER_EXE#"${wine_drive_c}/"}"
+                else
+                    run_after_exe_win="z:${PW_RUN_AFTER_EXE//\//\\}"
+                fi
+            fi
+            run_after_exe_win="${run_after_exe_win//\//\\}"
 
             cat > "${run_after_bat}" <<EOF
 @echo off
 chcp 65001 >nul
-start "" "${pw_exe_file_win}" ${LAUNCH_PARAMETERS}
+start "" "%PW_RUN_AFTER_MAIN_PATH%" ${LAUNCH_PARAMETERS}
 timeout /t ${wait_delay_int} /nobreak
-start "" /unix "${PW_RUN_AFTER_EXE}"
+start "" "%PW_RUN_AFTER_SECOND_PATH%"
 EOF
 
             LAUNCH_PARAMETERS="" proxy_launch_parameters="" \
+                PW_RUN_AFTER_MAIN_PATH="${pw_exe_file_win}" \
+                PW_RUN_AFTER_SECOND_PATH="${run_after_exe_win}" \
                 pw_run "${PW_VD_TMP[@]}" "${run_after_bat}"
             try_remove_file "${run_after_bat}"
         else

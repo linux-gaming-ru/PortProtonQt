@@ -198,10 +198,58 @@ def test_run_after_batch_is_created_next_to_exe() -> None:
     assert 'run_after_dir="$(dirname "${PW_EXE_FILE}")"' in helper
     assert 'pw_exe_file_win="$("${WINELOADER}" winepath -w "${PW_EXE_FILE}"' in helper
     assert "chcp 65001 >nul" in helper
-    assert 'start "" "${pw_exe_file_win}" ${LAUNCH_PARAMETERS}' in helper
-    assert 'start "" /unix "${PW_RUN_AFTER_EXE}"' in helper
+    assert 'start "" "%PW_RUN_AFTER_MAIN_PATH%" ${LAUNCH_PARAMETERS}' in helper
+    assert 'start "" "%PW_RUN_AFTER_SECOND_PATH%"' in helper
     assert 'LAUNCH_PARAMETERS="" proxy_launch_parameters="" \\' in helper
     assert 'pw_run "${PW_VD_TMP[@]}" "${run_after_bat}"' in helper
+
+
+@mark.parametrize("mapped_path", [
+    "D:\\Загрузки\\Trainer.exe",
+    "E:\\Тестовые файлы\\Утилиты\\Папка 123 @тест\\Test Trainer.exe",
+    "",
+])
+def test_run_after_exe_windows_path(tmp_path: Path, mapped_path: str) -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text()
+    conversion = helper.split('            run_after_exe_win="$(', 1)[1].split(
+        '\n\n            cat >', 1,
+    )[0]
+    exe_path = (
+        tmp_path / "mnt" / "test-drive" / "Тестовые файлы" / "Утилиты"
+        / "Папка 123 @тест" / "Test Trainer.exe"
+    )
+    result = subprocess.run(
+        ["bash", "-c", 'loader() { printf "%s\\r\\n" "$MAPPED_PATH"; }\n'
+         'WINELOADER=loader\nwine_drive_c="$WINEPREFIX/drive_c"\n'
+         'run_after_exe_win="$(' + conversion + '\nprintf "%s" "$run_after_exe_win"'],
+        env={**os.environ, "PW_RUN_AFTER_EXE": str(exe_path),
+             "WINEPREFIX": str(tmp_path / "prefix"), "MAPPED_PATH": mapped_path},
+        capture_output=True, text=True, check=True,
+    )
+    assert result.stdout == (mapped_path or "z:" + str(exe_path).replace("/", "\\"))
+
+
+@mark.parametrize("trainer_path", [
+    "H:\\Загрузки\\Trainer.exe",
+    "E:\\Тестовые файлы\\Утилиты\\Папка 123 @тест\\Test Trainer.exe",
+])
+def test_run_after_paths_are_passed_in_environment(tmp_path: Path, trainer_path: str) -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text()
+    block = helper.split('            cat > "${run_after_bat}" <<EOF\n', 1)[1].split(
+        '            try_remove_file "${run_after_bat}"', 1,
+    )[0]
+    main_path = "D:\\Games\\Test Game\\Test Game.exe"
+    result = subprocess.run(
+        ["bash", "-c", 'pw_run() { env; }\ncat > "$run_after_bat" <<EOF\n' + block],
+        env={**os.environ, "run_after_bat": str(tmp_path / "launch.bat"),
+             "pw_exe_file_win": main_path, "run_after_exe_win": trainer_path,
+             "wait_delay_int": "3", "LAUNCH_PARAMETERS": ""},
+        capture_output=True, text=True, check=True,
+    )
+    assert f"PW_RUN_AFTER_MAIN_PATH={main_path}" in result.stdout
+    assert f"PW_RUN_AFTER_SECOND_PATH={trainer_path}" in result.stdout
+    batch = (tmp_path / "launch.bat").read_text(encoding="ascii")
+    assert 'start "" "%PW_RUN_AFTER_SECOND_PATH%"' in batch
 
 
 def test_game_launch_marker_is_emitted_for_wine_and_proton() -> None:
