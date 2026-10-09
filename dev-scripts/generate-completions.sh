@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Generate shell completion files for bash, zsh, and fish
+# Wine tools use start.sh cli --wine-session-tool TOOL [WINE PREFIX], outside this CLI.
 
 set -e
 

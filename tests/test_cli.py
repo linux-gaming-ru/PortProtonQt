@@ -66,7 +66,8 @@ def test_silent_tray_toggles_pause(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     app.run_silent_tray(qt_app, ["start.sh"], str(tmp_path / "game.exe"))
     menu = tray.setContextMenu.call_args.args[0]
     menu.aboutToShow.emit()
-    pause, stop = menu.actions()
+    pause, stop, tools = menu.actions()
+    assert tools.menu() is not None
     assert pause.isEnabled()
     assert pause.text() == app._("Resume Game" if stopped else "Pause Game")
     assert stop.text() == app._("Stop Game")

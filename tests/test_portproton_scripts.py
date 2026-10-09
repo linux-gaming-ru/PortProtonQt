@@ -192,3 +192,167 @@ def test_vk_gpu_info_uses_build_aux_binary() -> None:
 
     assert '/../../../bin/vk_gpu_info"' in helper
     assert "dev-scripts/vk_gpu_info" not in helper
+
+
+@mark.parametrize("status", [0, 1, 2])
+@mark.parametrize("standalone", [False, True])
+def test_wine_session_dispatch_only_falls_back_when_session_absent(
+    tmp_path: Path, status: int, standalone: bool,
+) -> None:
+    start = Path("build-aux/share/portproton/scripts/start.sh").read_text()
+    block = start.split("# Join the session before startup", 1)[1].split(
+        'export PORT_WINE_TMP_PATH=', 1,
+    )[0].split("\n", 1)[1]
+    script = '''
+pw_session_tool () { return "$SESSION_STATUS"; }
+python_module () { return 0; }
+''' + block + '\necho standalone\n'
+    args = ["bash", "-c", script, "bash", "cli", "--wine-session-tool", "taskmgr"]
+    if standalone:
+        args.extend(["WINE_LG", "MY_PREFIX"])
+    result = subprocess.run(
+        args, cwd=tmp_path, capture_output=True, text=True, check=False,
+        env={"PATH": os.defpath, "SESSION_STATUS": str(status)},
+    )
+
+    fallback = status == 2 and standalone
+    assert result.returncode == (0 if status == 0 or fallback else 1)
+    assert result.stdout == ("standalone\n" if fallback else "")
+
+
+def test_wine_session_missing_returns_distinct_status(tmp_path: Path) -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text()
+    definition = helper.split("pw_session_tool () {", 1)[1].split("pw_launch_wrapper () {", 1)[0]
+    script = "pw_session_tool () {" + definition + '''
+print_error () { echo "$@" >&2; }
+sleep () { return 0; }
+pw_session_tool taskmgr 1
+'''
+    result = subprocess.run(
+        ["bash", "-c", script], cwd=tmp_path, capture_output=True, text=True, check=False,
+        env={"PATH": os.defpath, "PORT_DATA_PATH": str(tmp_path)},
+    )
+
+    assert result.returncode == 2
+
+
+@mark.parametrize("tool", ["winecfg", "regedit", "winefile", "cmd", "uninstaller", "taskmgr"])
+def test_wine_session_tool_standalone_uses_selected_wine_and_prefix(tmp_path: Path, tool: str) -> None:
+    start = Path("build-aux/share/portproton/scripts/start.sh").read_text()
+    block = start.split("    --wine-session-tool)\n", 1)[1].split("    --winetricks-list-all)", 1)[0]
+    script = '''
+get_wine_and_pfx () { printf '%s\\n' "$@"; }
+start_portproton () { mkdir -p "$PORT_DATA_PATH/data/prefixes/$PW_PREFIX_NAME/drive_c"; echo start; }
+pw_run () { printf '%s\\n' "$@"; }
+stop_portproton () { echo stop; }
+''' + 'case "$1" in --wine-session-tool)\n' + block + '\nesac\n'
+    result = subprocess.run(
+        ["bash", "-c", script, "bash", "--wine-session-tool", tool, "WINE_LG", "MY_PREFIX"],
+        cwd=tmp_path, capture_output=True, text=True, check=False,
+        env={"PATH": os.defpath, "PORT_DATA_PATH": str(tmp_path), "PW_PREFIX_NAME": "MY_PREFIX"},
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines() == ["WINE_LG", "MY_PREFIX", "start", tool, "stop"]
+
+
+@mark.parametrize("tool", ["winefile", "taskmgr", "winecfg", "regedit", "cmd", "uninstaller"])
+@mark.parametrize("tool_exit_code", [0, 2])
+def test_wine_session_tools_reuse_prefix_without_game_options(
+    tmp_path: Path, tool: str, tool_exit_code: int,
+) -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text()
+    definitions = helper.split("pw_save_session_env () {", 1)[1].split("pw_launch_wrapper () {", 1)[0]
+    script = "pw_save_session_env () {" + definitions + '''
+print_error () { echo "$@" >&2; }
+pw_run () {
+    printf '%s\\n' "$1" "$WINEPREFIX" "${PW_USE_TERMINAL:-0}" "${LAUNCH_PARAMETERS:-}" \\
+        "${PW_RUN_AFTER_EXE:-}" "${PW_RUN_GAMESCOPE:-}" "$PW_TMPFS_PATH"
+    return "$TOOL_EXIT_CODE"
+}
+PW_TERM="test-terminal"
+export PW_START_PID="$$" WINEPREFIX="$PORT_DATA_PATH/prefix with spaces"
+export LAUNCH_PARAMETERS="--game-only" PW_RUN_AFTER_EXE=trainer.exe PW_RUN_GAMESCOPE=gamescope
+pw_save_session_env || exit 2
+pw_session_tool "$1"
+'''
+    (tmp_path / "prefix with spaces/drive_c").mkdir(parents=True)
+    result = subprocess.run(
+        ["bash", "-c", script, "bash", tool], capture_output=True, text=True,
+        env={"PATH": os.defpath, "PORT_DATA_PATH": str(tmp_path),
+             "TOOL_EXIT_CODE": str(tool_exit_code)}, check=False,
+    )
+
+    assert result.returncode == int(tool_exit_code != 0), result.stderr
+    lines = result.stdout.splitlines()
+    assert lines[:6] == [tool, str(tmp_path / "prefix with spaces"), "1" if tool == "cmd" else "0", "", "", ""]
+    assert Path(lines[6]).is_dir()
+    assert Path(lines[6]).stat().st_mode & 0o777 == 0o700
+    session = next((tmp_path / "data/tmp").glob("wine-session-*/session.env"))
+    assert session.stat().st_mode & 0o777 == 0o600
+    assert 'declare -x PW_TERM="test-terminal"' in session.read_text()
+
+
+@mark.parametrize("unsafe_directory", [False, True])
+def test_wine_session_save_does_not_follow_symlinks(tmp_path: Path, unsafe_directory: bool) -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text()
+    definition = helper.split("pw_save_session_env () {", 1)[1].split("pw_remove_session_env () {", 1)[0]
+    session_dir = tmp_path / "data/tmp" / f"wine-session-{os.getuid()}"
+    session_dir.parent.mkdir(parents=True)
+    victim = tmp_path / "victim"
+    victim.write_text("keep this")
+    if unsafe_directory:
+        target = tmp_path / "other-directory"
+        target.mkdir(mode=0o700)
+        session_dir.symlink_to(target, target_is_directory=True)
+    else:
+        session_dir.mkdir(mode=0o700)
+        (session_dir / "session.env").symlink_to(victim)
+    result = subprocess.run(
+        ["bash", "-c", "pw_save_session_env () {" + definition + "\npw_save_session_env"],
+        capture_output=True, text=True,
+        env={"PATH": os.defpath, "PORT_DATA_PATH": str(tmp_path)}, check=False,
+    )
+
+    assert victim.read_text() == "keep this"
+    assert result.returncode == (1 if unsafe_directory else 0), result.stderr
+    if not unsafe_directory:
+        assert not (session_dir / "session.env").is_symlink()
+
+
+def test_wine_session_tool_rejects_unknown_tool_before_reading_environment(tmp_path: Path) -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text()
+    definition = helper.split("pw_session_tool () {", 1)[1].split("pw_launch_wrapper () {", 1)[0]
+    script = "pw_session_tool () {" + definition + '''
+print_error () { echo "$@" >&2; }
+sleep () { exit 99; }
+pw_session_tool '../../other-command'
+'''
+    result = subprocess.run(
+        ["bash", "-c", script], capture_output=True, text=True,
+        env={"PATH": os.defpath, "PORT_DATA_PATH": str(tmp_path)}, check=False,
+    )
+
+    assert result.returncode == 1
+    assert "Unsupported Wine tool" in result.stderr
+
+
+def test_wine_session_cleanup_preserves_newer_session(tmp_path: Path) -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text()
+    definitions = helper.split("pw_save_session_env () {", 1)[1].split("pw_session_tool () {", 1)[0]
+    script = "pw_save_session_env () {" + definitions + '''
+export PW_START_PID="$$"
+pw_save_session_env || exit 2
+PW_START_PID=99999999
+pw_remove_session_env
+[[ -f "$PORT_DATA_PATH/data/tmp/wine-session-$(id -u)/session.env" ]] || exit 3
+PW_START_PID="$$"
+pw_remove_session_env
+[[ ! -e "$PORT_DATA_PATH/data/tmp/wine-session-$(id -u)/session.env" ]]
+'''
+    result = subprocess.run(
+        ["bash", "-c", script], capture_output=True, text=True,
+        env={"PATH": os.defpath, "PORT_DATA_PATH": str(tmp_path)}, check=False,
+    )
+
+    assert result.returncode == 0, result.stderr

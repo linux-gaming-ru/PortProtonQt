@@ -160,11 +160,12 @@ class MainWindowWineTabMixin(_MainWindowTypingBase):
         tools_grid.setSpacing(6)
 
         tools = [
-            ("--winecfg", _("Wine Configuration")),
-            ("--winereg", _("Registry Editor")),
-            ("--winefile", _("File Explorer")),
-            ("--winecmd", _("Command Prompt")),
-            ("--wine_uninstaller", _("Uninstaller")),
+            ("winecfg", _("Wine Configuration")),
+            ("regedit", _("Registry Editor")),
+            ("winefile", _("File Explorer")),
+            ("cmd", _("Command Prompt")),
+            ("uninstaller", _("Uninstaller")),
+            ("taskmgr", "Task Manager"),
         ]
 
         for i, (tool_cmd, tool_name) in enumerate(tools):
@@ -237,7 +238,7 @@ class MainWindowWineTabMixin(_MainWindowTypingBase):
         env_vars = os.environ.copy()
         self._check_missing_prefix_by_name_before_launch(prefix, env_vars)
         start_sh = self.start_sh
-        cmd = start_sh + ["cli", cli_arg, wine, prefix]
+        cmd = start_sh + ["cli", "--wine-session-tool", cli_arg, wine, prefix]
 
         # Show progress bar before launch
         self.wine_progress_bar.setVisible(True)
@@ -269,16 +270,7 @@ class MainWindowWineTabMixin(_MainWindowTypingBase):
 
     def _check_wine_process(self, cli_arg):
         """Check if target .exe process started."""
-        exe_map = {
-            "--winecfg": "winecfg.exe",
-            "--winereg": "regedit.exe",
-            "--winefile": "winefile.exe",
-            "--winecmd": "cmd.exe",
-            "--wine_uninstaller": "uninstaller.exe",
-        }
-        target_exe = exe_map.get(cli_arg, "")
-        if not target_exe:
-            return
+        target_exe = f"{cli_arg}.exe"
 
         # Check processes via psutil
         for proc in psutil.process_iter(attrs=["name"]):
