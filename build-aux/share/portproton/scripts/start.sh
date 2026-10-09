@@ -67,6 +67,21 @@ export PW_LOG_FILE="${PORT_DATA_PATH}/PortProton.log"
 # shellcheck source=/dev/null
 source "$PORT_SCRIPTS_PATH/functions_helper"
 
+if [[ "${1:-}" == "cli" && "${2:-}" == "--wine-session-tool" ]] ; then
+    session_unavailable_status=2
+    session_wait_seconds=30
+    [[ -n "${4:-}" && -n "${5:-}" ]] && session_wait_seconds=1
+    if pw_session_tool "${3:-}" "$session_wait_seconds" ; then
+        exit 0
+    else
+        session_tool_status=$?
+    fi
+    if [[ "$session_tool_status" != "$session_unavailable_status" || -z "${4:-}" || -z "${5:-}" ]] ; then
+        python_module dbus_tools notify -i error "Wine" "Failed to start Wine tool: ${3:-}" &>/dev/null
+        exit 1
+    fi
+fi
+
 export PORT_WINE_TMP_PATH="${PORT_DATA_PATH}/data/tmp"
 create_new_dir "$PORT_WINE_TMP_PATH"
 rm -f "$PORT_WINE_TMP_PATH"/*.{exe,msi,tar}*
@@ -280,11 +295,7 @@ case "$1" in
 --show-ppdb                                         Show the content of .ppdb file for specified .exe file
 --backup-prefix                                     Backup specified prefix to a file
 --restore-prefix                                    Restore prefix from backup file
---winefile                                          Open wine file explorer, requires WINE version and prefix name
---winecfg                                           Open wine configuration, requires WINE version and prefix name
---winecmd                                           Open wine command prompt, requires WINE version and prefix name
---winereg                                           Open wine registry editor, requires WINE version and prefix name
---wine_uninstaller                                  Open wine uninstaller, requires WINE version and prefix name
+--wine-session-tool                                 Open a Wine tool in the current session, or use optional WINE and prefix
 --winetricks-list-all                               List winetricks DLLs, fonts, and settings
 --winetricks-install                                Install winetricks items, requires WINE version and prefix name
 --clear_pfx                                         Clear specified prefix, requires WINE version and prefix name
@@ -300,7 +311,7 @@ Usage examples:
   portproton cli --del-user-conf PW_MANGOHUD
   portproton cli --backup-prefix DEFAULT /path/to/backup/directory
   portproton cli --restore-prefix /path/to/backup/file.ppack
-  portproton cli --winecfg WINE_LG DEFAULT
+  portproton cli --wine-session-tool winecfg WINE_LG DEFAULT
   portproton cli --winetricks-list-all WINE_LG DEFAULT
   portproton cli --winetricks-install WINE_LG DEFAULT --no-force corefonts
   portproton cli --mangohud-preview \"fps,frametime,cpu_temp,gpu_temp\"
@@ -462,37 +473,21 @@ Usage examples:
         pw_unpack_prefix "$2"
         exit $?
         ;;
-    --winefile)
-        get_wine_and_pfx "$2" "$3"
+    --wine-session-tool)
+        tool="$2"
+        case "$tool" in
+            winefile|taskmgr|winecfg|regedit|cmd|uninstaller) ;;
+            *) print_error "Unsupported Wine tool: $tool" ; exit 1 ;;
+        esac
+        get_wine_and_pfx "$3" "$4"
         start_portproton
-        pw_run winefile
-        stop_portproton
-        ;;
-    --winecfg)
-        get_wine_and_pfx "$2" "$3"
-        start_portproton
-        export GST_PLUGIN_SYSTEM_PATH_1_0=""
-        pw_run winecfg
-        stop_portproton
-        ;;
-    --winecmd)
-        get_wine_and_pfx "$2" "$3"
-        start_portproton
-        cd "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/drive_c" || fatal "Prefix drive_c directory not found"
-        PW_USE_TERMINAL=1 pw_run cmd
-        stop_portproton
-        ;;
-    --winereg)
-        get_wine_and_pfx "$2" "$3"
-        start_portproton
-        export GST_PLUGIN_SYSTEM_PATH_1_0=""
-        pw_run regedit
-        stop_portproton
-        ;;
-    --wine_uninstaller)
-        get_wine_and_pfx "$2" "$3"
-        start_portproton
-        pw_run uninstaller
+        [[ "$tool" == winecfg || "$tool" == regedit ]] && export GST_PLUGIN_SYSTEM_PATH_1_0=""
+        if [[ "$tool" == cmd ]] ; then
+            cd "${PORT_DATA_PATH}/data/prefixes/${PW_PREFIX_NAME}/drive_c" || fatal "Prefix drive_c directory not found"
+            PW_USE_TERMINAL=1 pw_run "$tool"
+        else
+            pw_run "$tool"
+        fi
         stop_portproton
         ;;
     --winetricks-list-all)

@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # Generate shell completion files for bash, zsh, and fish
-
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
