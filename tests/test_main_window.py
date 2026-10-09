@@ -42,7 +42,7 @@ from portprotonqt.game_library_manager import FullLibraryTile, GameLibraryManage
 from portprotonqt.input_manager import InputManager
 from portprotonqt.main_window import MainWindow
 from portprotonqt.search_utils import SearchOptimizer, search_index
-from portprotonqt.tray_manager import TrayManager
+from portprotonqt.tray_manager import TrayManager, create_wine_tools_menu, launch_session_wine_tool
 from portprotonqt.themes.standart.styles.constants import GAME_CARD_ANIMATION
 from portprotonqt.portproton_api import remove_empty_custom_data_dirs
 import portprotonqt.tabs.autoinstall_tab as autoinstall_tab_module
@@ -374,18 +374,71 @@ def test_minimal_tray_contains_game_actions() -> None:
     _application = QApplication.instance() or QApplication([])
     manager = TrayManager.__new__(TrayManager)
     manager.tray_menu = QMenu()
-    manager.pause_game_action = QAction("Pause Game", manager.tray_menu)
-    manager.stop_game_action = QAction("Stop Game", manager.tray_menu)
+    owner = QWidget()
+    manager.pause_game_action = QAction("Pause Game", owner)
+    manager.stop_game_action = QAction("Stop Game", owner)
+    manager.wine_tools_menu = create_wine_tools_menu(manager.tray_menu, ["portproton"])
     manager.minimal_mode = True
     manager.update_game_actions = MagicMock()
 
+    manager.refresh_tray_menu()
     manager.refresh_tray_menu()
 
     assert manager.tray_menu.actions() == [
         manager.pause_game_action,
         manager.stop_game_action,
+        manager.wine_tools_menu.menuAction(),
     ]
-    manager.update_game_actions.assert_called_once_with()
+    assert manager.update_game_actions.call_count == 2
+
+
+@mark.parametrize("tool_index,tool", list(enumerate(
+    ("winefile", "taskmgr", "winecfg", "regedit", "cmd", "uninstaller")
+)))
+def test_wine_tools_menu_launches_session_tool(
+    monkeypatch: MonkeyPatch, tool_index: int, tool: str,
+) -> None:
+    _application = QApplication.instance() or QApplication([])
+    parent = QMenu()
+    start = MagicMock(return_value=(True, 123))
+    monkeypatch.setattr("portprotonqt.tray_manager.QProcess.startDetached", start)
+    menu = create_wine_tools_menu(parent, ["bash", "/path with spaces/start.sh"])
+
+    assert len(menu.actions()) == 6
+    menu.actions()[tool_index].trigger()
+
+    start.assert_called_once_with(
+        "bash", ["/path with spaces/start.sh", "cli", "--wine-session-tool", tool]
+    )
+
+
+def test_wine_tool_start_failure_is_reported(monkeypatch: MonkeyPatch) -> None:
+    _application = QApplication.instance() or QApplication([])
+    warning = MagicMock()
+    monkeypatch.setattr("portprotonqt.tray_manager.QMessageBox.warning", warning)
+    monkeypatch.setattr(
+        "portprotonqt.tray_manager.QProcess.startDetached", lambda *args: (False, 0)
+    )
+
+    launch_session_wine_tool(["portproton"], "winefile")
+
+    warning.assert_called_once()
+
+
+@mark.parametrize("running", [False, True])
+def test_wine_tools_menu_requires_running_game(running: bool) -> None:
+    _application = QApplication.instance() or QApplication([])
+    manager = TrayManager.__new__(TrayManager)
+    manager.main_window = SimpleNamespace(game_processes=[], target_exe="game.exe" if running else None)
+    manager.stop_game_action = QAction()
+    manager.pause_game_action = QAction()
+    manager.wine_tools_menu = QMenu()
+    manager._game_process_tree = MagicMock(return_value=[])
+
+    manager.update_game_actions()
+
+    assert manager.wine_tools_menu.isEnabled() is running
+
 
 def test_tray_pauses_game_process_tree(monkeypatch: MonkeyPatch) -> None:
     child = MagicMock(pid=12)
@@ -3378,3 +3431,47 @@ def test_custom_combo_opens_readonly_field_on_mouse_release(readonly: bool) -> N
     assert combo.view().isVisible() is readonly
     combo.hidePopup()
     combo.close()
+
+
+@mark.parametrize("tool", ["winecfg", "regedit", "winefile", "cmd", "uninstaller", "taskmgr"])
+@mark.parametrize("running", [False, True])
+def test_wine_settings_tools_use_unified_command(
+    monkeypatch: MonkeyPatch, tool: str, running: bool,
+) -> None:
+    process = MagicMock()
+    monkeypatch.setattr("portprotonqt.tabs.wine_tab.QProcess", MagicMock(return_value=process))
+    window = MagicMock()
+    window.game_processes = [MagicMock()] if running else []
+    window.target_exe = "game.exe" if running else None
+    window.start_sh = ["bash", "/path with spaces/start.sh"]
+    window.wineCombo.currentText.return_value = "WINE_LG"
+    window.prefixCombo.currentText.return_value = "my prefix"
+
+    WineMixin.launch_generic_tool(window, tool)
+
+    process.start.assert_called_once_with(
+        "bash", ["/path with spaces/start.sh", "cli", "--wine-session-tool", tool, "WINE_LG", "MY_PREFIX"],
+    )
+    window._start_wine_process_monitor.assert_called_once_with(tool)
+
+
+
+def test_silent_tray_includes_wine_tools_menu(monkeypatch: MonkeyPatch) -> None:
+    _application = QApplication.instance() or QApplication([])
+    manager = TrayManager.__new__(TrayManager)
+    manager.tray_menu = QMenu()
+    owner = QWidget()
+    manager.pause_game_action = QAction("Pause Game", owner)
+    manager.stop_game_action = QAction("Stop Game", owner)
+    manager.wine_tools_menu = create_wine_tools_menu(manager.tray_menu, ["portproton"])
+    manager.update_game_actions = MagicMock()
+    start = MagicMock(return_value=(True, 123))
+    monkeypatch.setattr("portprotonqt.tray_manager.QProcess.startDetached", start)
+
+    manager.set_minimal_mode()
+
+    tools = manager.tray_menu.actions()[2].menu()
+    assert isinstance(tools, QMenu)
+    assert len(tools.actions()) == 6
+    tools.actions()[1].trigger()
+    start.assert_called_once_with("portproton", ["cli", "--wine-session-tool", "taskmgr"])
