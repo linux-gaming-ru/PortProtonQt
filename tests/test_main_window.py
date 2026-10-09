@@ -64,6 +64,40 @@ from portprotonqt.tabs.theme_tab import (
 )
 from portprotonqt.tabs.workers import MainWindowWorkersMixin
 from portprotonqt.tabs.wine_tab import MainWindowWineTabMixin as WineMixin
+from portprotonqt.tabs.control_hints import MainWindowControlHintsMixin
+import portprotonqt.localization as localization
+
+
+@mark.parametrize("initial_english", [True, False])
+def test_gamepad_hint_defaults_follow_language_change(
+    monkeypatch: MonkeyPatch, initial_english: bool
+) -> None:
+    force_english = initial_english
+    monkeypatch.setattr(
+        "portprotonqt.config.ui_config.get_force_english", lambda: force_english
+    )
+    translations = {"Select": "Выбрать", "Volume": "Громкость"}
+    monkeypatch.setattr(localization.translate, "gettext", lambda text: translations.get(text, text))
+    monkeypatch.setattr(localization, "_translation_sources", {})
+    window = SimpleNamespace(
+        gamepadHintDefaultTexts={
+            "confirm": localization._("Select"),
+            "decrease_size": localization._("Volume") + " -",
+            "increase_size": localization._("Volume") + " +",
+        },
+        _setGamepadHintText=MagicMock(),
+        _setGamepadHintVisible=MagicMock(),
+        stackedWidget=SimpleNamespace(currentIndex=lambda: 0),
+        system_tab_index=1,
+    )
+
+    for english_enabled in (not initial_english, initial_english):
+        force_english = english_enabled
+        MainWindowControlHintsMixin._updateSystemGamepadHintTexts(cast(Any, window))
+        window._setGamepadHintText.assert_any_call("confirm", localization._("Select"))
+        window._setGamepadHintText.assert_any_call("decrease_size", localization._("Volume") + " -")
+        window._setGamepadHintText.assert_any_call("increase_size", localization._("Volume") + " +")
+        window._setGamepadHintText.reset_mock()
 
 
 @fixture(autouse=True)
