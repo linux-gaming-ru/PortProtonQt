@@ -4196,7 +4196,7 @@ portwine_launch () {
         then
             local wait_delay wait_delay_int run_after_bat
             local run_after_dir run_after_name
-            local pw_exe_file_win
+            local pw_exe_file_win run_after_exe_win
             local wine_drive_c
             wait_delay="${PW_RUN_AFTER_DELAY:-3}"
             wait_delay_int="${wait_delay%%.*}"
@@ -4215,16 +4215,27 @@ portwine_launch () {
                 pw_exe_file_win="z:${PW_EXE_FILE//\//\\}"
             fi
             pw_exe_file_win="${pw_exe_file_win//\//\\}"
+            run_after_exe_win="$("${WINELOADER}" winepath -w "${PW_RUN_AFTER_EXE}" 2>/dev/null | tr -d '\r')"
+            if [[ -z "${run_after_exe_win}" ]] ; then
+                if [[ "${PW_RUN_AFTER_EXE}" == "${wine_drive_c}/"* ]] ; then
+                    run_after_exe_win="c:\\${PW_RUN_AFTER_EXE#"${wine_drive_c}/"}"
+                else
+                    run_after_exe_win="z:${PW_RUN_AFTER_EXE//\//\\}"
+                fi
+            fi
+            run_after_exe_win="${run_after_exe_win//\//\\}"
 
             cat > "${run_after_bat}" <<EOF
 @echo off
 chcp 65001 >nul
-start "" "${pw_exe_file_win}" ${LAUNCH_PARAMETERS}
+start "" "%PW_RUN_AFTER_MAIN_PATH%" ${LAUNCH_PARAMETERS}
 timeout /t ${wait_delay_int} /nobreak
-start "" /unix "${PW_RUN_AFTER_EXE}"
+start "" "%PW_RUN_AFTER_SECOND_PATH%"
 EOF
 
             LAUNCH_PARAMETERS="" proxy_launch_parameters="" \
+                PW_RUN_AFTER_MAIN_PATH="${pw_exe_file_win}" \
+                PW_RUN_AFTER_SECOND_PATH="${run_after_exe_win}" \
                 pw_run "${PW_VD_TMP[@]}" "${run_after_bat}"
             try_remove_file "${run_after_bat}"
         else
