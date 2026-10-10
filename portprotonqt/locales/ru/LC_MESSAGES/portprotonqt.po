@@ -2240,6 +2240,9 @@ msgstr "Фильтр:"
 msgid "Only Installed"
 msgstr "Только установленные"
 
+msgid "Show only installed games"
+msgstr "Показывать только установленные игры"
+
 msgid "Detailed"
 msgstr "Подробный"
 

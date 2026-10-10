@@ -1243,9 +1243,17 @@ def test_library_source_filter_stays_top_aligned_without_checkbox(
 
     LibraryMixin._add_library_filter_controls(window, controls_layout)
 
-    display_filter_item = controls_layout.itemAtPosition(0, 1)
+    display_filter_item = controls_layout.itemAtPosition(1, 0)
     assert display_filter_item is not None
     assert display_filter_item.widget() is test_window.gamesDisplayCombo
+    assert controls_layout.columnCount() == 1
+    for row, widget in enumerate((
+        test_window.gamesSortCombo, test_window.gamesDisplayCombo,
+        test_window.gamesBadgeViewCombo, test_window.gamesLayoutCombo,
+        test_window.onlyInstalledCheckBox,
+    )):
+        assert controls_layout.indexOf(widget) >= 0
+        assert controls_layout.getItemPosition(controls_layout.indexOf(widget)) == (row, 0, 1, 1)
     controls_widget.show()
     _application.processEvents()
     expanded_height = controls_widget.sizeHint().height()

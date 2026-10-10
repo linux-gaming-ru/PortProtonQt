@@ -2146,6 +2146,9 @@ msgstr ""
 msgid "Only Installed"
 msgstr ""
 
+msgid "Show only installed games"
+msgstr ""
+
 msgid "Detailed"
 msgstr ""
 
@@ -2581,4 +2584,3 @@ msgstr ""
 #, python-brace-format
 msgid "Failed to delete prefix: {}"
 msgstr ""
-

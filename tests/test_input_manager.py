@@ -501,12 +501,7 @@ def test_library_filter_navigation_includes_only_installed_checkbox() -> None:
     app = QApplication.instance() or QApplication([])
     controls = QWidget()
     controls.show()
-    widgets = [
-        QComboBox(controls),
-        QComboBox(controls),
-        QCheckBox(controls),
-        QComboBox(controls),
-    ]
+    widgets = [QComboBox(controls) for _ in range(4)] + [QCheckBox(controls)]
     for widget in widgets:
         widget.show()
     app.processEvents()
@@ -515,13 +510,34 @@ def test_library_filter_navigation_includes_only_installed_checkbox() -> None:
         libraryControlsWidget=controls,
         gamesSortCombo=widgets[0],
         gamesDisplayCombo=widgets[1],
-        onlyInstalledCheckBox=widgets[2],
-        gamesBadgeViewCombo=widgets[3],
+        gamesBadgeViewCombo=widgets[2],
+        gamesLayoutCombo=widgets[3],
+        onlyInstalledCheckBox=widgets[4],
+        stackedWidget=SimpleNamespace(currentIndex=lambda: 0),
+        libraryControlsButton=QWidget(controls),
     )
+    parent.libraryControlsButton.show()
     manager = InputManager.__new__(InputManager)
     manager._parent = cast(MainWindowProtocol, parent)
 
     assert manager._get_library_filter_widgets() == widgets
+    manager._get_library_toolbar_widgets = lambda: []
+    manager._focused_widget = QApplication.focusWidget
+    manager._focus_first_library_card = MagicMock(return_value=True)
+    widgets[0].setFocus()
+    for widget in widgets[1:]:
+        assert manager._handle_toolbar_navigation(PAD_DPAD_Y, 1)
+        assert QApplication.focusWidget() is widget
+    assert manager._handle_toolbar_navigation(PAD_DPAD_Y, 1)
+    manager._focus_first_library_card.assert_called_once()
+    for widget in reversed(widgets[:-1]):
+        assert manager._handle_toolbar_navigation(PAD_DPAD_Y, -1)
+        assert QApplication.focusWidget() is widget
+    assert manager._handle_toolbar_navigation(PAD_DPAD_Y, -1)
+    assert QApplication.focusWidget() is parent.libraryControlsButton
+    widgets[-1].hide()
+    assert manager._get_library_filter_widgets() == widgets[:-1]
+    controls.close()
 
 
 def test_library_size_adjustment_uses_original_step() -> None:
