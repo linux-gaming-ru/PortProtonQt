@@ -2218,9 +2218,8 @@ msgstr "全部"
 msgid "Display Filter:"
 msgstr "显示筛选："
 
-#, fuzzy
-msgid "Only Installed"
-msgstr "已安装"
+msgid "Show only installed games"
+msgstr "仅显示已安装的游戏"
 
 msgid "Detailed"
 msgstr "详细"

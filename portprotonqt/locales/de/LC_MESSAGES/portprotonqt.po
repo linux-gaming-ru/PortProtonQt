@@ -2245,8 +2245,8 @@ msgstr "Alle"
 msgid "Display Filter:"
 msgstr "Anzeigefilter:"
 
-msgid "Only Installed"
-msgstr "Nur installierte"
+msgid "Show only installed games"
+msgstr "Nur installierte Spiele anzeigen"
 
 msgid "Detailed"
 msgstr "Detailliert"
