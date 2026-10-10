@@ -43,7 +43,7 @@ GAME_CARD_LIST = {
     "cover_radius": 8,
     "border_radius": 18,
 }
-autoinstallStatusColumnWidth = 120
+autoinstallColumnStretches = (4, 2, 2)
 GAME_CARD_GRID = {
     "extra_margin": 20,
     "spacing": 5,
@@ -65,7 +65,7 @@ GAME_CARD_HORIZONTAL = {
 GAME_CARD_VERTICAL = {
     **GAME_CARD_LIST,
     "layout_margins": (0, 0, 0, 0),
-    "layout_spacing": 0,
+    "layout_spacing": 4,
     "header_height": 40,
     "header_margins": (4, 0, 4, 0),
     "header_spacing": 12,

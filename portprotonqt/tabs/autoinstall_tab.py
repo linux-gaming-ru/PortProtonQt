@@ -140,14 +140,27 @@ class MainWindowAutoInstallTabMixin(_MainWindowTypingBase):
         self.autoInstallScrollArea.setWidget(self.autoInstallContainer)
 
         self.autoInstallStatusHeader = QWidget()
+        header_config = self.theme.GAME_CARD_VERTICAL
+        self.autoInstallStatusHeader.setFixedHeight(header_config["header_height"])
+        self.autoInstallStatusHeader.setProperty("theme_style_name", "LIBRARY_HEADER_STYLE")
+        self.autoInstallStatusHeader.setStyleSheet(self.theme.LIBRARY_HEADER_STYLE)
         header_layout = QHBoxLayout(self.autoInstallStatusHeader)
-        header_layout.setContentsMargins(*self.theme.GAME_CARD_VERTICAL["header_margins"])
-        header_layout.addStretch()
-        heading = QLabel(_("Installed"))
-        heading.setFixedWidth(self.theme.autoinstallStatusColumnWidth)
-        heading.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        heading.setStyleSheet(self.theme.GAME_CARD_COLUMN_LABEL_STYLE)
-        header_layout.addWidget(heading)
+        header_layout.setContentsMargins(*header_config["header_margins"])
+        header_layout.setSpacing(header_config["header_spacing"])
+        header_layout.addSpacing(header_config["header_cover_width"] + header_config["header_spacing"])
+        for text, stretch in zip(
+            (_("Game Title"), _("Library"), _("Installed")),
+            self.theme.autoinstallColumnStretches, strict=True,
+        ):
+            heading = QLabel(text.upper())
+            heading.setAlignment(
+                Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft
+                if text == _("Game Title") else Qt.AlignmentFlag.AlignCenter
+            )
+            heading.setProperty("theme_style_name", "LIBRARY_HEADER_LABEL_STYLE")
+            heading.setStyleSheet(self.theme.LIBRARY_HEADER_LABEL_STYLE)
+            header_layout.addWidget(heading, stretch)
+        header_layout.addSpacing(self.autoInstallScrollArea.verticalScrollBar().sizeHint().width())
         self.autoInstallStatusHeader.setVisible(auto_layout_mode in {"list", "vertical"})
         autoInstallLayout.addWidget(self.autoInstallStatusHeader)
         autoInstallLayout.addWidget(self.autoInstallScrollArea)
@@ -193,7 +206,7 @@ class MainWindowAutoInstallTabMixin(_MainWindowTypingBase):
             )
             list_layout = auto_layout_mode in {"list", "vertical"}
             self.autoInstallContainer.setProperty(
-                "library_layout_mode", auto_layout_mode
+                "library_layout_mode", "vertical" if list_layout else auto_layout_mode
             )
 
             # Clear
@@ -252,12 +265,23 @@ class MainWindowAutoInstallTabMixin(_MainWindowTypingBase):
                 )
                 card.autoinstall_exe_name = exe_name
                 if list_layout:
+                    while card.layout_.count() > 2:
+                        item = card.layout_.takeAt(2)
+                        widget = item.widget() if item else None
+                        if widget:
+                            widget.deleteLater()
+                    stretches = self.theme.autoinstallColumnStretches
+                    card.layout_.setStretch(1, stretches[0])
+                    source_label = QLabel(str(game_source), card)
                     status_label = QLabel("…", card)
-                    status_label.setFixedWidth(self.theme.autoinstallStatusColumnWidth)
-                    status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                    status_label.setStyleSheet(self.theme.GAME_CARD_COLUMN_LABEL_STYLE)
+                    for label, stretch in zip(
+                        (source_label, status_label), stretches[1:], strict=True,
+                    ):
+                        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                        label.setProperty("theme_style_name", "GAME_CARD_COLUMN_LABEL_STYLE")
+                        label.setStyleSheet(self.theme.GAME_CARD_COLUMN_LABEL_STYLE)
+                        card.layout_.addWidget(label, stretch)
                     self.autoInstallStatusLabels[exe_name] = status_label
-                    card.layout_.addWidget(status_label)
                 card.hoverChanged.connect(self._on_autoinstall_card_active)
                 card.focusChanged.connect(self._on_autoinstall_card_active)
 
@@ -333,8 +357,10 @@ class MainWindowAutoInstallTabMixin(_MainWindowTypingBase):
                 if item and item.widget():
                     item.widget().deleteLater()
             QWidget().setLayout(old_layout)
-        self.autoInstallContainer.setProperty("library_layout_mode", mode)
-        if mode == "vertical":
+        self.autoInstallContainer.setProperty(
+            "library_layout_mode", "vertical" if mode == "list" else mode
+        )
+        if mode in {"list", "vertical"}:
             config = self.theme.GAME_CARD_VERTICAL
             layout = QVBoxLayout()
             layout.setContentsMargins(*config.get("layout_margins", (0, 0, 0, 0)))
@@ -357,7 +383,8 @@ class MainWindowAutoInstallTabMixin(_MainWindowTypingBase):
         horizontal = mode in {"horizontal", "horizontal_top"}
         vertical_policy = (
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-            if horizontal else Qt.ScrollBarPolicy.ScrollBarAsNeeded
+            if horizontal else Qt.ScrollBarPolicy.ScrollBarAlwaysOn
+            if mode in {"list", "vertical"} else Qt.ScrollBarPolicy.ScrollBarAsNeeded
         )
         horizontal_policy = (
             Qt.ScrollBarPolicy.ScrollBarAsNeeded

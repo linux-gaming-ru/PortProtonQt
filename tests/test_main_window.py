@@ -2815,3 +2815,53 @@ def test_shutdown_waits_for_autoinstall_status_workers() -> None:
     worker.requestInterruption.assert_called_once_with()
     worker.wait.assert_called_once_with()
     assert window.autoInstallStatusWorkers == []
+
+
+@mark.parametrize("mode", ("list", "vertical"))
+def test_autoinstall_table_columns_match_header(
+    monkeypatch: MonkeyPatch, tmp_config_dir: Path, mode: str,
+) -> None:
+    from PySide6.QtWidgets import QMainWindow, QStackedWidget
+    from portprotonqt.theme_manager import ThemeManager, load_theme
+
+    _application = QApplication.instance() or QApplication([])
+    window_type = type("AutoInstallWindow", (QMainWindow, cast(Any, AutoInstallMixin)), {})
+    window = cast(Any, window_type())
+    window.theme = load_theme("standart")
+    window.theme_manager = ThemeManager()
+    window.auto_card_width = 250
+    window.stackedWidget = QStackedWidget()
+    window.setCentralWidget(window.stackedWidget)
+    window._gamepad_tooltip_map = {}
+    for method in ("_register_gamepad_tooltip", "_setup_autoinstall_search_animation",
+                   "_build_autoinstall_search_indices", "filterAutoInstallGames",
+                   "_load_autoinstall_statuses"):
+        setattr(window, method, MagicMock())
+    monkeypatch.setattr(autoinstall_tab_module.ui_config, "get_library_layout_mode", lambda _: mode)
+    monkeypatch.setattr("portprotonqt.game_card.load_pixmap_async", lambda *args, **kwargs: None)
+    window.createAutoInstallTab()
+    window._on_autoinstall_games_loaded([
+        ("Game", "", "", "", "", "autoinstall:/tmp/game.ppai", "Never", "0h 0m",
+         "", "", 0, 0, "autoinstall", "game_1"),
+    ])
+    card = window.autoInstallGameCards["game_1"]
+    header = window.autoInstallStatusHeader.layout()
+    assert header.count() == 5
+    assert card.layout_.count() == 4
+    assert card.layout_.itemAt(1).widget() is card.nameLabel
+    assert card.layout_.itemAt(2).widget().text() == "autoinstall"
+    assert card.layout_.itemAt(3).widget() is window.autoInstallStatusLabels["game_1"]
+    window.resize(1200, 500)
+    window.show()
+    _application.processEvents()
+    for index, stretch in enumerate(window.theme.autoinstallColumnStretches, start=1):
+        assert header.stretch(index) == card.layout_.stretch(index) == stretch
+        heading = header.itemAt(index).widget()
+        assert heading.text() == heading.text().upper()
+        if index > 1:
+            value = card.layout_.itemAt(index).widget()
+            assert heading.alignment() == value.alignment() == Qt.AlignmentFlag.AlignCenter
+            assert abs(heading.mapTo(window, heading.rect().center()).x()
+                       - value.mapTo(window, value.rect().center()).x()) <= 1
+    window.stackedWidget.deleteLater()
+    window.deleteLater()

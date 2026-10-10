@@ -131,10 +131,6 @@ class GameLibraryManager:
         searchWidget, self.searchEdit = self.main_window.createSearchWidget()
         layout.addWidget(searchWidget)
 
-        if self.layout_mode == "vertical":
-            self.libraryHeaderWidget = self._create_library_header()
-            layout.addWidget(self.libraryHeaderWidget)
-
         # Scroll area for game grid
         scrollArea = AutoHideScrollArea(theme=self.theme)
         scrollArea.setProperty("theme_style_name", "TRANSPARENT_BACKGROUND_STYLE")
@@ -168,6 +164,9 @@ class GameLibraryManager:
         self.gamesListWidget.setLayout(self.gamesListLayout)
 
         scrollArea.setWidget(self.gamesListWidget)
+        if self.layout_mode == "vertical":
+            self.libraryHeaderWidget = self._create_library_header()
+            layout.addWidget(self.libraryHeaderWidget)
         layout.addWidget(scrollArea)
 
         # Slider for card size
@@ -219,14 +218,19 @@ class GameLibraryManager:
         header_layout = QHBoxLayout(header)
         header_layout.setContentsMargins(*config["header_margins"])
         header_layout.setSpacing(config["header_spacing"])
-        header_layout.addSpacing(config["header_cover_width"])
+        header_layout.addSpacing(config["header_cover_width"] + config["header_spacing"])
         labels = (_("Game Title"), _("LAST LAUNCH"), _("TIME SPENT"), _("Library"))
         for text, stretch in zip(labels, config["column_stretches"], strict=True):
-            label = QLabel(text)
-            label.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+            label = QLabel(text.upper())
+            label.setAlignment(
+                Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft
+                if text == labels[0] else Qt.AlignmentFlag.AlignCenter
+            )
             label.setProperty("theme_style_name", "LIBRARY_HEADER_LABEL_STYLE")
             label.setStyleSheet(self.theme.LIBRARY_HEADER_LABEL_STYLE)
             header_layout.addWidget(label, stretch)
+        if self.gamesScrollArea is not None:
+            header_layout.addSpacing(self.gamesScrollArea.verticalScrollBar().sizeHint().width())
         return header
 
     def rebuild_library_layout(self, layout_mode: str) -> None:
@@ -261,6 +265,8 @@ class GameLibraryManager:
             vertical_policy = (
                 Qt.ScrollBarPolicy.ScrollBarAlwaysOff
                 if horizontal
+                else Qt.ScrollBarPolicy.ScrollBarAlwaysOn
+                if layout_mode == "vertical"
                 else Qt.ScrollBarPolicy.ScrollBarAsNeeded
             )
             self.gamesScrollArea.setVerticalScrollBarPolicy(vertical_policy)

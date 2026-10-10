@@ -576,7 +576,7 @@ class GameCard(AnimatedCard):
                 strict=True,
             ):
                 label = QLabel(text)
-                label.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+                label.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 label.setProperty(
                     "theme_style_name", "GAME_CARD_COLUMN_LABEL_STYLE"
                 )

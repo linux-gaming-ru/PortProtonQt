@@ -307,3 +307,35 @@ def test_initial_favorite_icon_does_not_restart_library_loading(
     card.toggle_favorite()
     QApplication.processEvents()
     update_grid.assert_called_once()
+
+
+def test_vertical_library_headers_align_with_values(
+    library_scene: tuple[GameLibraryManager, list[Callable[[QPixmap], None]]],
+) -> None:
+    manager, _ = library_scene
+    manager.rebuild_library_layout("vertical")
+    assert manager._update_timer is not None
+    manager._update_timer.stop()
+    assert manager.gamesListLayout is not None
+    assert manager.libraryHeaderWidget is not None
+    card = manager._create_game_card(
+        ("Game", "", "", "", "", "game", "", "", "", "", 0, 0, "steam")
+    )
+    manager.game_card_cache[("Game", "game")] = card
+    manager.gamesListLayout.addWidget(card)
+    card.show()
+    header = cast(Any, manager.libraryHeaderWidget.layout())
+    for width in (900, 1300):
+        manager.gamesLibraryWidget.resize(width, 500)
+        QApplication.processEvents()
+        QApplication.processEvents()
+        for index in range(1, 5):
+            heading = header.itemAt(index).widget()
+            value = cast(Any, card.layout_.itemAt(index)).widget()
+            assert heading.text() == heading.text().upper()
+            if index == 1:
+                assert heading.mapToGlobal(heading.rect().topLeft()).x() == value.mapToGlobal(value.rect().topLeft()).x()
+            else:
+                assert heading.alignment() == value.alignment() == Qt.AlignmentFlag.AlignCenter
+                assert abs(heading.mapToGlobal(heading.rect().center()).x()
+                           - value.mapToGlobal(value.rect().center()).x()) <= 1
