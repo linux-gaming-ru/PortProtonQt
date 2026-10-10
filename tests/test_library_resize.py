@@ -7,14 +7,45 @@ from unittest.mock import MagicMock
 
 import pytest
 from PySide6.QtCore import QSize
-from PySide6.QtGui import QPixmap
-from PySide6.QtWidgets import QApplication, QHBoxLayout, QScrollArea, QWidget
+from PySide6.QtGui import QColor, QPixmap
+from PySide6.QtWidgets import QApplication, QHBoxLayout, QScrollArea, QVBoxLayout, QWidget
 
 from portprotonqt.custom_widgets import FlowLayout, compute_layout
-from portprotonqt.game_card import GameCard
+from portprotonqt.game_card import AnimatedCard, GameCard
 from portprotonqt.game_library_manager import GameLibraryManager
 from portprotonqt.theme_manager import load_theme
 from portprotonqt.config import ui_config
+
+
+@pytest.mark.parametrize("theme_name", ["standart", "classic-light"])
+def test_list_rows_alternate_after_filtering(theme_name: str) -> None:
+    app = QApplication.instance() or QApplication([])
+    parent = QWidget()
+    layout = QVBoxLayout(parent)
+    layout.setContentsMargins(0, 7, 0, 0)
+    layout.setSpacing(4)
+    theme = load_theme(theme_name)
+    colors = (theme.color_bg, theme.color_surface_elevated)
+    cards = []
+    for _ in range(3):
+        card = cast(Any, AnimatedCard(parent))
+        card.list_layout = True
+        card.theme = theme
+        card.animations = SimpleNamespace(paint_border=lambda painter: None)
+        card.setFixedSize(100, 80)
+        layout.addWidget(card)
+        cards.append(card)
+    layout.activate()
+    for index, card in enumerate(cards):
+        assert card.grab().toImage().pixelColor(50, 40) == QColor(
+            colors[index % 2]
+        )
+    cards[0].hide()
+    layout.invalidate()
+    layout.activate()
+    assert cards[1].grab().toImage().pixelColor(50, 40) == QColor(colors[0])
+    parent.close()
+    app.processEvents()
 
 
 def test_flow_layout_preserves_rows_and_centering() -> None:

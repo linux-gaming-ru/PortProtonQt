@@ -277,7 +277,15 @@ class AnimatedCard(QFrame):
 
     def paintEvent(self, event: QPaintEvent) -> None:
         super().paintEvent(event)
-        self.animations.paint_border(QPainter(self))
+        painter = QPainter(self)
+        parent = self.parentWidget()
+        layout = parent.layout() if parent is not None else None
+        if getattr(self, "list_layout", False) and isinstance(layout, QVBoxLayout):
+            row_pitch = self.height() + layout.spacing()
+            row = (self.y() - layout.contentsMargins().top()) // max(1, row_pitch)
+            colors = (self.theme.color_bg, self.theme.color_surface_elevated)
+            painter.fillRect(self.rect(), QColor(colors[row % len(colors)]))
+        self.animations.paint_border(painter)
 
     def enterEvent(self, event: QEnterEvent) -> None:
         self.raise_()
