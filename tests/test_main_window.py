@@ -730,17 +730,24 @@ def test_auto_hide_scroll_area_tracks_horizontal_overflow() -> None:
     assert scroll_area._h_hide_timer.isActive()
 
 
-def test_auto_hide_scroll_area_uses_wheel_for_horizontal_overflow() -> None:
+@mark.parametrize("layout_mode", [None, "horizontal", "horizontal_top", "grid"])
+@mark.parametrize("content_height", [50, 300])
+def test_auto_hide_scroll_area_uses_wheel_for_horizontal_overflow(
+    layout_mode: str | None, content_height: int,
+) -> None:
     _application = QApplication.instance() or QApplication([])
     theme = SimpleNamespace(TRANSPARENT_BACKGROUND_STYLE="", SCROLL_STYLE="")
     scroll_area = AutoHideScrollArea(theme=theme)
     scroll_area.resize(100, 100)
     content = QWidget()
-    content.setMinimumSize(300, 50)
+    content.setMinimumSize(300, content_height)
+    content.setProperty("library_layout_mode", layout_mode)
     scroll_area.setWidget(content)
     scroll_area.show()
     QApplication.processEvents()
     scroll_area.horizontalScrollBar().setValue(100)
+    scroll_area.verticalScrollBar().setValue(100)
+    vertical_value = scroll_area.verticalScrollBar().value()
     event = QWheelEvent(
         QPointF(), QPointF(), QPoint(), QPoint(0, 120),
         Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier,
@@ -749,7 +756,13 @@ def test_auto_hide_scroll_area_uses_wheel_for_horizontal_overflow() -> None:
 
     scroll_area.wheelEvent(event)
 
-    assert scroll_area.horizontalScrollBar().value() < 100
+    if content_height == 50 or layout_mode in {"horizontal", "horizontal_top"}:
+        assert scroll_area.horizontalScrollBar().value() < 100
+        assert scroll_area.verticalScrollBar().value() == vertical_value
+    else:
+        assert scroll_area.horizontalScrollBar().value() == 100
+        assert scroll_area.verticalScrollBar().value() < vertical_value
+    scroll_area.close()
 
 
 @mark.parametrize("layout_mode", ["vertical", "horizontal", "horizontal_top"])

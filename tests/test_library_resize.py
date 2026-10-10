@@ -8,12 +8,13 @@ from unittest.mock import MagicMock
 import pytest
 from PySide6.QtCore import QSize
 from PySide6.QtGui import QPixmap
-from PySide6.QtWidgets import QApplication, QScrollArea, QWidget
+from PySide6.QtWidgets import QApplication, QHBoxLayout, QScrollArea, QWidget
 
 from portprotonqt.custom_widgets import FlowLayout, compute_layout
 from portprotonqt.game_card import GameCard
 from portprotonqt.game_library_manager import GameLibraryManager
 from portprotonqt.theme_manager import load_theme
+from portprotonqt.config import ui_config
 
 
 def test_flow_layout_preserves_rows_and_centering() -> None:
@@ -117,6 +118,44 @@ def test_card_resize_reuses_loaded_cover_and_animation() -> None:
     GameCard.update_card_size(card, 400)
     card._load_cover_image.assert_called_once()
     assert card.update_scale.call_count == 4
+    app.processEvents()
+
+
+@pytest.mark.parametrize("orientation", ["horizontal", "vertical"])
+def test_horizontal_cards_fit_viewport_height(
+    tmp_config_dir: Path, monkeypatch: pytest.MonkeyPatch, orientation: str,
+) -> None:
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setattr(ui_config, "get_horizontal_card_orientation", lambda _: orientation)
+    scroll = QScrollArea()
+    scroll.setWidgetResizable(True)
+    parent = QWidget()
+    parent.setProperty("library_layout_mode", "horizontal")
+    layout = QHBoxLayout(parent)
+    theme = load_theme("standart")
+    card = GameCard("Test", "", "", "", "", "", "", "", "", "", 0, 0,
+                    "steam", select_callback=lambda _: None, theme=theme, parent=parent)
+    layout.addWidget(card)
+    scroll.setWidget(parent)
+    manager = cast(Any, SimpleNamespace(
+        layout_mode="horizontal", gamesScrollArea=scroll, gamesListLayout=layout,
+        game_card_cache={("Test", ""): card}, card_width=250, theme=theme,
+    ))
+    scroll.show()
+    for height in (600, 300, 200, 600):
+        scroll.resize(800, height)
+        app.processEvents()
+        GameLibraryManager._fit_horizontal_cards(manager)
+        layout.activate()
+        app.processEvents()
+        margins = layout.contentsMargins()
+        assert card.height() + margins.top() + margins.bottom() <= scroll.viewport().height()
+        assert card.nameLabel.geometry().bottom() < card.height()
+        assert card.nameLabel.height() >= card.nameLabel.sizeHint().height()
+        assert card.base_card_width <= manager.card_width
+    assert card.base_card_width == manager.card_width
+    card.stop_background_activity()
+    scroll.close()
     app.processEvents()
 
 

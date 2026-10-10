@@ -205,6 +205,7 @@ class GameLibraryManager:
         # Connect scroll event for lazy loading
         scrollArea.verticalScrollBar().valueChanged.connect(self.load_visible_images)
         scrollArea.horizontalScrollBar().valueChanged.connect(self.load_visible_images)
+        scrollArea.viewportResized.connect(self.force_update_cards_library)
 
         return self.gamesLibraryWidget
 
@@ -551,10 +552,33 @@ class GameLibraryManager:
 
     def _perform_force_update(self):
         """Perform the actual force update on the layout."""
+        self._fit_horizontal_cards()
         if self.gamesListLayout:
             self.gamesListLayout.invalidate()
         if self.gamesListWidget:
             self.gamesListWidget.updateGeometry()
+
+    def _fit_horizontal_cards(self) -> None:
+        if self.layout_mode not in {"horizontal", "horizontal_top"}:
+            return
+        if self.gamesScrollArea is None or self.gamesListLayout is None:
+            return
+        margins = self.gamesListLayout.contentsMargins()
+        height = self.gamesScrollArea.viewport().height() - margins.top() - margins.bottom()
+        if height <= 0:
+            return
+        for card in self.game_card_cache.values():
+            config = card.card_layout_cfg
+            scale = max(
+                config.get(name, self.theme.GAME_CARD_ANIMATION[name])
+                for name in ("default_scale", "hover_scale", "focus_scale")
+            )
+            available = height / scale - card.base_extra_margin
+            ratio = card.card_geometry_cfg.get("card_height_ratio", 1.8)
+            width = min(self.card_width, max(1, int(available / ratio)))
+            if width < self.theme.COMPACT_CARD["width_threshold"]:
+                width = min(width, max(1, int(available / self.theme.COMPACT_CARD["height_ratio"])))
+            card.update_card_size(width)
 
     def _cancel_incremental_add(self) -> None:
         if self._incremental_add_timer is not None and self._incremental_add_timer.isActive():
