@@ -799,6 +799,27 @@ GAME_CARD_NAME_LABEL_STYLE = f"""
     }}
 """
 
+GAME_CARD_VERTICAL_NAME_STYLE = GAME_CARD_NAME_LABEL_STYLE
+
+GAME_CARD_COLUMN_LABEL_STYLE = f"""
+    QLabel {{
+        color: {color_text_dark};
+        font-family: '{font_family}';
+        font-size: {font_size_value};
+        background: {color_transparent};
+    }}
+"""
+
+LIBRARY_HEADER_LABEL_STYLE = f"""
+    QLabel {{
+        color: {color_text_dark};
+        font-family: '{font_family}';
+        font-size: {font_size_small};
+        font-weight: bold;
+        background: {color_transparent};
+    }}
+"""
+
 # PROTONDB BADGE STYLES ON CARD
 def get_protondb_badge_style(tier):
     tier = tier.lower()
