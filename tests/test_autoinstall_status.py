@@ -198,3 +198,36 @@ def test_list_status_callback_ignores_replaced_cards(monkeypatch: Any) -> None:
     callback("game_1", True)
     label.setText.assert_not_called()
     assert window.autoInstallStatusWorkers == [worker]
+
+
+def test_rockstar_status_rejects_unrelated_launcher_and_opens_matching_entry(
+    tmp_path: Path,
+) -> None:
+    script = tmp_path / "Rockstar.ppai"
+    script.write_text(
+        'PW_AUTOINSTALL_EXE="${PORT_WINE_TMP_PATH}/Rockstar-Games-Launcher.exe"\n'
+        'PW_EXE_FILE="$(find "$WINEPREFIX/drive_c/" -type f -name "Launcher.exe" '
+        '| grep "Rockstar Games/Launcher/Launcher.exe")"\n'
+        'pw_create_unique_exe "rockstar_launcher_pp"\n',
+        encoding="utf-8",
+    )
+    location = tmp_path / "portproton"
+    location.mkdir()
+    unrelated = tmp_path / "Super Cow" / "game" / "launcher.exe"
+    unrelated.parent.mkdir(parents=True)
+    unrelated.touch()
+    _write_desktop_entry(location / "Cow.desktop", "Cow", unrelated)
+
+    assert not _check_autoinstall_installed_sync(str(script), "Rockstar", str(location))
+    assert find_autoinstall_entry_path(str(script), str(location)) is None
+
+    launcher = tmp_path / "prefix" / "drive_c" / "Program Files" / "Rockstar Games" / "Launcher" / "Launcher.exe"
+    launcher.parent.mkdir(parents=True)
+    launcher.touch()
+    unique_exe = launcher.with_name("rockstar_launcher_pp.exe")
+    unique_exe.symlink_to(launcher.name)
+    desktop = location / "Rockstar.desktop"
+    _write_desktop_entry(desktop, "Rockstar", unique_exe)
+
+    assert _check_autoinstall_installed_sync(str(script), "Rockstar", str(location))
+    assert find_autoinstall_entry_path(str(script), str(location)) == str(desktop)
