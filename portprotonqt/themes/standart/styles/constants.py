@@ -362,3 +362,6 @@ GAME_CARD_ANIMATION = {
     "detail_page_easing_curve": "OutCubic",
     "detail_page_easing_curve_exit": "InCubic",
 }
+
+WINETRICKS_CHECK_COLUMN_WIDTH = 80
+WINETRICKS_ROW_HEIGHT = 36

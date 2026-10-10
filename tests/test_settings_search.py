@@ -1,6 +1,7 @@
 """Tests for searching MangoHud, vkBasalt, and Gamescope settings."""
 
 import subprocess
+from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
 
@@ -469,3 +470,54 @@ def test_settings_buttons_switch_between_one_and_two_rows() -> None:
             assert buttons[1].y() > buttons[0].y()
     parent.close()
     app.processEvents()
+
+
+@pytest.mark.parametrize("theme_name", ["standart", "standart-light", "classic", "classic-light"])
+def test_winetricks_centered_checkboxes_and_install_selection(
+    tmp_path: Path, theme_name: str,
+) -> None:
+    from unittest.mock import Mock
+    from portprotonqt.dialogs.base import DraggableDialog
+    from portprotonqt.dialogs.winetricks_dialog import WinetricksDialog
+    from portprotonqt.input_manager.dialog_modes import DialogInputModesMixin
+    from portprotonqt.input_manager.constants import BUTTONS
+    from portprotonqt.theme_manager import ThemeWrapper, load_theme
+
+    theme = ThemeWrapper(load_theme(theme_name))
+    dialog = WinetricksDialog.__new__(WinetricksDialog)
+    DraggableDialog.__init__(dialog)
+    dialog.theme = theme
+    dialog.setup_ui()
+    dialog.log_path = str(tmp_path / "winetricks.log")
+    (tmp_path / "winetricks.log").write_text("amstream\n")
+    dialog._start_install_process = Mock()
+    dialog.show()
+    for index, table in enumerate((dialog.dll_table, dialog.fonts_table, dialog.settings_table)):
+        dialog.populate_table(table, "amstream MS amstream.dll\nart2kmin Access", r"^$", dialog.log_path)
+        assert table.columnWidth(0) == theme.WINETRICKS_CHECK_COLUMN_WIDTH
+        dialog.tab_widget.setCurrentIndex(index)
+        cast(QStackedWidget, dialog.tab_widget.currentWidget()).setCurrentWidget(table)
+        QApplication.processEvents()
+        cell = table.cellWidget(0, 0)
+        assert cell is not None
+        assert cell.geometry() == table.visualRect(table.model().index(0, 0))
+        checkbox = cell.findChild(QCheckBox)
+        assert checkbox is not None and checkbox.isChecked()
+        assert table.item(0, 0) is None
+        assert abs(checkbox.geometry().center().x() - cell.rect().center().x()) <= 1
+        assert abs(checkbox.geometry().center().y() - cell.rect().center().y()) <= 1
+        table.setCurrentCell(1, 0)
+        table.setFocus()
+        assert table.focusProxy() is table.cellWidget(1, 0).findChild(QCheckBox)
+        assert QApplication.focusWidget() is table.focusProxy()
+        manager = cast(DialogInputModesMixin, SimpleNamespace(
+            winetricks_dialog=dialog, _handle_common_ui_elements=lambda _code: False,
+        ))
+        DialogInputModesMixin.handle_winetricks_button(manager, next(iter(BUTTONS["confirm"])), 1)
+        cell = table.cellWidget(1, 0)
+        assert cell is not None
+        checkbox = cell.findChild(QCheckBox)
+        assert checkbox is not None and checkbox.isChecked()
+    dialog.install_selected(force=True)
+    dialog._start_install_process.assert_called_once_with(["art2kmin"], True)
+    dialog.deleteLater()
