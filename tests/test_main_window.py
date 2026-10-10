@@ -593,6 +593,7 @@ def test_vertical_theme_rebuilds_autoinstall_layout() -> None:
     window = cast(Any, AutoInstallMixin())
     window.theme = SimpleNamespace(LIBRARY_LAYOUT_MODE="vertical")
     window.autoInstallContainer = MagicMock()
+    window.autoInstallStatusHeader = MagicMock()
     window._set_autoinstall_container_layout = MagicMock()
     window.auto_size_slider = MagicMock()
     window.auto_size_slider.maximum.return_value = 250
@@ -602,6 +603,7 @@ def test_vertical_theme_rebuilds_autoinstall_layout() -> None:
     window.refresh_autoinstall_layout()
 
     window._set_autoinstall_container_layout.assert_called_once_with("vertical")
+    window.autoInstallStatusHeader.setVisible.assert_called_once_with(True)
     window.auto_size_slider.setVisible.assert_called_once_with(False)
     assert window.auto_card_width == 250
     assert window.autoInstallLoaded is False
@@ -2798,3 +2800,18 @@ def test_replace_game_refreshes_matching_detail_page(
         }
     else:
         assert detail_data == {"name": current_name, "exec_line": "old.exe", "appid": "42"}
+
+
+def test_shutdown_waits_for_autoinstall_status_workers() -> None:
+    worker = MagicMock()
+    worker.isRunning.side_effect = [True, False]
+    window = SimpleNamespace(autoInstallStatusWorkers=[worker])
+    window._stopWorkerThread = MethodType(MainWindowWorkersMixin._stopWorkerThread, window)
+    window._stopWorkerThreads = MethodType(MainWindowWorkersMixin._stopWorkerThreads, window)
+    window._stopWorker = MethodType(MainWindowWorkersMixin._stopWorker, window)
+
+    MainWindowWorkersMixin._stopBackgroundWorkers(cast(Any, window))
+
+    worker.requestInterruption.assert_called_once_with()
+    worker.wait.assert_called_once_with()
+    assert window.autoInstallStatusWorkers == []

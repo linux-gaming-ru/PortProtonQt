@@ -33,6 +33,7 @@ class MainWindowWorkersMixin:
         for worker_name, timeout_ms in worker_timeouts.items():
             self._stopWorkerThread(worker_name, timeout_ms)
         for workers_name in (
+            "autoInstallStatusWorkers",
             "gog_support_workers",
             "_listWorkerPool",
             "_imageWorkerPool",

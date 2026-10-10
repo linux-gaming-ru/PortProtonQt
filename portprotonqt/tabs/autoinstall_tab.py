@@ -1,7 +1,8 @@
 from collections.abc import Callable
+import os
 from typing import TYPE_CHECKING, Any, cast
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, QThread, Signal
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QGridLayout,
@@ -20,6 +21,7 @@ from portprotonqt.config import ui_config
 from portprotonqt.context_menu_manager import CustomLineEdit
 from portprotonqt.custom_widgets import AutoHideScrollArea, AutoSizeButton, FlowLayout
 from portprotonqt.game_card import GameCard
+from portprotonqt.detail_pages.utils import check_autoinstall_installed
 from portprotonqt.localization import _
 from portprotonqt.logger import get_logger
 from portprotonqt.search_utils import SearchOptimizer, build_search_items, search_index
@@ -32,6 +34,34 @@ if TYPE_CHECKING:
     _MainWindowTypingBase = QMainWindow
 else:
     _MainWindowTypingBase = object
+
+
+class AutoInstallStatusWorker(QThread):
+    status_ready = Signal(str, object)
+    api: Any
+    games: list[tuple]
+    portproton_location: str | None
+
+    def run(self) -> None:
+        for game in self.games:
+            if self.isInterruptionRequested():
+                return
+            target = game[5][len("autoinstall:"):].strip()
+            try:
+                script = target
+                if target.startswith(("http://", "https://")):
+                    script = self.api._get_autoinstall_script_path(target)
+                    if not os.path.isfile(script):
+                        script = self.api.download_autoinstall_script(target)
+                status = None
+                if script and os.path.isfile(script):
+                    status = check_autoinstall_installed(
+                        script, game[0], self.portproton_location
+                    )
+                self.status_ready.emit(game[13], status)
+            except OSError as error:
+                logger.warning("Failed to check installation of %s: %s", game[0], error)
+                self.status_ready.emit(game[13], None)
 
 
 class MainWindowAutoInstallTabMixin(_MainWindowTypingBase):
@@ -109,6 +139,17 @@ class MainWindowAutoInstallTabMixin(_MainWindowTypingBase):
         self._set_autoinstall_container_layout(auto_layout_mode)
         self.autoInstallScrollArea.setWidget(self.autoInstallContainer)
 
+        self.autoInstallStatusHeader = QWidget()
+        header_layout = QHBoxLayout(self.autoInstallStatusHeader)
+        header_layout.setContentsMargins(*self.theme.GAME_CARD_VERTICAL["header_margins"])
+        header_layout.addStretch()
+        heading = QLabel(_("Installed"))
+        heading.setFixedWidth(self.theme.autoinstallStatusColumnWidth)
+        heading.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        heading.setStyleSheet(self.theme.GAME_CARD_COLUMN_LABEL_STYLE)
+        header_layout.addWidget(heading)
+        self.autoInstallStatusHeader.setVisible(auto_layout_mode in {"list", "vertical"})
+        autoInstallLayout.addWidget(self.autoInstallStatusHeader)
         autoInstallLayout.addWidget(self.autoInstallScrollArea)
 
         self.auto_size_slider = QSlider(Qt.Orientation.Horizontal, autoInstallPage)
@@ -137,6 +178,7 @@ class MainWindowAutoInstallTabMixin(_MainWindowTypingBase):
 
         # Store cards
         self.autoInstallGameCards = {}
+        self.autoInstallStatusLabels = {}
         self.allAutoInstallCards = []
         self.autoInstallSearchOptimizer = SearchOptimizer()
         self.autoInstallLoaded = False
@@ -163,6 +205,7 @@ class MainWindowAutoInstallTabMixin(_MainWindowTypingBase):
                         widget.deleteLater()
 
             self.autoInstallGameCards.clear()
+            self.autoInstallStatusLabels.clear()
             self.allAutoInstallCards.clear()
 
             if not games:
@@ -208,6 +251,13 @@ class MainWindowAutoInstallTabMixin(_MainWindowTypingBase):
                     parent=self.autoInstallContainer,
                 )
                 card.autoinstall_exe_name = exe_name
+                if list_layout:
+                    status_label = QLabel("…", card)
+                    status_label.setFixedWidth(self.theme.autoinstallStatusColumnWidth)
+                    status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                    status_label.setStyleSheet(self.theme.GAME_CARD_COLUMN_LABEL_STYLE)
+                    self.autoInstallStatusLabels[exe_name] = status_label
+                    card.layout_.addWidget(status_label)
                 card.hoverChanged.connect(self._on_autoinstall_card_active)
                 card.focusChanged.connect(self._on_autoinstall_card_active)
 
@@ -231,10 +281,38 @@ class MainWindowAutoInstallTabMixin(_MainWindowTypingBase):
             self.autoInstallContainer.updateGeometry()
             self.autoInstallScrollArea.updateGeometry()
             self.filterAutoInstallGames()
+            if list_layout:
+                self._load_autoinstall_statuses(games)
 
         self._on_autoinstall_games_loaded = on_autoinstall_games_loaded
 
         self.stackedWidget.addWidget(autoInstallPage)
+
+    def _load_autoinstall_statuses(self, games: list[tuple]) -> None:
+        workers = getattr(self, "autoInstallStatusWorkers", [])
+        for previous in workers:
+            previous.requestInterruption()
+        self.autoInstallStatusWorkers = workers
+        cards = self.autoInstallGameCards.copy()
+        labels = self.autoInstallStatusLabels.copy()
+
+        def on_status(exe_name: str, installed: bool | None) -> None:
+            card = cards.get(exe_name)
+            if card is None or self.autoInstallGameCards.get(exe_name) is not card:
+                return
+            labels[exe_name].setText(
+                "?" if installed is None else "✓" if installed else "—"
+            )
+
+        worker = AutoInstallStatusWorker(self)
+        worker.api = self.portproton_api
+        worker.games = games
+        worker.portproton_location = self.portproton_location
+        worker.status_ready.connect(on_status)
+        worker.finished.connect(lambda: workers.remove(worker) if worker in workers else None)
+        worker.finished.connect(worker.deleteLater)
+        workers.append(worker)
+        worker.start()
 
     def _on_autoinstall_card_active(self, game_name: str, active: bool) -> None:
         if not active:
@@ -299,6 +377,7 @@ class MainWindowAutoInstallTabMixin(_MainWindowTypingBase):
             "list", "vertical", "horizontal", "horizontal_top",
         }
         self._set_autoinstall_container_layout(mode)
+        self.autoInstallStatusHeader.setVisible(mode in {"list", "vertical"})
         self.auto_size_slider.setVisible(not fixed_layout)
         if fixed_layout:
             self.auto_card_width = self.auto_size_slider.maximum()

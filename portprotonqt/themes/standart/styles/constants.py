@@ -43,6 +43,7 @@ GAME_CARD_LIST = {
     "cover_radius": 8,
     "border_radius": 18,
 }
+autoinstallStatusColumnWidth = 120
 GAME_CARD_GRID = {
     "extra_margin": 20,
     "spacing": 5,

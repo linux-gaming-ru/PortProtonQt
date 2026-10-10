@@ -1,7 +1,7 @@
 """Tests for auto-install installed status matching."""
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import portprotonqt.detail_pages as detail_pages
 from portprotonqt.detail_pages import DetailPageManager
@@ -135,3 +135,66 @@ def test_open_installed_autoinstall_card_switches_to_library(monkeypatch: Any) -
     assert manager.main_window.switched_index == 0
     assert manager._return_to_tab_index == 0
     assert opened_data is not None
+
+
+def test_list_status_worker_uses_cached_script_and_checks_installation(
+    tmp_path: Path, monkeypatch: Any,
+) -> None:
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+    from portprotonqt.tabs.autoinstall_tab import AutoInstallStatusWorker
+
+    script = tmp_path / "game.ppai"
+    script.write_text('PW_EXE_FILE="$WINEPREFIX/drive_c/Game/game.exe"\n')
+    location = tmp_path / "portproton"
+    location.mkdir()
+    exe = tmp_path / "prefix" / "drive_c" / "Game" / "game.exe"
+    exe.parent.mkdir(parents=True)
+    exe.touch()
+    desktop = location / "game.desktop"
+    _write_desktop_entry(desktop, "Game", exe)
+    worker = AutoInstallStatusWorker()
+    worker.api = SimpleNamespace(
+        _get_autoinstall_script_path=lambda _: str(script),
+        download_autoinstall_script=MagicMock(),
+    )
+    worker.games = [("Game", "", "", "", "", "autoinstall:https://example/game.ppai",
+                     "", "", "", "", 0, 0, "autoinstall", "game_1")]
+    worker.portproton_location = str(location)
+    results: list[tuple[str, bool | None]] = []
+    worker.status_ready.connect(lambda name, status: results.append((name, status)))
+    worker.run()
+    desktop.unlink()
+    worker.run()
+    assert results == [("game_1", True), ("game_1", False)]
+    worker.api.download_autoinstall_script.assert_not_called()
+    monkeypatch.setattr(worker, "isInterruptionRequested", lambda: True)
+    worker.run()
+    assert len(results) == 2
+
+
+def test_list_status_callback_ignores_replaced_cards(monkeypatch: Any) -> None:
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+    import portprotonqt.tabs.autoinstall_tab as tab
+
+    worker = MagicMock()
+    monkeypatch.setattr(tab, "AutoInstallStatusWorker", lambda _: worker)
+    label = MagicMock()
+    card = SimpleNamespace(installStatusLabel=label)
+    window = SimpleNamespace(autoInstallGameCards={"game_1": card},
+                             autoInstallStatusLabels={"game_1": label},
+                             portproton_api=MagicMock(), portproton_location=None)
+    tab.MainWindowAutoInstallTabMixin._load_autoinstall_statuses(cast(Any, window), [])
+    callback = worker.status_ready.connect.call_args.args[0]
+    callback("game_1", True)
+    assert label.setText.call_args.args == ("✓",)
+    callback("game_1", False)
+    assert label.setText.call_args.args == ("—",)
+    callback("game_1", None)
+    assert label.setText.call_args.args == ("?",)
+    window.autoInstallGameCards.clear()
+    label.reset_mock()
+    callback("game_1", True)
+    label.setText.assert_not_called()
+    assert window.autoInstallStatusWorkers == [worker]
