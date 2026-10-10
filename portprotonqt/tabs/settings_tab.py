@@ -1,10 +1,11 @@
 import os
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QObject, Qt, QTimer
+from PySide6.QtCore import QObject, QRect, QSize, Qt, QTimer
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QAbstractButton,
+    QBoxLayout,
     QCheckBox,
     QComboBox,
     QFormLayout,
@@ -44,7 +45,7 @@ from portprotonqt.config import (
     ui_config,
 )
 from portprotonqt.context_menu_manager import CustomLineEdit
-from portprotonqt.custom_widgets import AutoSizeButton, CustomComboBox, FlowLayout
+from portprotonqt.custom_widgets import AutoSizeButton, CustomComboBox
 from portprotonqt.debug_utils import get_selectable_gpu_list
 from portprotonqt.localization import _, retranslate
 from portprotonqt.logger import get_logger
@@ -65,6 +66,42 @@ if TYPE_CHECKING:
     _MainWindowTypingBase = QMainWindow
 else:
     _MainWindowTypingBase = object
+
+
+class SettingsButtonsLayout(QBoxLayout):
+    def __init__(self) -> None:
+        super().__init__(QBoxLayout.Direction.TopToBottom)
+        self.setContentsMargins(0, 0, 0, 0)
+
+    def hasHeightForWidth(self) -> bool:
+        return True
+
+    def heightForWidth(self, width: int) -> int:
+        sizes = [item.sizeHint() for index in range(self.count())
+                 if (item := self.itemAt(index)) is not None]
+        if sum(size.width() for size in sizes) + self.spacing() <= width:
+            return max((size.height() for size in sizes), default=0)
+        return sum(size.height() for size in sizes) + self.spacing()
+
+    def minimumSize(self) -> QSize:
+        sizes = [item.minimumSize() for index in range(self.count())
+                 if (item := self.itemAt(index)) is not None]
+        return QSize(max((size.width() for size in sizes), default=0),
+                     sum(size.height() for size in sizes) + self.spacing())
+
+    def setGeometry(self, rect: QRect) -> None:
+        width = sum(item.sizeHint().width() for index in range(self.count())
+                    if (item := self.itemAt(index)) is not None)
+        direction = (QBoxLayout.Direction.LeftToRight
+                     if width + self.spacing() <= rect.width()
+                     else QBoxLayout.Direction.TopToBottom)
+        if self.direction() != direction:
+            self.setDirection(direction)
+        if direction == QBoxLayout.Direction.LeftToRight:
+            row_width = width + self.spacing()
+            rect = QRect(rect.x() + (rect.width() - row_width) // 2,
+                         rect.y(), row_width, rect.height())
+        super().setGeometry(rect)
 
 
 class MainWindowSettingsTabMixin(_MainWindowTypingBase):
@@ -769,9 +806,12 @@ class MainWindowSettingsTabMixin(_MainWindowTypingBase):
         layout.addWidget(self.settingsScrollArea)
 
         # Buttons (outside scroll area, always visible)
-        buttonsLayout = FlowLayout(center_rows=True)
+        actionsLayout = SettingsButtonsLayout()
+        actionsLayout.setSpacing(self.theme.portProtonPageVerticalSpacing)
+        buttonsLayout = QHBoxLayout()
         buttonsLayout.setContentsMargins(0, 0, 0, 0)
         buttonsLayout.setSpacing(self.theme.portProtonPageVerticalSpacing)
+        buttonsLayout.addStretch()
 
         self.saveButton = AutoSizeButton(_("Save Settings"), icon=self.theme_manager.get_icon("save", as_path=True))
         self.saveButton.setProperty("theme_style_name", "ACTION_BUTTON_STYLE")
@@ -795,25 +835,34 @@ class MainWindowSettingsTabMixin(_MainWindowTypingBase):
         self.globalGameSettingsButton.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.globalGameSettingsButton.clicked.connect(self.openGlobalGameSettings)
         buttonsLayout.addWidget(self.globalGameSettingsButton)
+        buttonsLayout.addStretch()
+        actionsLayout.addLayout(buttonsLayout)
+
+        maintenanceButtonsLayout = QHBoxLayout()
+        maintenanceButtonsLayout.setContentsMargins(0, 0, 0, 0)
+        maintenanceButtonsLayout.setSpacing(self.theme.portProtonPageVerticalSpacing)
+        maintenanceButtonsLayout.addStretch()
 
         self.migrateShortcutsButton = AutoSizeButton(_("Migrate legacy shortcuts"), icon=self.theme_manager.get_icon("update", as_path=True))
         self.migrateShortcutsButton.setProperty("theme_style_name", "ACTION_BUTTON_STYLE")
         self.migrateShortcutsButton.setStyleSheet(self.theme.ACTION_BUTTON_STYLE)
         self.migrateShortcutsButton.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.migrateShortcutsButton.clicked.connect(self.migrateLegacyShortcuts)
-        buttonsLayout.addWidget(self.migrateShortcutsButton)
+        maintenanceButtonsLayout.addWidget(self.migrateShortcutsButton)
 
         if os.getenv("APPIMAGE"):
-            buttonsLayout.addWidget(self.integrateAppImageButton)
+            maintenanceButtonsLayout.addWidget(self.integrateAppImageButton)
 
         self.clearCacheButton = AutoSizeButton(_("Clear Cache"), icon=self.theme_manager.get_icon("update", as_path=True))
         self.clearCacheButton.setProperty("theme_style_name", "ACTION_BUTTON_STYLE")
         self.clearCacheButton.setStyleSheet(self.theme.ACTION_BUTTON_STYLE)
         self.clearCacheButton.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.clearCacheButton.clicked.connect(self.clearCache)
-        buttonsLayout.addWidget(self.clearCacheButton)
+        maintenanceButtonsLayout.addWidget(self.clearCacheButton)
+        maintenanceButtonsLayout.addStretch()
 
-        layout.addLayout(buttonsLayout)
+        actionsLayout.addLayout(maintenanceButtonsLayout)
+        layout.addLayout(actionsLayout)
         self.stackedWidget.addWidget(self.portProtonWidget)
 
     def openGlobalGameSettings(self) -> None:

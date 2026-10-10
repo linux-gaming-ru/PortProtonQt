@@ -316,10 +316,18 @@ class FlowLayout(QLayout):
 
         if not testOnly:
             rx, ry = rect.x(), rect.y()
+            row_bounds = {}
+            if self.alignment() & Qt.AlignmentFlag.AlignHCenter:
+                for x, y, w, _ in geom_array:
+                    left = row_bounds.get(y, (x, x))[0]
+                    row_bounds[y] = (left, x + w)
 
             # Set geometry for visible items
             for idx, item in enumerate(visible_items):
                 x, y, w, h = geom_array[idx]
+                if y in row_bounds:
+                    left, right = row_bounds[y]
+                    x += max(0, (rect.width() - (right - left)) // 2) - left
                 item.setGeometry(QRect(x + rx, y + ry, w, h))
 
             # Hide invisible items

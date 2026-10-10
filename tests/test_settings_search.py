@@ -5,12 +5,14 @@ from types import SimpleNamespace
 from typing import cast
 
 import pytest
-from PySide6.QtCore import QEvent
+from PySide6.QtCore import QEvent, QRect
 from PySide6.QtWidgets import (
     QApplication,
+    QBoxLayout,
     QCheckBox,
     QGridLayout,
     QGroupBox,
+    QHBoxLayout,
     QLabel,
     QTableWidget,
     QStackedWidget,
@@ -18,6 +20,8 @@ from PySide6.QtWidgets import (
 )
 
 from portprotonqt.custom_widgets import CustomComboBox
+from portprotonqt.tabs.settings_tab import SettingsButtonsLayout
+
 from portprotonqt.dialogs.settings_gamescope import (
     GAMESCOPE_TOGGLE_CATEGORIES,
     GAMESCOPE_TOGGLE_DESCRIPTIONS,
@@ -432,3 +436,36 @@ def test_settings_row_frame_does_not_cover_contents() -> None:
     assert isinstance(label, QLabel)
     assert label.text()
     table.close()
+
+
+def test_settings_buttons_switch_between_one_and_two_rows() -> None:
+    app = QApplication.instance() or QApplication([])
+    parent = QWidget()
+    layout = SettingsButtonsLayout()
+    layout.setSpacing(10)
+    parent.setLayout(layout)
+    buttons = []
+    for _ in range(2):
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.addStretch()
+        button = QWidget(parent)
+        button.setFixedSize(100, 30)
+        row.addWidget(button)
+        row.addStretch()
+        layout.addLayout(row)
+        buttons.append(button)
+    for width, height in ((210, 30), (200, 70), (300, 30)):
+        layout.setGeometry(QRect(0, 0, width, height))
+        assert layout.heightForWidth(width) == height
+        if height == 30:
+            assert layout.direction() == QBoxLayout.Direction.LeftToRight
+            assert buttons[0].y() == buttons[1].y()
+            assert buttons[1].x() - buttons[0].x() == 110
+            assert buttons[0].x() == (width - 210) // 2
+        else:
+            assert layout.direction() == QBoxLayout.Direction.TopToBottom
+            assert buttons[0].x() == buttons[1].x() == 50
+            assert buttons[1].y() > buttons[0].y()
+    parent.close()
+    app.processEvents()

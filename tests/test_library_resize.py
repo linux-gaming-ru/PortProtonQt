@@ -6,7 +6,7 @@ from typing import Any, cast
 from unittest.mock import MagicMock
 
 import pytest
-from PySide6.QtCore import QSize
+from PySide6.QtCore import QRect, QSize, Qt
 from PySide6.QtGui import QColor, QPixmap
 from PySide6.QtWidgets import QApplication, QHBoxLayout, QScrollArea, QVBoxLayout, QWidget
 
@@ -56,6 +56,28 @@ def test_flow_layout_preserves_rows_and_centering() -> None:
     assert height == 290
     assert compute_layout([], 320, 20, 1.0) == ([], 0)
     assert compute_layout([(100, 120)], 40, 20, 1.0) == ([[20, 0, 100, 120]], 120)
+
+
+@pytest.mark.parametrize("centered", [False, True])
+def test_flow_layout_wrapped_row_alignment(centered: bool) -> None:
+    app = QApplication.instance() or QApplication([])
+    parent = QWidget()
+    layout = FlowLayout(parent)
+    if centered:
+        layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+    widgets = []
+    for width in (100, 100, 100):
+        widget = QWidget(parent)
+        widget.setFixedSize(width, 30)
+        layout.addWidget(widget)
+        widget.show()
+        widgets.append(widget)
+    layout.setGeometry(QRect(0, 0, 300, 100))
+    assert widgets[0].x() == 40
+    assert widgets[1].x() == 160
+    assert widgets[2].x() == (100 if centered else 40)
+    parent.close()
+    app.processEvents()
 
 
 def test_flow_minimum_size_tracks_fixed_hidden_and_removed_widgets() -> None:
