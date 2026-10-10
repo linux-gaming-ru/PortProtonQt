@@ -313,7 +313,7 @@ def test_settings_table_descriptions_and_centered_controls(theme_name: str) -> N
     table.setRowCount(2)
     table.setColumnWidth(0, 700)
     dialog = SimpleNamespace(favorites_table=table, theme=theme)
-    for row, description in enumerate(("Short description", "Long description " * 30)):
+    for row, description in enumerate(("Short <description> & text", "Long description " * 30)):
         ExeSettingsDialog._set_favorite_text_cells(
             cast(ExeSettingsDialog, dialog), row, "key", "Setting", description,
         )
@@ -338,8 +338,13 @@ def test_settings_table_descriptions_and_centered_controls(theme_name: str) -> N
         assert name_item is not None and description_item is not None
         label = table.cellWidget(row, 0)
         assert isinstance(label, QLabel)
-        assert label.textFormat() == Qt.TextFormat.PlainText
-        assert label.text() == f"Setting\n{description_item.text()}"
+        from html import escape
+
+        assert label.textFormat() == Qt.TextFormat.RichText
+        assert label.text() == "Setting<br>" + theme.SETTINGS_DESCRIPTION_HTML.format(
+            description=escape(description_item.text()),
+        )
+        assert name_item.data(Qt.ItemDataRole.AccessibleTextRole) == f"Setting\n{description_item.text()}"
         assert label.palette().color(label.foregroundRole()) == table.palette().color(label.foregroundRole())
         assert name_item.text() == ""
     if theme_name.endswith("-light"):

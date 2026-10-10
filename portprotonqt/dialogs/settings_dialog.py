@@ -3,6 +3,7 @@
 import os
 import re
 import subprocess
+from html import escape
 from typing import cast, TYPE_CHECKING
 
 from PySide6.QtCore import Qt, QObject, QEvent, QPoint, QProcess, QTimer, QUrl
@@ -1599,7 +1600,7 @@ class ExeSettingsDialog(
                 if label is None:
                     text = item.text()
                     label = QLabel()
-                    label.setTextFormat(Qt.TextFormat.PlainText)
+                    label.setTextFormat(Qt.TextFormat.RichText)
                     label.setWordWrap(True)
                     label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
                     item.setData(Qt.ItemDataRole.AccessibleTextRole, text)
@@ -1613,8 +1614,14 @@ class ExeSettingsDialog(
                 label.setPalette(palette)
                 label.setForegroundRole(QPalette.ColorRole.Text)
                 text = item.data(Qt.ItemDataRole.AccessibleTextRole)
-                if label.text() != text:
-                    label.setText(text)
+                name, separator, description = text.partition("\n")
+                formatted_text = escape(name)
+                if separator:
+                    formatted_text += "<br>" + self.theme.SETTINGS_DESCRIPTION_HTML.format(
+                        description=escape(description).replace("\n", "<br>"),
+                    )
+                if label.text() != formatted_text:
+                    label.setText(formatted_text)
                 width = max(1, table.columnWidth(0))
                 table.setRowHeight(row, label.heightForWidth(width) + table.fontMetrics().height())
             for row in range(table.rowCount()):
