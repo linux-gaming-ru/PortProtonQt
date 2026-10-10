@@ -1209,6 +1209,7 @@ SCROLL_STYLE = f"""
         background: {color_scrollbar_bg};
     }}
     QScrollBar::handle:vertical {{
+        min-height: {scrollbar_handle_min_height};
         background: {color_scrollbar_handle};
         border:  {border_none};
         border-radius: {border_radius_scroll};
