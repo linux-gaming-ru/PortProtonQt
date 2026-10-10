@@ -271,6 +271,7 @@ DETAIL_COMPACT = {
     "width": 1280,
     "cover_image_size": 108,
     "content_spacing": 15,
+    "buttons_bottom_spacing": 20,
     "header_spacing": 16,
     "title_margins": (0, 0, 0, 0),
     "description_margins": (3, 3, 3, 3),
