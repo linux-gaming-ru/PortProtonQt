@@ -4191,7 +4191,6 @@ portwine_launch () {
         if [[ -n "${PW_RUN_AFTER_EXE:-}" ]] \
         && [[ -f "${PW_RUN_AFTER_EXE}" ]] \
         && [[ "${PW_RUN_AFTER_EXE,,}" =~ \.exe$ ]] \
-        && [[ "${PW_RUN_AFTER_EXE}" != "${PW_EXE_FILE}" ]] \
         && [[ "${PW_EXE_FILE,,}" =~ \.exe$ ]]
         then
             local wait_delay wait_delay_int run_after_bat

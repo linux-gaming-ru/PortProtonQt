@@ -453,6 +453,15 @@ class UIConfig(BaseConfig):
         validate_bool(enabled, "download_wine_to_steam")
         self._save_download_value("download_wine_to_steam", enabled)
 
+    def get_disable_steam_proton_scanning(self) -> bool:
+        """Get Steam Proton scanning setting."""
+        return self._get_bool("disable_steam_proton_scanning", False)
+
+    def set_disable_steam_proton_scanning(self, enabled: bool) -> None:
+        """Set Steam Proton scanning setting."""
+        validate_bool(enabled, "disable_steam_proton_scanning")
+        self._save_value("disable_steam_proton_scanning", enabled, "bool")
+
     def get_disable_runtime_download(self) -> bool:
         """Get PortProton runtime download setting."""
         default = bool(os.getenv("FLATPAK_ID"))

@@ -1023,6 +1023,9 @@ class DetailPageManager:
             )
         )
         content_frame_layout.addLayout(page_data["buttons_layout"])
+        content_frame_layout.addSpacing(
+            self.main_window.theme.DETAIL_COMPACT["buttons_bottom_spacing"]
+        )
 
     def _get_compact_content_spacing(self) -> int:
         return getattr(
@@ -1198,6 +1201,9 @@ class DetailPageManager:
                 )
             )
             content_frame_layout.addLayout(page_data["buttons_layout"])
+            content_frame_layout.addSpacing(
+                self.main_window.theme.DETAIL_COMPACT["buttons_bottom_spacing"]
+            )
 
         main_layout = self._get_main_layout(detail_page)
         if main_layout:

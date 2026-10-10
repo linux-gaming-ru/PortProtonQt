@@ -424,6 +424,7 @@ tests/
 ├── test_library_loading.py  # Incremental loading, source switching, first-paint focus, and cover callbacks
 ├── test_store_games.py      # GOG and EGS library, launch, install, and stop regressions
 ├── test_portproton_config.py # exec_line parsing, launcher tail, extensions
+├── test_portproton_scripts.py # Shell script launch, second exe, exit codes, user.conf
 ├── test_portproton_api.py   # PPDB API helpers, autoinstall localization fallback
 ├── test_autoinstall_status.py # Autoinstall installed-status matching regressions
 ├── test_migration.py        # Desktop shortcut migration, prefix backup, squashfs

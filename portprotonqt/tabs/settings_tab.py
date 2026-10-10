@@ -1,10 +1,11 @@
 import os
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QObject, Qt, QTimer
+from PySide6.QtCore import QObject, QRect, QSize, Qt, QTimer
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QAbstractButton,
+    QBoxLayout,
     QCheckBox,
     QComboBox,
     QFormLayout,
@@ -44,7 +45,7 @@ from portprotonqt.config import (
     ui_config,
 )
 from portprotonqt.context_menu_manager import CustomLineEdit
-from portprotonqt.custom_widgets import AutoSizeButton, CustomComboBox, FlowLayout
+from portprotonqt.custom_widgets import AutoSizeButton, CustomComboBox
 from portprotonqt.debug_utils import get_selectable_gpu_list
 from portprotonqt.localization import _, retranslate
 from portprotonqt.logger import get_logger
@@ -65,6 +66,42 @@ if TYPE_CHECKING:
     _MainWindowTypingBase = QMainWindow
 else:
     _MainWindowTypingBase = object
+
+
+class SettingsButtonsLayout(QBoxLayout):
+    def __init__(self) -> None:
+        super().__init__(QBoxLayout.Direction.TopToBottom)
+        self.setContentsMargins(0, 0, 0, 0)
+
+    def hasHeightForWidth(self) -> bool:
+        return True
+
+    def heightForWidth(self, width: int) -> int:
+        sizes = [item.sizeHint() for index in range(self.count())
+                 if (item := self.itemAt(index)) is not None]
+        if sum(size.width() for size in sizes) + self.spacing() <= width:
+            return max((size.height() for size in sizes), default=0)
+        return sum(size.height() for size in sizes) + self.spacing()
+
+    def minimumSize(self) -> QSize:
+        sizes = [item.minimumSize() for index in range(self.count())
+                 if (item := self.itemAt(index)) is not None]
+        return QSize(max((size.width() for size in sizes), default=0),
+                     sum(size.height() for size in sizes) + self.spacing())
+
+    def setGeometry(self, rect: QRect) -> None:
+        width = sum(item.sizeHint().width() for index in range(self.count())
+                    if (item := self.itemAt(index)) is not None)
+        direction = (QBoxLayout.Direction.LeftToRight
+                     if width + self.spacing() <= rect.width()
+                     else QBoxLayout.Direction.TopToBottom)
+        if self.direction() != direction:
+            self.setDirection(direction)
+        if direction == QBoxLayout.Direction.LeftToRight:
+            row_width = width + self.spacing()
+            rect = QRect(rect.x() + (rect.width() - row_width) // 2,
+                         rect.y(), row_width, rect.height())
+        super().setGeometry(rect)
 
 
 class MainWindowSettingsTabMixin(_MainWindowTypingBase):
@@ -518,6 +555,21 @@ class MainWindowSettingsTabMixin(_MainWindowTypingBase):
         steam_compat_layout.addStretch()
         uiForm.addRow(steam_compat_layout)
 
+        self.disableSteamProtonScanningCheckBox = QCheckBox()
+        self.disableSteamProtonScanningCheckBox.setStyleSheet(self.theme.CHECKBOX_STYLE)
+        self.disableSteamProtonScanningCheckBox.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.disableSteamProtonScanningTitle = QLabel(_("Disable Steam Proton scanning"))
+        self.disableSteamProtonScanningTitle.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.disableSteamProtonScanningTitle.setStyleSheet(self.theme.SETTINGS_TITLE_CHECKBOX_STYLE)
+        self.disableSteamProtonScanningTitle.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.disableSteamProtonScanningCheckBox.setChecked(ui_config.get_disable_steam_proton_scanning())
+        disable_steam_proton_scanning_layout = QHBoxLayout()
+        disable_steam_proton_scanning_layout.setContentsMargins(0, 0, 0, 0)
+        disable_steam_proton_scanning_layout.addWidget(self.disableSteamProtonScanningCheckBox)
+        disable_steam_proton_scanning_layout.addWidget(self.disableSteamProtonScanningTitle)
+        disable_steam_proton_scanning_layout.addStretch()
+        uiForm.addRow(disable_steam_proton_scanning_layout)
+
         if get_steam_compatibilitytools_dir() is not None:
             self.downloadWineToSteamCheckBox = QCheckBox()
             self.downloadWineToSteamCheckBox.setStyleSheet(self.theme.CHECKBOX_STYLE)
@@ -754,9 +806,12 @@ class MainWindowSettingsTabMixin(_MainWindowTypingBase):
         layout.addWidget(self.settingsScrollArea)
 
         # Buttons (outside scroll area, always visible)
-        buttonsLayout = FlowLayout(center_rows=True)
+        actionsLayout = SettingsButtonsLayout()
+        actionsLayout.setSpacing(self.theme.portProtonPageVerticalSpacing)
+        buttonsLayout = QHBoxLayout()
         buttonsLayout.setContentsMargins(0, 0, 0, 0)
         buttonsLayout.setSpacing(self.theme.portProtonPageVerticalSpacing)
+        buttonsLayout.addStretch()
 
         self.saveButton = AutoSizeButton(_("Save Settings"), icon=self.theme_manager.get_icon("save", as_path=True))
         self.saveButton.setProperty("theme_style_name", "ACTION_BUTTON_STYLE")
@@ -780,25 +835,34 @@ class MainWindowSettingsTabMixin(_MainWindowTypingBase):
         self.globalGameSettingsButton.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.globalGameSettingsButton.clicked.connect(self.openGlobalGameSettings)
         buttonsLayout.addWidget(self.globalGameSettingsButton)
+        buttonsLayout.addStretch()
+        actionsLayout.addLayout(buttonsLayout)
+
+        maintenanceButtonsLayout = QHBoxLayout()
+        maintenanceButtonsLayout.setContentsMargins(0, 0, 0, 0)
+        maintenanceButtonsLayout.setSpacing(self.theme.portProtonPageVerticalSpacing)
+        maintenanceButtonsLayout.addStretch()
 
         self.migrateShortcutsButton = AutoSizeButton(_("Migrate legacy shortcuts"), icon=self.theme_manager.get_icon("update", as_path=True))
         self.migrateShortcutsButton.setProperty("theme_style_name", "ACTION_BUTTON_STYLE")
         self.migrateShortcutsButton.setStyleSheet(self.theme.ACTION_BUTTON_STYLE)
         self.migrateShortcutsButton.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.migrateShortcutsButton.clicked.connect(self.migrateLegacyShortcuts)
-        buttonsLayout.addWidget(self.migrateShortcutsButton)
+        maintenanceButtonsLayout.addWidget(self.migrateShortcutsButton)
 
         if os.getenv("APPIMAGE"):
-            buttonsLayout.addWidget(self.integrateAppImageButton)
+            maintenanceButtonsLayout.addWidget(self.integrateAppImageButton)
 
         self.clearCacheButton = AutoSizeButton(_("Clear Cache"), icon=self.theme_manager.get_icon("update", as_path=True))
         self.clearCacheButton.setProperty("theme_style_name", "ACTION_BUTTON_STYLE")
         self.clearCacheButton.setStyleSheet(self.theme.ACTION_BUTTON_STYLE)
         self.clearCacheButton.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.clearCacheButton.clicked.connect(self.clearCache)
-        buttonsLayout.addWidget(self.clearCacheButton)
+        maintenanceButtonsLayout.addWidget(self.clearCacheButton)
+        maintenanceButtonsLayout.addStretch()
 
-        layout.addLayout(buttonsLayout)
+        actionsLayout.addLayout(maintenanceButtonsLayout)
+        layout.addLayout(actionsLayout)
         self.stackedWidget.addWidget(self.portProtonWidget)
 
     def openGlobalGameSettings(self) -> None:
@@ -1014,6 +1078,8 @@ class MainWindowSettingsTabMixin(_MainWindowTypingBase):
             add_steam_compat_tool()
         elif not steam_compat and currently_installed:
             remove_steam_compat_tool()
+
+        ui_config.set_disable_steam_proton_scanning(self.disableSteamProtonScanningCheckBox.isChecked())
 
         if hasattr(self, 'downloadWineToSteamCheckBox'):
             ui_config.set_download_wine_to_steam(self.downloadWineToSteamCheckBox.isChecked())

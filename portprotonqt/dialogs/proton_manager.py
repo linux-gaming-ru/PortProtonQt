@@ -637,15 +637,16 @@ class ProtonManager(DraggableDialog):
         installed_versions = []
         seen_paths = set()
         version_dirs = [dist_path]
-        steam_dir = get_steam_compatibilitytools_dir()
-        if steam_dir is not None:
-            version_dirs.append(str(steam_dir))
-        steam_home = get_steam_home()
-        if steam_home is not None:
-            for steam_lib in get_steam_libs(steam_home):
-                common_dir = steam_lib / "steamapps" / "common"
-                if common_dir.is_dir():
-                    version_dirs.append(str(common_dir))
+        if not ui_config.get_disable_steam_proton_scanning():
+            steam_dir = get_steam_compatibilitytools_dir()
+            if steam_dir is not None:
+                version_dirs.append(str(steam_dir))
+            steam_home = get_steam_home()
+            if steam_home is not None:
+                for steam_lib in get_steam_libs(steam_home):
+                    common_dir = steam_lib / "steamapps" / "common"
+                    if common_dir.is_dir():
+                        version_dirs.append(str(common_dir))
 
         for version_dir in version_dirs:
             for version_name in os.listdir(version_dir):

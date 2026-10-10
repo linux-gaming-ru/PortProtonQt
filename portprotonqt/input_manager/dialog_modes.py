@@ -71,7 +71,9 @@ class DialogInputModesMixin(InputMixin):
             focused = QApplication.focusWidget()
 
             if button_code in BUTTONS['confirm']:  # A: Toggle checkbox
-                if isinstance(focused, QTableWidget):
+                if isinstance(focused, QCheckBox) and focused.isEnabled():
+                    focused.toggle()
+                elif isinstance(focused, QTableWidget):
                     self.handle_table_confirm(focused)
                 return
 

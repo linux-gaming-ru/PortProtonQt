@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QStackedWidget, QWidget
 from portprotonqt.config import ui_config
 from portprotonqt.custom_widgets import FlowLayout
 from portprotonqt.input_manager import BUTTONS, GamepadType
-from portprotonqt.localization import _
+from portprotonqt.localization import _, retranslate
 from portprotonqt.logger import get_logger
 from portprotonqt.qt_utils import get_device_pixel_ratio
 
@@ -476,6 +476,7 @@ class MainWindowControlHintsMixin:
             current_tab_index,
             system_section_index,
             getattr(self, "current_theme_name", ""),
+            ui_config.get_force_english(),
         )
         if not force_update and hints_state == getattr(self, "_last_control_hints_state", None):
             return
@@ -601,7 +602,9 @@ class MainWindowControlHintsMixin:
         if not default_texts:
             return
         for action, text in default_texts.items():
-            self._setGamepadHintText(action, text)
+            if action in VOLUME_HINT_ACTIONS:
+                text = _("Volume") + text[-2:]
+            self._setGamepadHintText(action, retranslate(text))
         for action in VOLUME_HINT_ACTIONS:
             self._setGamepadHintVisible(action, False)
 

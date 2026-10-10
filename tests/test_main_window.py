@@ -64,6 +64,40 @@ from portprotonqt.tabs.theme_tab import (
 )
 from portprotonqt.tabs.workers import MainWindowWorkersMixin
 from portprotonqt.tabs.wine_tab import MainWindowWineTabMixin as WineMixin
+from portprotonqt.tabs.control_hints import MainWindowControlHintsMixin
+import portprotonqt.localization as localization
+
+
+@mark.parametrize("initial_english", [True, False])
+def test_gamepad_hint_defaults_follow_language_change(
+    monkeypatch: MonkeyPatch, initial_english: bool
+) -> None:
+    force_english = initial_english
+    monkeypatch.setattr(
+        "portprotonqt.config.ui_config.get_force_english", lambda: force_english
+    )
+    translations = {"Select": "Выбрать", "Volume": "Громкость"}
+    monkeypatch.setattr(localization.translate, "gettext", lambda text: translations.get(text, text))
+    monkeypatch.setattr(localization, "_translation_sources", {})
+    window = SimpleNamespace(
+        gamepadHintDefaultTexts={
+            "confirm": localization._("Select"),
+            "decrease_size": localization._("Volume") + " -",
+            "increase_size": localization._("Volume") + " +",
+        },
+        _setGamepadHintText=MagicMock(),
+        _setGamepadHintVisible=MagicMock(),
+        stackedWidget=SimpleNamespace(currentIndex=lambda: 0),
+        system_tab_index=1,
+    )
+
+    for english_enabled in (not initial_english, initial_english):
+        force_english = english_enabled
+        MainWindowControlHintsMixin._updateSystemGamepadHintTexts(cast(Any, window))
+        window._setGamepadHintText.assert_any_call("confirm", localization._("Select"))
+        window._setGamepadHintText.assert_any_call("decrease_size", localization._("Volume") + " -")
+        window._setGamepadHintText.assert_any_call("increase_size", localization._("Volume") + " +")
+        window._setGamepadHintText.reset_mock()
 
 
 @fixture(autouse=True)
@@ -559,6 +593,7 @@ def test_vertical_theme_rebuilds_autoinstall_layout() -> None:
     window = cast(Any, AutoInstallMixin())
     window.theme = SimpleNamespace(LIBRARY_LAYOUT_MODE="vertical")
     window.autoInstallContainer = MagicMock()
+    window.autoInstallStatusHeader = MagicMock()
     window._set_autoinstall_container_layout = MagicMock()
     window.auto_size_slider = MagicMock()
     window.auto_size_slider.maximum.return_value = 250
@@ -568,6 +603,7 @@ def test_vertical_theme_rebuilds_autoinstall_layout() -> None:
     window.refresh_autoinstall_layout()
 
     window._set_autoinstall_container_layout.assert_called_once_with("vertical")
+    window.autoInstallStatusHeader.setVisible.assert_called_once_with(True)
     window.auto_size_slider.setVisible.assert_called_once_with(False)
     assert window.auto_card_width == 250
     assert window.autoInstallLoaded is False
@@ -694,17 +730,24 @@ def test_auto_hide_scroll_area_tracks_horizontal_overflow() -> None:
     assert scroll_area._h_hide_timer.isActive()
 
 
-def test_auto_hide_scroll_area_uses_wheel_for_horizontal_overflow() -> None:
+@mark.parametrize("layout_mode", [None, "horizontal", "horizontal_top", "grid"])
+@mark.parametrize("content_height", [50, 300])
+def test_auto_hide_scroll_area_uses_wheel_for_horizontal_overflow(
+    layout_mode: str | None, content_height: int,
+) -> None:
     _application = QApplication.instance() or QApplication([])
     theme = SimpleNamespace(TRANSPARENT_BACKGROUND_STYLE="", SCROLL_STYLE="")
     scroll_area = AutoHideScrollArea(theme=theme)
     scroll_area.resize(100, 100)
     content = QWidget()
-    content.setMinimumSize(300, 50)
+    content.setMinimumSize(300, content_height)
+    content.setProperty("library_layout_mode", layout_mode)
     scroll_area.setWidget(content)
     scroll_area.show()
     QApplication.processEvents()
     scroll_area.horizontalScrollBar().setValue(100)
+    scroll_area.verticalScrollBar().setValue(100)
+    vertical_value = scroll_area.verticalScrollBar().value()
     event = QWheelEvent(
         QPointF(), QPointF(), QPoint(), QPoint(0, 120),
         Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier,
@@ -713,7 +756,13 @@ def test_auto_hide_scroll_area_uses_wheel_for_horizontal_overflow() -> None:
 
     scroll_area.wheelEvent(event)
 
-    assert scroll_area.horizontalScrollBar().value() < 100
+    if content_height == 50 or layout_mode in {"horizontal", "horizontal_top"}:
+        assert scroll_area.horizontalScrollBar().value() < 100
+        assert scroll_area.verticalScrollBar().value() == vertical_value
+    else:
+        assert scroll_area.horizontalScrollBar().value() == 100
+        assert scroll_area.verticalScrollBar().value() < vertical_value
+    scroll_area.close()
 
 
 @mark.parametrize("layout_mode", ["vertical", "horizontal", "horizontal_top"])
@@ -1194,9 +1243,17 @@ def test_library_source_filter_stays_top_aligned_without_checkbox(
 
     LibraryMixin._add_library_filter_controls(window, controls_layout)
 
-    display_filter_item = controls_layout.itemAtPosition(0, 1)
+    display_filter_item = controls_layout.itemAtPosition(1, 0)
     assert display_filter_item is not None
     assert display_filter_item.widget() is test_window.gamesDisplayCombo
+    assert controls_layout.columnCount() == 1
+    for row, widget in enumerate((
+        test_window.gamesSortCombo, test_window.gamesDisplayCombo,
+        test_window.gamesBadgeViewCombo, test_window.gamesLayoutCombo,
+        test_window.onlyInstalledCheckBox,
+    )):
+        assert controls_layout.indexOf(widget) >= 0
+        assert controls_layout.getItemPosition(controls_layout.indexOf(widget)) == (row, 0, 1, 1)
     controls_widget.show()
     _application.processEvents()
     expanded_height = controls_widget.sizeHint().height()
@@ -2764,3 +2821,68 @@ def test_replace_game_refreshes_matching_detail_page(
         }
     else:
         assert detail_data == {"name": current_name, "exec_line": "old.exe", "appid": "42"}
+
+
+def test_shutdown_waits_for_autoinstall_status_workers() -> None:
+    worker = MagicMock()
+    worker.isRunning.side_effect = [True, False]
+    window = SimpleNamespace(autoInstallStatusWorkers=[worker])
+    window._stopWorkerThread = MethodType(MainWindowWorkersMixin._stopWorkerThread, window)
+    window._stopWorkerThreads = MethodType(MainWindowWorkersMixin._stopWorkerThreads, window)
+    window._stopWorker = MethodType(MainWindowWorkersMixin._stopWorker, window)
+
+    MainWindowWorkersMixin._stopBackgroundWorkers(cast(Any, window))
+
+    worker.requestInterruption.assert_called_once_with()
+    worker.wait.assert_called_once_with()
+    assert window.autoInstallStatusWorkers == []
+
+
+@mark.parametrize("mode", ("list", "vertical"))
+def test_autoinstall_table_columns_match_header(
+    monkeypatch: MonkeyPatch, tmp_config_dir: Path, mode: str,
+) -> None:
+    from PySide6.QtWidgets import QMainWindow, QStackedWidget
+    from portprotonqt.theme_manager import ThemeManager, load_theme
+
+    _application = QApplication.instance() or QApplication([])
+    window_type = type("AutoInstallWindow", (QMainWindow, cast(Any, AutoInstallMixin)), {})
+    window = cast(Any, window_type())
+    window.theme = load_theme("standart")
+    window.theme_manager = ThemeManager()
+    window.auto_card_width = 250
+    window.stackedWidget = QStackedWidget()
+    window.setCentralWidget(window.stackedWidget)
+    window._gamepad_tooltip_map = {}
+    for method in ("_register_gamepad_tooltip", "_setup_autoinstall_search_animation",
+                   "_build_autoinstall_search_indices", "filterAutoInstallGames",
+                   "_load_autoinstall_statuses"):
+        setattr(window, method, MagicMock())
+    monkeypatch.setattr(autoinstall_tab_module.ui_config, "get_library_layout_mode", lambda _: mode)
+    monkeypatch.setattr("portprotonqt.game_card.load_pixmap_async", lambda *args, **kwargs: None)
+    window.createAutoInstallTab()
+    window._on_autoinstall_games_loaded([
+        ("Game", "", "", "", "", "autoinstall:/tmp/game.ppai", "Never", "0h 0m",
+         "", "", 0, 0, "autoinstall", "game_1"),
+    ])
+    card = window.autoInstallGameCards["game_1"]
+    header = window.autoInstallStatusHeader.layout()
+    assert header.count() == 5
+    assert card.layout_.count() == 4
+    assert card.layout_.itemAt(1).widget() is card.nameLabel
+    assert card.layout_.itemAt(2).widget().text() == "autoinstall"
+    assert card.layout_.itemAt(3).widget() is window.autoInstallStatusLabels["game_1"]
+    window.resize(1200, 500)
+    window.show()
+    _application.processEvents()
+    for index, stretch in enumerate(window.theme.autoinstallColumnStretches, start=1):
+        assert header.stretch(index) == card.layout_.stretch(index) == stretch
+        heading = header.itemAt(index).widget()
+        assert heading.text() == heading.text().upper()
+        if index > 1:
+            value = card.layout_.itemAt(index).widget()
+            assert heading.alignment() == value.alignment() == Qt.AlignmentFlag.AlignCenter
+            assert abs(heading.mapTo(window, heading.rect().center()).x()
+                       - value.mapTo(window, value.rect().center()).x()) <= 1
+    window.stackedWidget.deleteLater()
+    window.deleteLater()

@@ -316,10 +316,18 @@ class FlowLayout(QLayout):
 
         if not testOnly:
             rx, ry = rect.x(), rect.y()
+            row_bounds = {}
+            if self.alignment() & Qt.AlignmentFlag.AlignHCenter:
+                for x, y, w, _ in geom_array:
+                    left = row_bounds.get(y, (x, x))[0]
+                    row_bounds[y] = (left, x + w)
 
             # Set geometry for visible items
             for idx, item in enumerate(visible_items):
                 x, y, w, h = geom_array[idx]
+                if y in row_bounds:
+                    left, right = row_bounds[y]
+                    x += max(0, (rect.width() - (right - left)) // 2) - left
                 item.setGeometry(QRect(x + rx, y + ry, w, h))
 
             # Hide invisible items
@@ -865,6 +873,8 @@ class NavLabel(QLabel):
             super().mousePressEvent(event)
 
 class AutoHideScrollArea(QScrollArea):
+    viewportResized = Signal()
+
     def __init__(
         self,
         theme,
@@ -1036,7 +1046,13 @@ class AutoHideScrollArea(QScrollArea):
             self._h_hide_timer.start(self.hide_delay_ms)
 
     def wheelEvent(self, event: QWheelEvent) -> None:
-        if self._v_scrollbar.maximum() == 0 and self._h_scrollbar.maximum() > 0:
+        widget = self.widget()
+        horizontal_library = widget is not None and widget.property(
+            "library_layout_mode"
+        ) in {"horizontal", "horizontal_top"}
+        if self._h_scrollbar.maximum() > 0 and (
+            horizontal_library or self._v_scrollbar.maximum() == 0
+        ):
             self._h_scrollbar.event(event)
             return
         super().wheelEvent(event)
@@ -1047,6 +1063,8 @@ class AutoHideScrollArea(QScrollArea):
 
         if event.type() == QEvent.Type.Resize:
             self._update_scroll_needed()
+            if obj == self.viewport():
+                self.viewportResized.emit()
         elif obj == self._v_scrollbar:
             if event.type() == QEvent.Type.Enter:
                 if self._scroll_needed:

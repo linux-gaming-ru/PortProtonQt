@@ -2245,8 +2245,8 @@ msgstr "Alle"
 msgid "Display Filter:"
 msgstr "Anzeigefilter:"
 
-msgid "Only Installed"
-msgstr "Nur installierte"
+msgid "Show only installed games"
+msgstr "Nur installierte Spiele anzeigen"
 
 msgid "Detailed"
 msgstr "Detailliert"
@@ -2360,6 +2360,9 @@ msgstr "Runtime-Download deaktivieren"
 
 msgid "Add to Steam compatibility tools"
 msgstr "Zu den Steam-Kompatibilitätswerkzeugen hinzufügen"
+
+msgid "Disable Steam Proton scanning"
+msgstr ""
 
 msgid "Download WINE/Proton to Steam"
 msgstr "Lade WINE/Proton zu Steam herunter"

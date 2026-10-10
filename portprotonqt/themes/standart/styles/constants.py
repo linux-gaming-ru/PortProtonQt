@@ -43,6 +43,7 @@ GAME_CARD_LIST = {
     "cover_radius": 8,
     "border_radius": 18,
 }
+autoinstallColumnStretches = (4, 2, 2)
 GAME_CARD_GRID = {
     "extra_margin": 20,
     "spacing": 5,
@@ -64,7 +65,7 @@ GAME_CARD_HORIZONTAL = {
 GAME_CARD_VERTICAL = {
     **GAME_CARD_LIST,
     "layout_margins": (0, 0, 0, 0),
-    "layout_spacing": 0,
+    "layout_spacing": 4,
     "header_height": 40,
     "header_margins": (4, 0, 4, 0),
     "header_spacing": 12,
@@ -165,6 +166,7 @@ color_separator = "#7f7f7f"
 color_scrollbar_bg = "rgba(20, 20, 20, 0.30)"
 color_scrollbar_handle = "#bebebe"
 border_radius_scroll = "5px"
+scrollbar_handle_min_height = "30px"
 
 # === Slider ===
 color_slider_handle = "#bebebe"
@@ -270,6 +272,7 @@ DETAIL_COMPACT = {
     "width": 1280,
     "cover_image_size": 108,
     "content_spacing": 15,
+    "buttons_bottom_spacing": 20,
     "header_spacing": 16,
     "title_margins": (0, 0, 0, 0),
     "description_margins": (3, 3, 3, 3),
@@ -359,3 +362,6 @@ GAME_CARD_ANIMATION = {
     "detail_page_easing_curve": "OutCubic",
     "detail_page_easing_curve_exit": "InCubic",
 }
+
+WINETRICKS_CHECK_COLUMN_WIDTH = 80
+WINETRICKS_ROW_HEIGHT = 36

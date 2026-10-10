@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PortProtonQt 0.1.1\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-05 17:37+0500\n"
+"POT-Creation-Date: 2026-10-10 12:29+0500\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -2143,7 +2143,7 @@ msgstr ""
 msgid "Display Filter:"
 msgstr ""
 
-msgid "Only Installed"
+msgid "Show only installed games"
 msgstr ""
 
 msgid "Detailed"
@@ -2255,6 +2255,9 @@ msgid "Disable runtime download"
 msgstr ""
 
 msgid "Add to Steam compatibility tools"
+msgstr ""
+
+msgid "Disable Steam Proton scanning"
 msgstr ""
 
 msgid "Download WINE/Proton to Steam"
@@ -2578,4 +2581,3 @@ msgstr ""
 #, python-brace-format
 msgid "Failed to delete prefix: {}"
 msgstr ""
-

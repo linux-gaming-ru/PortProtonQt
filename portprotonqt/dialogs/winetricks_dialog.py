@@ -6,7 +6,7 @@ from typing import cast, TYPE_CHECKING
 from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QTextEdit, QTabWidget,
     QTableWidget, QHeaderView, QTableWidgetItem, QAbstractItemView,
-    QStackedWidget, QWidget, QMessageBox
+    QStackedWidget, QWidget, QMessageBox, QCheckBox
 )
 from PySide6.QtCore import Qt, QProcess, QProcessEnvironment
 
@@ -109,7 +109,7 @@ class WinetricksDialog(DraggableDialog):
         self.tab_widget = QTabWidget()
         self.tab_widget.setStyleSheet(self.theme.GETWINE_WINDOW_STYLE + self.theme.TAB_STYLE)
 
-        table_base_style = self.theme.WINETRICKS_TABBLE_STYLE + self.theme.SCROLL_STYLE + self.theme.CHECKBOX_STYLE
+        table_base_style = self.theme.GETWINE_WINDOW_STYLE + self.theme.SCROLL_STYLE + self.theme.CHECKBOX_STYLE
 
         self.dll_table = QTableWidget()
         self.dll_table.setAlternatingRowColors(True)
@@ -120,7 +120,8 @@ class WinetricksDialog(DraggableDialog):
         self.dll_table.setColumnCount(3)
         self.dll_table.setHorizontalHeaderLabels([_("Set"), _("Libraries"), _("Information")])
         self.dll_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
-        self.dll_table.horizontalHeader().resizeSection(0, 50)
+        self.dll_table.horizontalHeader().resizeSection(0, self.theme.WINETRICKS_CHECK_COLUMN_WIDTH)
+        self.dll_table.verticalHeader().setDefaultSectionSize(self.theme.WINETRICKS_ROW_HEIGHT)
         self.dll_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.dll_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.dll_table.setStyleSheet(table_base_style)
@@ -152,7 +153,8 @@ class WinetricksDialog(DraggableDialog):
         self.fonts_table.setColumnCount(3)
         self.fonts_table.setHorizontalHeaderLabels([_("Set"), _("Fonts"), _("Information")])
         self.fonts_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
-        self.fonts_table.horizontalHeader().resizeSection(0, 50)
+        self.fonts_table.horizontalHeader().resizeSection(0, self.theme.WINETRICKS_CHECK_COLUMN_WIDTH)
+        self.fonts_table.verticalHeader().setDefaultSectionSize(self.theme.WINETRICKS_ROW_HEIGHT)
         self.fonts_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.fonts_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.fonts_table.setStyleSheet(table_base_style)
@@ -184,7 +186,8 @@ class WinetricksDialog(DraggableDialog):
         self.settings_table.setColumnCount(3)
         self.settings_table.setHorizontalHeaderLabels([_("Set"), _("Settings"), _("Information")])
         self.settings_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
-        self.settings_table.horizontalHeader().resizeSection(0, 50)
+        self.settings_table.horizontalHeader().resizeSection(0, self.theme.WINETRICKS_CHECK_COLUMN_WIDTH)
+        self.settings_table.verticalHeader().setDefaultSectionSize(self.theme.WINETRICKS_ROW_HEIGHT)
         self.settings_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.settings_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.settings_table.setStyleSheet(table_base_style)
@@ -206,6 +209,13 @@ class WinetricksDialog(DraggableDialog):
         self.settings_container.addWidget(settings_preloader_container)
         self.settings_container.addWidget(self.settings_table)
         self.tab_widget.addTab(self.settings_container, _("Settings"))
+
+        for table in (self.dll_table, self.fonts_table, self.settings_table):
+            table.currentCellChanged.connect(
+                lambda row, *_previous, table=table: table.setFocusProxy(
+                    cast(QCheckBox, table.cellWidget(row, 0).findChild(QCheckBox))
+                ) if table.cellWidget(row, 0) else None
+            )
 
         self.containers = {
             "dlls": self.dll_container,
@@ -359,14 +369,19 @@ class WinetricksDialog(DraggableDialog):
             if '/' in name or '\\' in name or name.lower() in ('executing', 'using', 'warning:') or name.endswith(':'):
                 continue
 
-            checked = Qt.CheckState.Checked if name in installed else Qt.CheckState.Unchecked
+            checked = name in installed
 
             row = table.rowCount()
             table.insertRow(row)
 
-            checkbox = QTableWidgetItem()
-            checkbox.setCheckState(checked)
-            table.setItem(row, 0, checkbox)
+            checkbox_widget = QWidget()
+            checkbox_layout = QHBoxLayout(checkbox_widget)
+            checkbox_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            checkbox_layout.setContentsMargins(0, 0, 0, 0)
+            checkbox = QCheckBox()
+            checkbox.setChecked(checked)
+            checkbox_layout.addWidget(checkbox)
+            table.setCellWidget(row, 0, checkbox_widget)
 
             name_item = QTableWidgetItem(name)
             table.setItem(row, 1, name_item)
@@ -379,8 +394,9 @@ class WinetricksDialog(DraggableDialog):
         selected = []
         for table in [self.dll_table, self.fonts_table, self.settings_table]:
             for row in range(table.rowCount()):
-                checkbox = table.item(row, 0)
-                if checkbox is not None and checkbox.checkState() == Qt.CheckState.Checked:
+                checkbox_widget = table.cellWidget(row, 0)
+                checkbox = checkbox_widget.findChild(QCheckBox) if checkbox_widget else None
+                if checkbox is not None and checkbox.isChecked():
                     name_item = table.item(row, 1)
                     if name_item is not None:
                         name = name_item.text()

@@ -6,14 +6,46 @@ from typing import Any, cast
 from unittest.mock import MagicMock
 
 import pytest
-from PySide6.QtCore import QSize
-from PySide6.QtGui import QPixmap
-from PySide6.QtWidgets import QApplication, QScrollArea, QWidget
+from PySide6.QtCore import QRect, QSize, Qt
+from PySide6.QtGui import QColor, QPixmap
+from PySide6.QtWidgets import QApplication, QHBoxLayout, QScrollArea, QVBoxLayout, QWidget
 
 from portprotonqt.custom_widgets import FlowLayout, compute_layout
-from portprotonqt.game_card import GameCard
+from portprotonqt.game_card import AnimatedCard, GameCard
 from portprotonqt.game_library_manager import GameLibraryManager
 from portprotonqt.theme_manager import load_theme
+from portprotonqt.config import ui_config
+
+
+@pytest.mark.parametrize("theme_name", ["standart", "classic-light"])
+def test_list_rows_alternate_after_filtering(theme_name: str) -> None:
+    app = QApplication.instance() or QApplication([])
+    parent = QWidget()
+    layout = QVBoxLayout(parent)
+    layout.setContentsMargins(0, 7, 0, 0)
+    layout.setSpacing(4)
+    theme = load_theme(theme_name)
+    colors = (theme.color_bg, theme.color_surface_elevated)
+    cards = []
+    for _ in range(3):
+        card = cast(Any, AnimatedCard(parent))
+        card.list_layout = True
+        card.theme = theme
+        card.animations = SimpleNamespace(paint_border=lambda painter: None)
+        card.setFixedSize(100, 80)
+        layout.addWidget(card)
+        cards.append(card)
+    layout.activate()
+    for index, card in enumerate(cards):
+        assert card.grab().toImage().pixelColor(50, 40) == QColor(
+            colors[index % 2]
+        )
+    cards[0].hide()
+    layout.invalidate()
+    layout.activate()
+    assert cards[1].grab().toImage().pixelColor(50, 40) == QColor(colors[0])
+    parent.close()
+    app.processEvents()
 
 
 def test_flow_layout_preserves_rows_and_centering() -> None:
@@ -24,6 +56,28 @@ def test_flow_layout_preserves_rows_and_centering() -> None:
     assert height == 290
     assert compute_layout([], 320, 20, 1.0) == ([], 0)
     assert compute_layout([(100, 120)], 40, 20, 1.0) == ([[20, 0, 100, 120]], 120)
+
+
+@pytest.mark.parametrize("centered", [False, True])
+def test_flow_layout_wrapped_row_alignment(centered: bool) -> None:
+    app = QApplication.instance() or QApplication([])
+    parent = QWidget()
+    layout = FlowLayout(parent)
+    if centered:
+        layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+    widgets = []
+    for width in (100, 100, 100):
+        widget = QWidget(parent)
+        widget.setFixedSize(width, 30)
+        layout.addWidget(widget)
+        widget.show()
+        widgets.append(widget)
+    layout.setGeometry(QRect(0, 0, 300, 100))
+    assert widgets[0].x() == 40
+    assert widgets[1].x() == 160
+    assert widgets[2].x() == (100 if centered else 40)
+    parent.close()
+    app.processEvents()
 
 
 def test_flow_minimum_size_tracks_fixed_hidden_and_removed_widgets() -> None:
@@ -117,6 +171,44 @@ def test_card_resize_reuses_loaded_cover_and_animation() -> None:
     GameCard.update_card_size(card, 400)
     card._load_cover_image.assert_called_once()
     assert card.update_scale.call_count == 4
+    app.processEvents()
+
+
+@pytest.mark.parametrize("orientation", ["horizontal", "vertical"])
+def test_horizontal_cards_fit_viewport_height(
+    tmp_config_dir: Path, monkeypatch: pytest.MonkeyPatch, orientation: str,
+) -> None:
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setattr(ui_config, "get_horizontal_card_orientation", lambda _: orientation)
+    scroll = QScrollArea()
+    scroll.setWidgetResizable(True)
+    parent = QWidget()
+    parent.setProperty("library_layout_mode", "horizontal")
+    layout = QHBoxLayout(parent)
+    theme = load_theme("standart")
+    card = GameCard("Test", "", "", "", "", "", "", "", "", "", 0, 0,
+                    "steam", select_callback=lambda _: None, theme=theme, parent=parent)
+    layout.addWidget(card)
+    scroll.setWidget(parent)
+    manager = cast(Any, SimpleNamespace(
+        layout_mode="horizontal", gamesScrollArea=scroll, gamesListLayout=layout,
+        game_card_cache={("Test", ""): card}, card_width=250, theme=theme,
+    ))
+    scroll.show()
+    for height in (600, 300, 200, 600):
+        scroll.resize(800, height)
+        app.processEvents()
+        GameLibraryManager._fit_horizontal_cards(manager)
+        layout.activate()
+        app.processEvents()
+        margins = layout.contentsMargins()
+        assert card.height() + margins.top() + margins.bottom() <= scroll.viewport().height()
+        assert card.nameLabel.geometry().bottom() < card.height()
+        assert card.nameLabel.height() >= card.nameLabel.sizeHint().height()
+        assert card.base_card_width <= manager.card_width
+    assert card.base_card_width == manager.card_width
+    card.stop_background_activity()
+    scroll.close()
     app.processEvents()
 
 

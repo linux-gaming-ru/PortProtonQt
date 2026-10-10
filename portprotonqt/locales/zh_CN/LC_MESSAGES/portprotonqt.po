@@ -2218,9 +2218,8 @@ msgstr "全部"
 msgid "Display Filter:"
 msgstr "显示筛选："
 
-#, fuzzy
-msgid "Only Installed"
-msgstr "已安装"
+msgid "Show only installed games"
+msgstr "仅显示已安装的游戏"
 
 msgid "Detailed"
 msgstr "详细"
@@ -2343,6 +2342,9 @@ msgstr "禁用运行时下载"
 
 msgid "Add to Steam compatibility tools"
 msgstr "添加到 Steam 兼容工具"
+
+msgid "Disable Steam Proton scanning"
+msgstr ""
 
 msgid "Download WINE/Proton to Steam"
 msgstr "将 WINE/Proton 下载到 Steam"

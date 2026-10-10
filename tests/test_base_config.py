@@ -265,3 +265,13 @@ def test_legacy_cache_merges_into_existing_cache(
     assert (current_cache / "images" / "cover.jpg").read_text(encoding="utf-8") == "cover"
     assert (current_cache / "steam_apps.json").read_text(encoding="utf-8") == "apps"
     assert not legacy_cache.exists()
+
+
+def test_disable_steam_proton_scanning_persists(tmp_path: Path) -> None:
+    config_file = tmp_path / "ui.conf"
+    config = UIConfig(config_file=config_file)
+    assert config.get_disable_steam_proton_scanning() is False
+    config.set_disable_steam_proton_scanning(True)
+    assert UIConfig(config_file=config_file).get_disable_steam_proton_scanning() is True
+    config.set_disable_steam_proton_scanning(False)
+    assert UIConfig(config_file=config_file).get_disable_steam_proton_scanning() is False

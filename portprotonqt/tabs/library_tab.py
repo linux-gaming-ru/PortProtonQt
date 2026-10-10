@@ -78,7 +78,7 @@ class MainWindowLibraryTabMixin(_MainWindowTypingBase):
         combo.view().window().setAttribute(
             Qt.WidgetAttribute.WA_TranslucentBackground
         )
-        combo.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         combo.addItems(labels)
         combo.setStyleSheet(self.theme.COMBOBOX_STYLE + self.theme.SCROLL_STYLE)
         combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -353,15 +353,15 @@ class MainWindowLibraryTabMixin(_MainWindowTypingBase):
         self.gamesDisplayCombo.currentIndexChanged.connect(self._on_library_filter_changed)
         self.gamesDisplayCombo.activated.connect(self._delay_library_controls_hover_close)
 
-        self.onlyInstalledCheckBox = QCheckBox(_("Only Installed"))
+        self.onlyInstalledCheckBox = QCheckBox(_("Show only installed games"))
         self.onlyInstalledCheckBox.setStyleSheet(self.theme.CHECKBOX_STYLE)
         self.onlyInstalledCheckBox.setChecked(only_installed)
         self.onlyInstalledCheckBox.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self._register_gamepad_tooltip(self.onlyInstalledCheckBox, _("Only Installed"))
+        self._register_gamepad_tooltip(self.onlyInstalledCheckBox, _("Show only installed games"))
         self.onlyInstalledCheckBox.toggled.connect(self._on_only_installed_changed)
 
-        controls_layout.addWidget(self.gamesDisplayCombo, 0, 1)
-        controls_layout.addWidget(self.onlyInstalledCheckBox, 1, 1, 1, 2)
+        controls_layout.addWidget(self.gamesDisplayCombo, 1, 0)
+        controls_layout.addWidget(self.onlyInstalledCheckBox, 4, 0)
         self.onlyInstalledCheckBox.setVisible(
             display_filter not in ("steam", "portproton")
         )
@@ -379,7 +379,7 @@ class MainWindowLibraryTabMixin(_MainWindowTypingBase):
             self.gamesBadgeViewCombo.setEnabled(False)
         self.gamesBadgeViewCombo.currentIndexChanged.connect(self._on_library_badge_view_changed)
         self.gamesBadgeViewCombo.activated.connect(self._delay_library_controls_hover_close)
-        controls_layout.addWidget(self.gamesBadgeViewCombo, 0, 2)
+        controls_layout.addWidget(self.gamesBadgeViewCombo, 2, 0)
 
         self.library_layout_keys = [
             "theme", "grid", "list", "vertical", "horizontal",
@@ -409,7 +409,7 @@ class MainWindowLibraryTabMixin(_MainWindowTypingBase):
         self.gamesLayoutCombo.activated.connect(
             self._delay_library_controls_hover_close
         )
-        controls_layout.addWidget(self.gamesLayoutCombo, 0, 3)
+        controls_layout.addWidget(self.gamesLayoutCombo, 3, 0)
 
     def _delay_library_controls_hover_close(self, _index: int = -1) -> None:
         self._library_controls_hover_close_delayed = True

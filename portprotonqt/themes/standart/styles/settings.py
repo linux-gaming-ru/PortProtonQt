@@ -1,5 +1,10 @@
 from .constants import *
 
+SETTINGS_DESCRIPTION_HTML = (
+    f'<span style="color: {color_disabled_text}; font-size: {font_size_value};">'
+    '{description}</span>'
+)
+
 SETTINGS_FRAME_STYLE = f"""
     QFrame {{
         background: {color_bg};

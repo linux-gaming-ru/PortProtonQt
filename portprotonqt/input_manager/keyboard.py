@@ -448,9 +448,9 @@ class KeyboardInputMixin(InputMixin):
         for attr_name in (
             "gamesSortCombo",
             "gamesDisplayCombo",
-            "onlyInstalledCheckBox",
             "gamesBadgeViewCombo",
             "gamesLayoutCombo",
+            "onlyInstalledCheckBox",
         ):
             widget = getattr(self._parent, attr_name, None)
             if isinstance(widget, QWidget) and widget.isVisible() and widget.isEnabled():
@@ -516,13 +516,14 @@ class KeyboardInputMixin(InputMixin):
         filter_widgets = self._get_library_filter_widgets() if current_index == 0 else []
         if focused in filter_widgets:
             if code == PAD_DPAD_X:
-                widget_index = filter_widgets.index(cast(QWidget, focused))
-                next_index = widget_index + (1 if value > 0 else -1)
-                if 0 <= next_index < len(filter_widgets):
-                    filter_widgets[next_index].setFocus(Qt.FocusReason.OtherFocusReason)
                 return True
             if code != PAD_DPAD_Y:
                 return False
+            widget_index = filter_widgets.index(cast(QWidget, focused))
+            next_index = widget_index + (1 if value > 0 else -1)
+            if 0 <= next_index < len(filter_widgets):
+                filter_widgets[next_index].setFocus(Qt.FocusReason.OtherFocusReason)
+                return True
             if value < 0:
                 controls_button = getattr(self._parent, "libraryControlsButton", None)
                 if isinstance(controls_button, QWidget):

@@ -745,14 +745,14 @@ def _extract_exe_name(line: str) -> str:
 
 
 def _extract_exe_path(line: str) -> str:
-    match = re.search(r"['\"]([^'\"]+\.exe)['\"]", line.replace("\\", "/"), re.IGNORECASE)
-    if not match:
-        return ""
-    path = match.group(1)
-    drive_index = path.lower().find("drive_c/")
-    if drive_index < 0:
-        return ""
-    return path[drive_index:].lower()
+    paths = re.findall(r"['\"]([^'\"]+\.exe)['\"]", line.replace("\\", "/"), re.IGNORECASE)
+    for path in paths:
+        drive_index = path.lower().find("drive_c/")
+        if drive_index >= 0:
+            return path[drive_index:].lower()
+        if "/" in path and not path.startswith("$"):
+            return path.lower()
+    return ""
 
 
 def _path_matches_autoinstall(exec_path: str, autoinstall_path: str) -> bool:
