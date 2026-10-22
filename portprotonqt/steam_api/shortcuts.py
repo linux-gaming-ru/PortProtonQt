@@ -1,6 +1,7 @@
 """Steam shortcuts management for PortProtonQt."""
 
 import base64
+import glob
 import os
 import random
 import re
@@ -16,7 +17,10 @@ import requests
 import vdf
 import websocket
 
-from portprotonqt.config.portproton import get_custom_icon_path
+from PySide6.QtGui import QIcon, QImageReader
+from PySide6.QtCore import QStandardPaths
+
+from portprotonqt.config.portproton import get_custom_icon_path, parse_desktop_entry
 from portprotonqt.logger import get_logger
 from portprotonqt.downloader import Downloader
 from portprotonqt.icon_extractor import generate_thumbnail
@@ -171,7 +175,7 @@ def call_steam_api(js_cmd: str, *args) -> dict | None:
 def _parse_exec_line(exec_line: str) -> tuple[str | None, str]:
     """Parse exec_line to extract executable path."""
     try:
-        exe_path = extract_exec_target_path(exec_line)
+        exe_path = exec_line if exec_line.startswith("native://") else extract_exec_target_path(exec_line)
         if not exe_path:
             logger.error("Failed to parse exec_line: %s", exec_line)
             return None, "Failed to parse executable command: no target path"
@@ -224,6 +228,33 @@ export LD_PRELOAD=
     return script_path, ""
 
 
+def _resolve_desktop_icon(source: str) -> QIcon:
+    """Resolve a desktop icon through Qt, then standard XDG icon directories."""
+    if not source:
+        return QIcon()
+    if os.path.isfile(source):
+        return QIcon(source)
+    icon = QIcon.fromTheme(source)
+    if not icon.isNull() or os.path.basename(source) != source:
+        return icon
+    formats = {bytes(value.data()).decode("ascii") for value in QImageReader.supportedImageFormats()}
+    filename = glob.escape(source)
+    if Path(source).suffix.lstrip(".").lower() not in formats:
+        filename += ".*"
+    roots = QStandardPaths.standardLocations(QStandardPaths.StandardLocation.GenericDataLocation)
+    patterns = (f"icons/hicolor/*/*/{filename}", f"icons/*/*/*/{filename}",
+                f"icons/{filename}", f"pixmaps/{filename}")
+    for root in roots:
+        for pattern in patterns:
+            for path in sorted(Path(root).glob(pattern)):
+                if not path.is_file() or path.suffix.lstrip(".").lower() not in formats:
+                    continue
+                icon = QIcon(str(path))
+                if not icon.isNull():
+                    return icon
+    return QIcon()
+
+
 def _generate_icon(exe_path: str, portproton_dir: str) -> str:
     """Generate thumbnail icon for the game."""
     safe_game_name = re.sub(r'[<>:"/\\|?*]', '_', os.path.basename(exe_path))
@@ -236,7 +267,13 @@ def _generate_icon(exe_path: str, portproton_dir: str) -> str:
         if os.path.exists(generated_icon_path):
             logger.info(f"Reusing existing thumbnail: {generated_icon_path}")
         else:
-            success = generate_thumbnail(exe_path, generated_icon_path, size=128, force_resize=True)
+            if exe_path.endswith(".desktop"):
+                entry = parse_desktop_entry(exe_path) or {}
+                source = entry.get("Icon", "")
+                icon = _resolve_desktop_icon(source)
+                success = icon.pixmap(128, 128).save(generated_icon_path)
+            else:
+                success = generate_thumbnail(exe_path, generated_icon_path, size=128, force_resize=True)
             if not success or not os.path.exists(generated_icon_path):
                 logger.warning(f"Failed to generate thumbnail for {exe_path}")
                 return ""
@@ -424,7 +461,8 @@ def add_to_steam(
         return (False, error)
 
     is_store_uri = exe_path.startswith(("gog://launch/", "egs://launch/"))
-    if not is_store_uri and not os.path.exists(exe_path):
+    local_path = exe_path.removeprefix("native://")
+    if not is_store_uri and not os.path.exists(local_path):
         logger.error(f"Executable not found: {exe_path}")
         return (False, f"Executable file not found: {exe_path}")
 
@@ -438,8 +476,8 @@ def add_to_steam(
     if error:
         return (False, error)
 
-    custom_icon = get_custom_icon_path(script_path) or get_custom_icon_path(exe_path)
-    icon_source = custom_icon or icon_source or (None if is_store_uri else exe_path)
+    custom_icon = get_custom_icon_path(script_path) or get_custom_icon_path(local_path)
+    icon_source = custom_icon or icon_source or (None if is_store_uri else local_path)
     icon_path = custom_icon or (_generate_icon(icon_source, portproton_dir) if icon_source else "")
 
     steam_home = get_steam_home()

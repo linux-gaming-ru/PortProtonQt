@@ -69,7 +69,7 @@ def test_game_card_context_menu_does_not_block_gamepad_polling(monkeypatch) -> N
     assert app is not None
 
 
-@pytest.mark.parametrize("target", ["game.exe", "gog://launch/123", "egs://launch/game-id"])
+@pytest.mark.parametrize("target", ["game.exe", "gog://launch/123", "egs://launch/game-id", "native"])
 def test_add_to_steam_for_all_accounts(
     tmp_path: Path,
     monkeypatch: Any,
@@ -77,8 +77,10 @@ def test_add_to_steam_for_all_accounts(
 ) -> None:
     steam_home = tmp_path / "steam"
     user_ids = ("76561197960265729", "76561197960265730")
-    executable = tmp_path / "game.exe"
+    executable = tmp_path / ("Hytale Launcher.desktop" if target == "native" else "game.exe")
     executable.touch()
+    if target == "native":
+        target = "native://" + str(executable)
     monkeypatch.setattr(steam_shortcuts, "get_steam_home", lambda: steam_home)
     monkeypatch.setattr(
         steam_shortcuts,
@@ -112,6 +114,9 @@ def test_add_to_steam_for_all_accounts(
     )
 
     assert result is True
+    if target.startswith("native://"):
+        script = tmp_path / "steam_scripts" / "Test Game.sh"
+        assert "'" + target + "'" in script.read_text()
     generate_icon.assert_not_called()
     assert custom_icon_lookup.call_args_list[0].args == (
         str(tmp_path / "steam_scripts" / "Test Game.sh"),
@@ -1568,7 +1573,8 @@ def test_local_shortcut_name_keeps_metadata_on_write_failure(
     assert list(game_dir.iterdir()) == [metadata]
 
 
-@pytest.mark.parametrize("target", ["game.exe", "gog://launch/123", "egs://launch/game-id"])
+@pytest.mark.parametrize("target", ["game.exe", "gog://launch/123", "egs://launch/game-id",
+                                    "native:///usr/share/applications/com.hypixel.HytaleLauncher.desktop"])
 @pytest.mark.parametrize("batch,result,expected", [
     (True, (True, "restart"), (0, 0)),
     (False, (True, "Game added to Steam via CEF API"), (0, 0)),
@@ -1582,7 +1588,8 @@ def test_steam_addition_dialogs(monkeypatch: Any, batch: bool, result: tuple[boo
     manager = object.__new__(ContextMenuManager)
     manager._batch_action = batch
     manager._check_portproton = lambda: True
-    monkeypatch.setattr(manager, "_get_exec_line", lambda game_name, exec_line: exec_line)
+    resolve_exec = MagicMock(side_effect=lambda game_name, exec_line: exec_line)
+    monkeypatch.setattr(manager, "_get_exec_line", resolve_exec)
     if target == "game.exe":
         monkeypatch.setattr(manager, "_parse_exe_path", lambda exec_line, game_name: exec_line)
     manager.signals = MagicMock()
@@ -1591,7 +1598,11 @@ def test_steam_addition_dialogs(monkeypatch: Any, batch: bool, result: tuple[boo
     add_shortcut = MagicMock(return_value=result)
     monkeypatch.setattr("portprotonqt.context_menu_manager.add_to_steam", add_shortcut)
     manager.add_to_steam("Game", target, "cover")
-    if target != "game.exe":
+    if target.startswith("native://"):
+        resolve_exec.assert_not_called()
+        api.get_launch_target.assert_not_called()
+        add_shortcut.assert_called_once_with("Game", target, "cover")
+    elif target != "game.exe":
         api.get_launch_target.assert_called_once_with(target.rsplit("/", 1)[-1])
         add_shortcut.assert_called_once_with("Game", target, "cover", "installed.exe")
     assert manager.signals.show_info_dialog.emit.call_count == expected[0]
@@ -2015,7 +2026,7 @@ def test_game_folder_import_completion_refreshes_completed_games(
 
 @pytest.mark.parametrize("edit_mode", [False, True])
 def test_add_game_file_picker_offers_folder_selection_only_for_adding(
-    monkeypatch: pytest.MonkeyPatch, edit_mode: bool,
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, edit_mode: bool,
 ) -> None:
     from PySide6.QtWidgets import QHBoxLayout
     import portprotonqt.dialogs.base as module
@@ -2023,7 +2034,8 @@ def test_add_game_file_picker_offers_folder_selection_only_for_adding(
 
     app = QApplication.instance() or QApplication([])
     explorer = SimpleNamespace(file_signal=MagicMock(), button_layout=QHBoxLayout(), show=MagicMock())
-    monkeypatch.setattr(explorer_module, "FileExplorer", lambda *_args, **_kwargs: explorer)
+    create_explorer = MagicMock(return_value=explorer)
+    monkeypatch.setattr(explorer_module, "FileExplorer", create_explorer)
     monkeypatch.setattr(module, "AutoSizeButton", lambda text, **_kwargs: QPushButton(text))
     dialog = SimpleNamespace(
         last_exe_path=None, edit_mode=edit_mode, onExeSelected=MagicMock(),
@@ -2033,6 +2045,17 @@ def test_add_game_file_picker_offers_folder_selection_only_for_adding(
 
     module.AddGameDialog.browseExe(cast(Any, dialog))
 
+    file_filter = create_explorer.call_args.kwargs["file_filter"]
+    assert file_filter("/game.exe")
+    for filename in ("game", "game.AppImage", "game.sh", "game.txt"):
+        path = tmp_path / filename
+        path.touch()
+        path.chmod(0o644)
+        assert not file_filter(str(path))
+        path.chmod(0o755)
+        assert file_filter(str(path))
+    assert not file_filter(str(tmp_path))
+    assert not file_filter(str(tmp_path / "missing"))
     explorer.file_signal.file_selected.connect.assert_called_once_with(dialog.onExeSelected)
     assert explorer.button_layout.count() == int(not edit_mode)
     if not edit_mode:
@@ -2683,3 +2706,59 @@ def test_sgdb_cloud_urls_use_proxy(
     api.fetch_sgdb_cover_async("Portal 2", completed.append, image_type)
 
     assert completed == [f"https://deckyloader.ru/sgdb-cdn/{image_type}/asset.png"]
+
+
+@pytest.mark.parametrize("themed", [False, True])
+def test_native_steam_icon_uses_desktop_icon(tmp_path: Path, monkeypatch: Any, themed: bool) -> None:
+    from PySide6.QtGui import QPixmap
+
+    app = QApplication.instance() or QApplication([])
+    image = tmp_path / "pixmaps/hytale-launcher.png"
+    image.parent.mkdir()
+    pixmap = QPixmap(32, 32)
+    pixmap.fill(Qt.GlobalColor.red)
+    assert pixmap.save(str(image))
+    source = tmp_path / "hytale.desktop"
+    icon = "hytale-launcher" if themed else str(image)
+    source.write_text(f"[Desktop Entry]\nType=Application\nName=Hytale\nIcon={icon}\nExec=hytale-launcher\n")
+    monkeypatch.setattr(steam_shortcuts.QIcon, "fromTheme", lambda _name: QIcon())
+    monkeypatch.setattr(steam_shortcuts.QStandardPaths, "standardLocations", lambda _location: [str(tmp_path)])
+    generated = steam_shortcuts._generate_icon(str(source), str(tmp_path))
+    assert generated
+    assert not QPixmap(generated).isNull()
+    assert app is not None
+
+
+@pytest.mark.parametrize("relative", [
+    "pixmaps/hytale.xpm", "icons/hytale.png", "icons/hicolor/128x128/apps/hytale.png",
+    "icons/hicolor/scalable/apps/hytale.svg", "icons/other/64x64/games/hytale.png",
+])
+def test_desktop_icon_searches_xdg_formats(tmp_path: Path, monkeypatch: Any, relative: str) -> None:
+    from PySide6.QtGui import QPixmap
+
+    app = QApplication.instance() or QApplication([])
+    image = tmp_path / relative
+    image.parent.mkdir(parents=True)
+    if image.suffix == ".svg":
+        image.write_text('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="red"/></svg>')
+    else:
+        pixmap = QPixmap(32, 32)
+        pixmap.fill(Qt.GlobalColor.red)
+        assert pixmap.save(str(image))
+    monkeypatch.setattr(steam_shortcuts.QIcon, "fromTheme", lambda _name: QIcon())
+    monkeypatch.setattr(steam_shortcuts.QStandardPaths, "standardLocations", lambda _location: [str(tmp_path)])
+    assert not steam_shortcuts._resolve_desktop_icon("hytale").pixmap(32, 32).isNull()
+    assert not steam_shortcuts._resolve_desktop_icon(image.name).pixmap(32, 32).isNull()
+    assert steam_shortcuts._resolve_desktop_icon("missing").isNull()
+    assert app is not None
+
+
+def test_native_cached_metadata_does_not_search_desktop_directory(monkeypatch: Any) -> None:
+    import portprotonqt.steam_api.api as api
+
+    monkeypatch.setattr(api, "_get_cached_data_and_index", lambda *_args: ([{"appid": 1}], {}))
+    search = MagicMock(return_value=None)
+    monkeypatch.setattr(api, "search_app", search)
+    assert api.get_cached_steam_game_info("Hytale Launcher", "native:///usr/share/applications/com.hypixel.HytaleLauncher.desktop") == {}
+    assert search.call_count == 1
+    assert search.call_args.args[0] == "Hytale Launcher"

@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import MagicMock
 
-from pytest import MonkeyPatch
+from pytest import MonkeyPatch, mark
 from PySide6.QtWidgets import QWidget
 
 import portprotonqt.detail_pages.utils as detail_utils
@@ -701,3 +701,23 @@ def test_steam_with_appid_shows_edit_not_add(monkeypatch) -> None:
     add_count = sum(1 for t in button_texts if "Add" in t or "Добавить" in t)
     assert edit_count == 1
     assert add_count == 0
+
+
+@mark.parametrize("managed", [False, True])
+def test_native_detail_folder_button_only_for_managed_games(
+    tmp_path: Path, monkeypatch: MonkeyPatch, managed: bool,
+) -> None:
+    monkeypatch.setattr("portprotonqt.detail_pages._", lambda text: text)
+    data = tmp_path / "data"
+    monkeypatch.setenv("XDG_DATA_HOME", str(data))
+    directory = data / "PortProtonQt/native_games" if managed else tmp_path / "usr/share/applications"
+    manager = _make_manager_with_shortcut_mock(has_shortcut=False, monkeypatch=monkeypatch)
+    manager._create_game_buttons_layout({
+        "game_source": "native",
+        "exec_line": "native://" + str(directory / "hytale.desktop"),
+        "name": "Hytale Launcher",
+    })
+    buttons = _get_added_buttons(manager)
+    assert "Settings" in buttons
+    assert "Create Log" in buttons
+    assert ("Open Folder" in buttons) is managed

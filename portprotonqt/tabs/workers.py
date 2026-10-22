@@ -32,6 +32,7 @@ class MainWindowWorkersMixin:
             "egs_auth_worker": None,
             "gog_library_worker": None,
             "gog_metadata_worker": None,
+            "native_library_worker": None,
             "gog_repair_worker": None,
             "gog_delete_worker": None,
             "store_dlc_worker": None,

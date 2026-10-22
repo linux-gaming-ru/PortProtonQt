@@ -1,11 +1,18 @@
-"""Unified icon extractor for NE and PE files."""
+"""Unified icon extractor for NE, PE and type-2 AppImages."""
 
 import os
+import hashlib
 import re
 import shlex
 import struct
 import io
+import subprocess
+import tarfile
+import posixpath
+import glob
 import pefile
+from PySide6.QtCore import QByteArray, QBuffer, QIODevice
+from PySide6.QtGui import QImage, QImageWriter
 from PIL import Image
 from portprotonqt.config.base import CACHE_DIR
 from portprotonqt.config.portproton import get_custom_icon_path
@@ -16,6 +23,82 @@ logger = get_logger(__name__)
 RT_ICON = 3
 RT_GROUP_ICON = 14
 THUMBNAIL_SIZE = 128
+APPIMAGE_EXTRACT_TIMEOUT = 10
+ELF_SECTION_LAYOUTS = {1: (32, "I", 46), 2: (40, "Q", 58)}
+
+
+def _read_dwarfs_icon(path: str, offset: int) -> bytes:
+    """Read an icon and resolve archive-local links without extracting to disk."""
+    filename = ".DirIcon"
+    seen: set[str] = set()
+    while filename not in seen:
+        seen.add(filename)
+        result = subprocess.run(
+            ["dwarfsextract", "-i", os.path.abspath(path), "-O", str(offset),
+             "-f", "pax", "-o", "-", "--pattern", ":" + glob.escape(filename),
+             "--skip-devices", "--skip-specials", "--log-level", "error"],
+            capture_output=True, check=True, timeout=APPIMAGE_EXTRACT_TIMEOUT,
+        )
+        with tarfile.open(fileobj=io.BytesIO(result.stdout)) as archive:
+            member = next((item for item in archive if item.name.removeprefix("./") == filename), None)
+            if member is None:
+                return b""
+            if member.issym() or member.islnk():
+                target = member.linkname
+                base = posixpath.dirname(filename) if member.issym() else ""
+                filename = posixpath.normpath(target.lstrip("/") if target.startswith("/")
+                                             else posixpath.join(base, target))
+                if filename == ".." or filename.startswith("../"):
+                    return b""
+                continue
+            if not member.isfile():
+                return b""
+            stream = archive.extractfile(member)
+            return stream.read() if stream is not None else b""
+    return b""
+
+
+def _get_appimage_icon(path: str) -> io.BytesIO | None:
+    """Read .DirIcon from a type-2 AppImage without executing its runtime."""
+    with open(path, "rb") as source:
+        header = source.read(64)
+        if len(header) < 64 or header[:4] != b"\x7fELF" or header[8:11] != b"AI\x02":
+            return None
+        layout = ELF_SECTION_LAYOUTS.get(header[4])
+        if layout is None or header[5] not in (1, 2):
+            return None
+        endian = "<" if header[5] == 1 else ">"
+        section_offset, offset_format, size_offset = layout
+        offset = struct.unpack_from(endian + offset_format, header, section_offset)[0]
+        entry_size, entry_count = struct.unpack_from(endian + "HH", header, size_offset)
+        offset += entry_size * entry_count
+        source.seek(offset)
+        magic = source.read(6)
+        if not magic.startswith(b"hsqs") and magic != b"DWARFS":
+            return None
+    try:
+        if magic == b"DWARFS":
+            data = _read_dwarfs_icon(path, offset)
+        else:
+            result = subprocess.run(
+                ["unsquashfs", "-cat", "-o", str(offset), os.path.abspath(path), ".DirIcon"],
+                capture_output=True, check=True, timeout=APPIMAGE_EXTRACT_TIMEOUT,
+            )
+            data = result.stdout
+    except OSError as error:
+        logger.warning("Cannot read AppImage icon from %s: %s", path, error)
+        return None
+    except subprocess.SubprocessError as error:
+        logger.warning("Cannot extract AppImage icon from %s: %s", path, error)
+        return None
+    image = QImage.fromData(data)
+    if image.isNull():
+        return None
+    buffer = QBuffer()
+    buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+    if not QImageWriter(buffer, QByteArray(b"PNG")).write(image):
+        return None
+    return io.BytesIO(buffer.data().data())
 
 
 def _resolve_batch_icon_target(inputfile: str) -> str | None:
@@ -54,6 +137,8 @@ def get_exe_icon_cache_path(exe_path: str) -> str:
     if custom_icon:
         return custom_icon
     icon_name = re.sub(r"[^A-Za-z0-9._-]", "_", os.path.basename(exe_path))
+    if exe_path.lower().endswith(".appimage"):
+        icon_name += "-" + hashlib.sha256(os.fsencode(os.path.abspath(exe_path))).hexdigest()
     return os.path.join(
         CACHE_DIR,
         "images",
@@ -64,7 +149,7 @@ def get_exe_icon_cache_path(exe_path: str) -> str:
 
 def generate_thumbnail(inputfile: str, outfile: str, size: int = 128, force_resize: bool = True) -> bool:
     """
-    Generates a thumbnail for an .exe file.
+    Generates a thumbnail for a Windows executable or type-2 AppImage.
 
     inputfile: the input file path
     outfile: output filename
@@ -117,6 +202,8 @@ class IconExtractor:
         """
         try:
             with open(self.file_path, "rb") as f:
+                if f.read(4) == b"\x7fELF":
+                    return _get_appimage_icon(self.file_path)
                 if not self._parse_file(f):
                     return None
 
