@@ -654,6 +654,7 @@ def get_steam_game_info_async(
 
     is_autoinstall = exec_line.startswith("autoinstall:")
     is_store_uri = exec_line.startswith(("gog://", "egs://"))
+    is_native = exec_line.startswith("native://")
 
     if game_exe.lower().endswith(('.bat', '.cmd')):
         if os.path.exists(game_exe):
@@ -675,7 +676,7 @@ def get_steam_game_info_async(
         else:
             logger.error("Command file not found: %s", game_exe)
 
-    if cached_match is not None or is_store_uri:
+    if cached_match is not None or is_store_uri or is_native:
         meta_data = {}
     elif not game_exe.lower().endswith('.exe'):
         logger.error("Invalid executable path: %s. Expected .exe", game_exe)
@@ -699,9 +700,9 @@ def get_steam_game_info_async(
         candidates.append(file_description)
     if desktop_name:
         candidates.append(desktop_name)
-    if exe_name and not is_store_uri:
+    if exe_name and not (is_store_uri or is_native):
         candidates.append(exe_name)
-    if folder_name and not is_store_uri:
+    if folder_name and not (is_store_uri or is_native):
         candidates.append(folder_name)
     candidates = filter_candidates(candidates)
     candidates = remove_duplicates(candidates)
@@ -718,6 +719,9 @@ def get_steam_game_info_async(
 
         if matching_app is None and (not steam_apps or not steam_apps_index):
             game_name = desktop_name or exe_name
+            if is_native:
+                fetch_sgdb_cover_async(game_name, lambda cover: callback({"name": game_name, "cover": cover}))
+                return
 
             def on_sgdb_cover_failure(cover: str) -> None:
                 result = _build_game_info_result(
@@ -756,6 +760,9 @@ def get_steam_game_info_async(
         game_name = desktop_name or exe_name.capitalize()
 
         if not matching_app:
+            if is_native:
+                fetch_sgdb_cover_async(game_name, lambda cover: callback({"name": game_name, "cover": cover}))
+                return
             def on_sgdb_cover_non_steam(cover: str) -> None:
                 def on_anticheat_info_non_steam(anticheat_info: dict) -> None:
                     result = _build_game_info_result(
@@ -784,6 +791,22 @@ def get_steam_game_info_async(
             cache_manager.save_json(match_key, matching_app)
 
         def on_app_info(app_info: dict | None) -> None:
+            if is_native:
+                info = app_info or {}
+                result = {"appid": appid, "name": info.get("name", game_name),
+                          "description": info.get("short_description", ""),
+                          "controller_support": info.get("controller_support", "")}
+
+                def on_native_cover(cover: str) -> None:
+                    result["cover"] = cover
+                    callback(result)
+
+                local_cover = get_local_steam_cover(appid, prefer_exact=False)
+                if local_cover:
+                    on_native_cover(local_cover)
+                else:
+                    fetch_sgdb_cover_async(result["name"], on_native_cover)
+                return
             if not app_info:
                 cover = get_local_steam_cover(appid, prefer_exact=False)
                 if not cover and not has_custom_data:

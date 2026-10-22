@@ -2,6 +2,8 @@ import os
 import glob
 import shutil
 import tempfile
+import configparser
+from pathlib import Path
 from typing import TYPE_CHECKING
 from PySide6.QtWidgets import QMessageBox, QDialog, QMenu, QLineEdit, QApplication, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame
 from PySide6.QtCore import QUrl, QPoint, QObject, Signal, Qt, QStandardPaths, QTimer, QSize, QProcess, QThread
@@ -29,6 +31,7 @@ from portprotonqt.icon_extractor import generate_thumbnail
 from portprotonqt.dialogs import AddGameDialog
 from portprotonqt.dialogs.base import DraggableDialog
 from portprotonqt.theme_manager import ThemeManager
+from portprotonqt.native_games import NATIVE_URI_PREFIX, load_native_settings, save_native_settings, get_native_ppdb_path
 from portprotonqt.logger import get_logger
 from portprotonqt.virtual_keyboard import VirtualKeyboard
 from portprotonqt.image_utils import COVER_IMAGE_EXTENSIONS
@@ -127,6 +130,8 @@ class ContextMenuManager:
         Returns:
             bool: True if the game is running, False otherwise.
         """
+        if game_card.game_source == "native":
+            return getattr(self.parent, "target_exe", None) == os.path.basename(game_card.exec_line.removeprefix("native://"))
         if game_card.game_source == "steam":
             return False
         exec_line = self._get_exec_line(game_card.name, game_card.exec_line)
@@ -731,6 +736,9 @@ class ContextMenuManager:
                 )
             )
 
+        if game_card.game_source == "native":
+            self._add_native_actions(menu, game_card)
+
         if game_card.game_source == "steam":
             desktop_dir = QStandardPaths.writableLocation(
                 QStandardPaths.StandardLocation.DesktopLocation
@@ -829,6 +837,103 @@ class ContextMenuManager:
 
             menu.popup(game_card.mapToGlobal(pos))
 
+    def _add_native_actions(self, menu: QMenu, card: "GameCard") -> None:
+        source = Path(card.exec_line.removeprefix(NATIVE_URI_PREFIX))
+        desktop = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DesktopLocation)
+        for directory, add_text, remove_text, icon in (
+            (desktop, _("Add to Desktop"), _("Remove from Desktop"), "desktop"),
+            (self._get_applications_dir(), _("Add to Menu"), _("Remove from Menu"), "menu"),
+        ):
+            if not directory:
+                continue
+            exists = (Path(directory) / source.name).is_file()
+            action = menu.addAction(self._get_safe_icon("delete" if exists else icon), remove_text if exists else add_text)
+            action.triggered.connect(lambda _checked=False, target=directory: self._toggle_native_shortcut(card.exec_line, target))
+        if get_steam_home() is not None:
+            is_in_steam = is_game_in_steam(card.name)
+            action = menu.addAction(self._get_safe_icon("delete" if is_in_steam else "menu_steam"),
+                                    _("Remove from Steam") if is_in_steam else _("Add to Steam"))
+            action.triggered.connect(lambda: self.remove_from_steam(card.name, card.exec_line, "native")
+                                     if is_in_steam else self.add_to_steam(card.name, card.exec_line, card.cover_path))
+        action = menu.addAction(self._get_safe_icon("edit"), _("Edit Shortcut"))
+        action.triggered.connect(lambda: self._edit_native_shortcut(card))
+        action = menu.addAction(self._get_safe_icon("delete"), _("Delete"))
+        action.triggered.connect(lambda: self.delete_game(card.name, card.exec_line))
+        action = menu.addAction(self._get_safe_icon("search"), _("Open Game Folder"))
+        action.triggered.connect(lambda: self.parent.detail_page_manager._open_executable_folder(card.exec_line))
+
+    def _toggle_native_shortcut(self, exec_line: str, directory: str) -> None:
+        source = Path(exec_line.removeprefix(NATIVE_URI_PREFIX))
+        target = Path(directory) / source.name
+        try:
+            if target.is_file():
+                if target == source:
+                    data = Path(os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local/share")))
+                    retained = data / "PortProtonQt/native_games" / source.name
+                    retained.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(source, retained)
+                target.unlink()
+            else:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(source, target)
+                target.chmod(0o755)
+            if directory == self._get_applications_dir():
+                self._update_desktop_database()
+            self.parent.refreshGames()
+        except OSError as error:
+            logger.warning("Cannot update native shortcut: %s", error)
+            self.signals.show_warning_dialog.emit(_("Error"), str(error))
+
+    def _edit_native_shortcut(self, card: "GameCard") -> None:
+        source = Path(card.exec_line.removeprefix(NATIVE_URI_PREFIX))
+        try:
+            settings = load_native_settings(str(source))
+            executable = str(get_native_ppdb_path(str(source), settings)).removesuffix(".ppdb")
+            dialog = AddGameDialog(parent=self.parent, theme=self.theme, edit_mode=True,
+                                   game_name=card.name, exe_path=executable, cover_path=card.cover_path)
+            dialog.add_to_steam_checkbox.setChecked(is_game_in_steam(card.name))
+            desktop = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DesktopLocation)
+            targets = [(self._get_applications_dir(), dialog.add_to_menu_checkbox), (desktop, dialog.add_to_desktop_checkbox)]
+            for directory, checkbox in targets:
+                checkbox.setChecked(bool(directory) and (Path(directory) / source.name).is_file())
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return
+            content, destination = dialog.getDesktopEntryData()
+            if not content or not destination:
+                return
+            parser = configparser.ConfigParser(interpolation=None)
+            parser.optionxform = lambda optionstr: optionstr
+            parser.read_string(content)
+            settings.update({key: parser["Desktop Entry"][key] for key in ("Name", "Icon", "Exec", "Path")})
+            original = source
+            data = Path(os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local/share")))
+            source = data / "PortProtonQt/native_games" / source.name
+            source.parent.mkdir(parents=True, exist_ok=True)
+            if not source.exists():
+                shutil.copyfile(original, source)
+            save_native_settings(str(source), settings)
+            for directory, checkbox in targets:
+                if not directory:
+                    continue
+                target = Path(directory) / source.name
+                if checkbox.isChecked():
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    if target != source:
+                        shutil.copyfile(source, target)
+                    target.chmod(0o755)
+                elif target != source:
+                    target.unlink(missing_ok=True)
+            self._update_desktop_database()
+            if dialog.add_to_steam_checkbox.isChecked():
+                if not is_game_in_steam(card.name):
+                    self.add_to_steam(parser["Desktop Entry"]["Name"], NATIVE_URI_PREFIX + str(source), card.cover_path)
+            elif is_game_in_steam(card.name):
+                self.remove_from_steam(card.name, NATIVE_URI_PREFIX + str(source), "native")
+            self.parent.refreshGames()
+        except Exception as error:
+            logger.warning("Cannot edit native shortcut: %s", error)
+            self.signals.show_warning_dialog.emit(_("Error"), str(error))
+
     def _launch_game(self, game_card):
         """
         Launch or stop a game based on its current state.
@@ -836,6 +941,9 @@ class ContextMenuManager:
         Args:
             game_card: The GameCard instance containing game data.
         """
+        if game_card.game_source == "native":
+            self.parent.toggleGame(game_card.exec_line, game_name=game_card.name)
+            return
         if not self._check_portproton():
             return
 
@@ -996,6 +1104,9 @@ class ContextMenuManager:
 
     def _get_exec_line(self, game_name, exec_line):
         """Retrieve and validate exec_line from .desktop file if necessary."""
+        if exec_line and exec_line.startswith(NATIVE_URI_PREFIX):
+            entry = parse_desktop_entry(exec_line.removeprefix(NATIVE_URI_PREFIX))
+            return entry.get("Exec") if entry else None
         if exec_line and exec_line.strip() != "full":
             return exec_line
         desktop_path = self._get_desktop_path(game_name)
@@ -1127,6 +1238,20 @@ class ContextMenuManager:
 
     def _delete_game_without_confirm(self, game_name: str, exec_line: str) -> None:
         card_exec_line = exec_line
+        if exec_line.startswith(NATIVE_URI_PREFIX):
+            source = Path(exec_line.removeprefix(NATIVE_URI_PREFIX))
+            data = Path(os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local/share")))
+            desktop = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DesktopLocation)
+            paths = [str(source), str(data / "PortProtonQt/native_games" / source.name),
+                     str(Path(self._get_applications_dir()) / source.name)]
+            if desktop:
+                paths.append(str(Path(desktop) / source.name))
+            self._remove_installed_shortcuts(game_name, paths)
+            self._remove_statistics_entry(str(source), game_name)
+            self.game_library_manager.remove_game_incremental(game_name, exec_line)
+            for key in ("all", "native", "favorites"):
+                getattr(self.parent, "_loaded_library_cache", {}).pop(key, None)
+            return
         if not self._check_portproton():
             return
         desktop_path = self._get_desktop_path(game_name)

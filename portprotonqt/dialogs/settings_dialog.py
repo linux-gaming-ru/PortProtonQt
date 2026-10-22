@@ -60,6 +60,7 @@ from portprotonqt.dialogs.settings_gamescope import GAMESCOPE_ENV_KEYS, Gamescop
 from portprotonqt.dialogs.settings_vkbasalt import VKBASALT_ENV_KEYS, VkBasaltSettingsMixin
 from portprotonqt.localization import _, format_setting_name_for_display
 from portprotonqt.logger import get_logger
+from portprotonqt.native_games import NATIVE_TOGGLE_KEYS, NATIVE_ADVANCED_KEYS, load_native_settings, save_native_settings, get_native_ppdb_path
 from portprotonqt.preloader import Preloader
 from portprotonqt.qt_utils import get_screen_info, get_system_dpi_for_wine
 from portprotonqt.settings_manager import (
@@ -166,11 +167,11 @@ class ExeSettingsDialog(
         if not self.user_conf and not self.exe_path and not self.appid:
             return
         self.portproton_path = get_portproton_location()
-        if self.portproton_path is None:
+        if self.portproton_path is None and self.game_source != "native":
             logger.error("PortProton location not found")
             return
         self.start_sh = get_portproton_start_command()
-        if self.start_sh is None:
+        if self.start_sh is None and self.game_source != "native":
             logger.error("PortProton start command not found")
             return
 
@@ -178,7 +179,7 @@ class ExeSettingsDialog(
         self.lg_dist_aliases = {}
         self.plugins_ver = ""
         self.prefix_options = []
-        if self.portproton_path:
+        if self.portproton_path and self.game_source != "native":
             scripts_path = get_portproton_scripts_path()
             if scripts_path:
                 var_path = os.path.join(scripts_path, "var")
@@ -229,6 +230,9 @@ class ExeSettingsDialog(
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
         self.toggle_settings = get_toggle_settings()
+        if self.game_source == "native":
+            self.toggle_settings = {key: description for key, description in self.toggle_settings.items() if key in NATIVE_TOGGLE_KEYS}
+            self.setWindowTitle(_("Native") + " — " + _("Settings"))
 
         self.setup_ui()
         if self.user_conf:
@@ -512,6 +516,10 @@ class ExeSettingsDialog(
         self.settings_container.setCurrentIndex(0)
         self.advanced_container.setCurrentIndex(0)
 
+        if self.game_source == "native":
+            self.on_show_ppdb_finished(0, QProcess.ExitStatus.NormalExit)
+            return
+
         process = QProcess(self)
         process.finished.connect(self.on_show_ppdb_finished)
         command = ["cli", "--get-user-conf"] if self.user_conf else [
@@ -521,7 +529,7 @@ class ExeSettingsDialog(
         process.start(args[0], args[1:])
 
     def on_show_ppdb_finished(self, exit_code, exit_status):
-        """Handle --show-ppdb output."""
+        """Populate shared settings controls from the selected game's data."""
         process = cast(QProcess, self.sender())
         self.current_settings = {}
         self.blocked_keys = set()
@@ -536,7 +544,15 @@ class ExeSettingsDialog(
             self.reject()
             return
 
-        if exit_code == 0 and exit_status == QProcess.ExitStatus.NormalExit:
+        if self.game_source == "native":
+            try:
+                self.current_settings = load_native_settings(cast(str, self.exe_path))
+            except Exception as error:
+                logger.warning("Cannot load native settings: %s", error)
+                QMessageBox.warning(self, _("Error"), str(error))
+                self.reject()
+                return
+        elif exit_code == 0 and exit_status == QProcess.ExitStatus.NormalExit:
             output = bytes(process.readAllStandardOutput().data()).decode('utf-8', 'ignore')
             for line in output.splitlines():
                 line_stripped = line.strip()
@@ -638,6 +654,16 @@ class ExeSettingsDialog(
             return
 
         db_path = self.exe_path + ".ppdb"
+        if self.game_source == "native":
+            try:
+                settings = load_native_settings(self.exe_path)
+                db_path = str(get_native_ppdb_path(self.exe_path, settings))
+                if not os.path.exists(db_path):
+                    save_native_settings(self.exe_path, {})
+            except Exception as error:
+                logger.warning("Cannot create native PPDB: %s", error)
+                QMessageBox.critical(self, _("Error"), str(error))
+                return
 
         if not os.path.exists(db_path):
             QMessageBox.critical(self, _("Error"), _("PPDB file does not exist at: ") + db_path)
@@ -661,6 +687,14 @@ class ExeSettingsDialog(
             return
 
         db_path = self.exe_path + ".ppdb"
+        if self.game_source == "native":
+            try:
+                settings = load_native_settings(self.exe_path)
+                db_path = str(get_native_ppdb_path(self.exe_path, settings))
+            except Exception as error:
+                logger.warning("Cannot resolve native PPDB: %s", error)
+                QMessageBox.critical(self, _("Error"), str(error))
+                return
         if not os.path.exists(db_path):
             QMessageBox.information(self, _("Information"), _("PPDB file does not exist at: ") + db_path)
             self.load_current_settings()
@@ -821,6 +855,14 @@ class ExeSettingsDialog(
             dist_options=self.dist_options,
             prefix_options=self.prefix_options
         )
+        if self.game_source == "native":
+            advanced_settings = [setting for setting in advanced_settings if setting['key'] in NATIVE_ADVANCED_KEYS]
+            for setting in advanced_settings:
+                if setting["key"] == "PW_WINE_CPU_TOPOLOGY":
+                    setting["options"] = [disabled_text] + [str(count) for count in range(1, len(os.sched_getaffinity(0)) + 1)]
+            for setting in advanced_settings:
+                if setting['key'] == 'LAUNCH_PARAMETERS':
+                    setting['description'] = _("Launch Arguments")
         if self.user_conf:
             for setting in advanced_settings:
                 setting['key'] = DEFAULT_WINE_SETTING_KEYS.get(setting['key'], setting['key'])
@@ -1587,6 +1629,17 @@ class ExeSettingsDialog(
                 logger.info("Added MANGOHUD_CONFIG from var file: %s", default_config)
 
         if not changes:
+            return
+
+        if self.game_source == "native":
+            try:
+                values = dict(change.split('=', 1) for change in changes)
+                save_native_settings(cast(str, self.exe_path), values)
+            except Exception as error:
+                logger.warning("Cannot save native settings: %s", error)
+                QMessageBox.warning(self, _("Error"), str(error))
+                return
+            self.load_current_settings()
             return
 
         self.saving = True

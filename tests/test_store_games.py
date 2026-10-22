@@ -122,7 +122,6 @@ def test_dlc_worker_released_before_modal_and_retry(
             dialog = download_tab_module.QDialog(self)
             QTimer.singleShot(0, dialog.reject)
             dialog.exec()
-            loop.quit()
 
     window: Any = Window()
     window.gog_api = cast(Any, object())
@@ -136,18 +135,29 @@ def test_dlc_worker_released_before_modal_and_retry(
 
     def warning(*args: Any) -> None:
         observations.append((window.store_dlc_worker, QThread.currentThread()))
-        loop.quit()
 
     monkeypatch.setattr(download_tab_module.StoreDLCWorker, "run", run)
     monkeypatch.setattr(download_tab_module.QMessageBox, "warning", warning)
     timeout = QTimer()
     timeout.setSingleShot(True)
     timeout.timeout.connect(loop.quit)
-    for _attempt in range(2):
+    ready = QTimer()
+    ready.setInterval(10)
+
+    for attempt in range(2):
+        def finish_when_observed(expected: int = attempt + 1) -> None:
+            if len(observations) == expected and window.store_dlc_worker is None:
+                loop.quit()
+
+        ready.timeout.connect(finish_when_observed)
         window._select_store_dlcs(source, {"app_id": "123", "title": "Game"})
+        ready.start()
         timeout.start(3000)
         loop.exec()
+        ready.stop()
+        ready.timeout.disconnect(finish_when_observed)
         timeout.stop()
+        assert len(observations) == attempt + 1
         assert window.store_dlc_worker is None
     assert observations == [(None, application.thread())] * 2
     window.deleteLater()

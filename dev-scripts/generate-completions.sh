@@ -76,8 +76,8 @@ _portprotonqt() {
         '--clear-cache[Clear PortProtonQt cache and exit]'
         '--reset-settings[Reset PortProtonQt settings and exit]'
         '--ppqtos[Show the system tab]'
-        '--silent[Launch .exe file without GUI]'
-        '--log[Enable PortProton logging]'
+        '--silent[Launch Windows file or native game in tray]'
+        '--log[Enable game logging]'
         '--restore-prefix[Restore prefix from .ppack backup]:PPACK file:_files -g "*.ppack"'
         '--create-backup[Create prefix backup]:PREFIX: :BACKUP_DIR:_files -/'
         '(-h --help)'{-h,--help}'[Show help message]'
@@ -104,8 +104,8 @@ complete -c portprotonqt -l remove-steam-compat-tool -d "Remove Steam compatibil
 complete -c portprotonqt -l clear-cache -d "Clear PortProtonQt cache and exit"
 complete -c portprotonqt -l reset-settings -d "Reset PortProtonQt settings and exit"
 complete -c portprotonqt -l ppqtos -d "Show the system tab"
-complete -c portprotonqt -l silent -d "Launch .exe file without GUI"
-complete -c portprotonqt -l log -d "Enable PortProton logging"
+complete -c portprotonqt -l silent -d "Launch Windows file or native game in tray"
+complete -c portprotonqt -l log -d "Enable game logging"
 complete -c portprotonqt -l restore-prefix -d "Restore prefix from .ppack backup" -r -a "(__fish_complete_suffix .ppack)"
 complete -c portprotonqt -l create-backup -d "Create prefix backup" -r
 complete -c portprotonqt -s h -l help -d "Show help message"

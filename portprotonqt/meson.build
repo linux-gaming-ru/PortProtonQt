@@ -22,6 +22,7 @@ install_data(
   'localization.py',
   'logger.py',
   'main_window.py',
+  'native_games.py',
   'port_data_path_selector.py',
   'portproton_api.py',
   'preloader.py',

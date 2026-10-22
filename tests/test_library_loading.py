@@ -13,7 +13,7 @@ from PySide6.QtWidgets import QApplication, QLineEdit, QWidget
 from portprotonqt import image_utils
 from portprotonqt.game_card import GameCard
 from portprotonqt.game_library_manager import GameLibraryManager
-from portprotonqt.theme_manager import load_theme
+from portprotonqt.theme_manager import ThemeManager, load_theme
 
 LOAD_TIMEOUT_MS = 30000
 
@@ -52,6 +52,23 @@ def library_scene(
         manager.gamesLibraryWidget.close()
         manager.gamesLibraryWidget.deleteLater()
         QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+
+def test_native_card_uses_linux_source_corner(
+    library_scene: tuple[GameLibraryManager, list[Callable[[QPixmap], None]]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manager, _ = library_scene
+    monkeypatch.setattr(ThemeManager(), "current_theme_name", "standart")
+    card = manager._create_game_card((
+        "Native", "", "", "", "", "native:///game.desktop", "", "", "", "", 0, 0, "native",
+    ))
+    assert card.native_visible
+    assert isinstance(card.nativeLabel._icon, str)
+    assert Path(card.nativeLabel._icon).name == "badge_linux.svg"
+    assert Path(card.nativeLabel._icon).is_file()
+    assert not card.portproton_visible
+    card.deleteLater()
 
 
 @pytest.mark.parametrize("layout_mode", ["horizontal", "horizontal_top"])

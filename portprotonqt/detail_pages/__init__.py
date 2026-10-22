@@ -19,6 +19,8 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QUrl, QTimer, QProcess, QProcessEnvironment
 from PySide6.QtGui import QDesktopServices
 
+from portprotonqt.native_games import get_native_launch, load_native_settings
+
 from portprotonqt.detail_pages.widgets import (
     create_scroll_area,
     create_back_button,
@@ -655,7 +657,7 @@ class DetailPageManager:
             )
             buttons_layout.addWidget(open_folder_button)
         elif (
-            str(game_source).lower() not in {"gog", "egs"}
+            str(game_source).lower() not in {"gog", "egs", "native"}
             and not self._has_game_shortcut(game_name)
         ):
             add_button = self._make_action_button(
@@ -670,7 +672,20 @@ class DetailPageManager:
             buttons_layout.addWidget(add_button)
 
         # Show settings button for PortProton games or Steam games using PortProtonQt
-        if str(game_source).lower() == "portproton":
+        if source == "native":
+            settings_button = self._make_action_button(
+                _("Settings"), self.main_window.theme_manager.get_icon("settings", as_path=True),
+            )
+            settings_button.clicked.connect(lambda: self.main_window.open_native_settings(exec_line))
+            buttons_layout.addWidget(settings_button)
+            log_button = self._make_action_button(_("Create Log"), self.main_window.theme_manager.get_icon("edit", as_path=True))
+            log_button.clicked.connect(lambda: self.toggleDebugLog(exec_line, log_button))
+            buttons_layout.addWidget(log_button)
+            self._debug_log_button = log_button
+            folder_button = self._make_action_button(_("Open Folder"), self.main_window.theme_manager.get_icon("search", as_path=True))
+            folder_button.clicked.connect(lambda: self._open_executable_folder(exec_line))
+            buttons_layout.addWidget(folder_button)
+        elif str(game_source).lower() == "portproton":
             self._add_portproton_buttons(buttons_layout, exec_line)
         elif (
             source in {"gog", "egs"}
@@ -725,6 +740,8 @@ class DetailPageManager:
 
     def _get_current_exe(self, exec_line: str) -> str | None:
         """Extract current executable from exec line."""
+        if exec_line.startswith("native://"):
+            return os.path.basename(exec_line.removeprefix("native://"))
         file_to_check = extract_exec_target_path(exec_line)
         return os.path.basename(file_to_check) if file_to_check else None
 
@@ -822,9 +839,26 @@ class DetailPageManager:
 
     def _open_executable_folder(self, exe_path: str | None) -> None:
         """Open the folder containing an executable."""
-        if not exe_path or not os.path.exists(exe_path):
+        if not exe_path:
             return
-        folder_path = os.path.dirname(os.path.abspath(exe_path))
+        if exe_path.startswith("native://"):
+            try:
+                desktop_path = exe_path.removeprefix("native://")
+                settings = load_native_settings(desktop_path)
+                command, directory = get_native_launch(desktop_path)
+                executable = next((part for part in reversed(command)
+                                   if os.path.isabs(part) and os.path.isfile(part) and os.access(part, os.X_OK)), None)
+                folder_path = os.path.dirname(executable) if executable else settings.get("Path", "")
+                if not folder_path or not os.path.isdir(folder_path):
+                    raise ValueError("Game directory is not available")
+            except Exception as error:
+                logger.warning("Cannot resolve native game folder: %s", error)
+                QMessageBox.warning(self.main_window, _("Error"), str(error))
+                return
+        else:
+            if not os.path.exists(exe_path):
+                return
+            folder_path = os.path.dirname(os.path.abspath(exe_path))
         QDesktopServices.openUrl(QUrl.fromLocalFile(folder_path))
 
     def _has_game_shortcut(self, game_name: str) -> bool:
@@ -1454,14 +1488,15 @@ class DetailPageManager:
         """Start debug logging session."""
         if exe_path is None:
             return
-        resolved_exe_path = self.main_window.resolve_launch_file_path(exe_path)
+        native = exe_path.startswith("native://")
+        resolved_exe_path = exe_path if native else self.main_window.resolve_launch_file_path(exe_path)
         if resolved_exe_path is None:
             return
-        if not self.main_window._check_alt_i586_dependencies_before_launch():
+        if not native and not self.main_window._check_alt_i586_dependencies_before_launch():
             return
 
-        start_command = get_portproton_start_command()
-        if not start_command:
+        start_command = [] if native else get_portproton_start_command()
+        if start_command is None:
             return
 
         if self.debug_log_manager.start(resolved_exe_path, start_command):

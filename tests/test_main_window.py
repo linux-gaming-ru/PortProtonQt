@@ -312,7 +312,7 @@ def _tile_theme() -> Any:
 
 @mark.parametrize(
     "worker_name",
-    ("egs_library_worker", "gog_library_worker", "gog_metadata_worker", "gog_repair_worker", "gog_delete_worker", "store_dlc_worker"),
+    ("egs_library_worker", "gog_library_worker", "gog_metadata_worker", "native_library_worker", "gog_repair_worker", "gog_delete_worker", "store_dlc_worker"),
 )
 def test_shutdown_waits_for_store_library_workers(worker_name: str) -> None:
     worker = MagicMock()
@@ -431,14 +431,16 @@ def test_minimal_tray_exits_after_stopping_game(monkeypatch: MonkeyPatch) -> Non
     quit_app.assert_called_once_with()
 
 @mark.parametrize(("vertical_layout", "ribbon_visible"), [(False, True), (True, True)])
+@mark.parametrize("source", ["portproton", "native"])
 def test_source_ribbon_visibility(
     monkeypatch: MonkeyPatch,
     vertical_layout: bool,
     ribbon_visible: bool,
+    source: str,
 ) -> None:
     card = MagicMock()
     card.coverLabel = MagicMock()
-    card.game_source = "portproton"
+    card.game_source = source
     card.ppdb_id = "report-id"
     card.protondb_tier = "Platinum"
     card.anticheat_status = "Supported"
@@ -449,9 +451,9 @@ def test_source_ribbon_visibility(
     card.parentWidget.return_value = None
     monkeypatch.setattr("portprotonqt.game_card.ui_config.get_economy_mode", lambda: False)
 
-    GameCard.update_badge_visibility(card, "portproton")
+    GameCard.update_badge_visibility(card, source)
 
-    card.portprotonLabel.setVisible.assert_called_with(ribbon_visible)
+    getattr(card, f"{source}Label").setVisible.assert_called_with(ribbon_visible)
     card.ppdbLabel.setVisible.assert_called_with(False)
     card.protondbLabel.setVisible.assert_called_with(False)
     card.anticheatLabel.setVisible.assert_called_with(False)
@@ -1703,7 +1705,8 @@ def test_open_local_autoinstall_card_uses_autoinstall_page(tmp_path: Path) -> No
     assert game_data["exec_line"] == f"autoinstall:{shlex.quote(str(script_path))}"
     assert return_tab_index == 0
 
-def test_open_game_detail_starts_pending_log(tmp_path: Path) -> None:
+@mark.parametrize("native", [False, True])
+def test_open_game_detail_starts_pending_log(tmp_path: Path, native: bool) -> None:
     exe_path = tmp_path / "Game.exe"
     exe_path.touch()
     started = []
@@ -1728,11 +1731,12 @@ def test_open_game_detail_starts_pending_log(tmp_path: Path) -> None:
     window.detail_page_manager = FakeDetailPageManager()
     window.stackedWidget = FakeStackedWidget()
     window.currentDetailPage = None
-    window._pending_log_exe = str(exe_path)
+    target = "native://" + str(tmp_path / "Native Game.desktop") if native else str(exe_path)
+    window._pending_log_exe = target
 
-    window.openGameDetailPage({"name": "Game", "exec_line": str(exe_path)})
+    window.openGameDetailPage({"name": "Game", "exec_line": target})
 
-    assert started == [(str(exe_path), window.detail_page_manager._debug_log_button)]
+    assert started == [(target, window.detail_page_manager._debug_log_button)]
     assert window._pending_log_exe is None
 
 def test_launch_exe_skips_library_load_for_ppai() -> None:
@@ -2730,6 +2734,7 @@ def test_add_game_dialog_does_not_reprocess_its_shortcut(
         exeEdit=SimpleNamespace(text=lambda: "/games/praest.exe"),
         coverEdit=SimpleNamespace(text=lambda: ""),
         getDesktopEntryData=lambda: (entry, str(desktop_path)),
+        native_checkbox=SimpleNamespace(isChecked=lambda: False),
         last_cover_path="",
     )
     window: Any = MainWindow.__new__(MainWindow)

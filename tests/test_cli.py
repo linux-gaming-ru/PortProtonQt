@@ -232,6 +232,59 @@ def test_other_launch_modes_keep_main_window(
     startup.window.assert_called_once()
 
 
+@pytest.mark.parametrize("flags", [[], ["--silent"], ["--log"], ["--silent", "--log"]])
+@pytest.mark.parametrize("existing", [False, True])
+def test_native_shortcut_launch_modes(
+    silent_startup: SimpleNamespace, monkeypatch: pytest.MonkeyPatch, flags: list[str], existing: bool,
+) -> None:
+    from urllib.parse import quote
+    from PySide6.QtCore import QThread
+    from portprotonqt.native_games import create_native_desktop_file
+
+    startup = silent_startup
+    executable = startup.exe.with_name("native game")
+    executable.write_text("#!/bin/sh\nexit 0\n")
+    executable.chmod(0o755)
+    result = create_native_desktop_file(str(executable), "Native")
+    assert result is not None
+    content, destination = result
+    Path(destination).write_text(content)
+    uri = "native://" + destination
+    startup.socket.waitForConnected.return_value = existing
+    monkeypatch.setattr(sys, "argv", ["portprotonqt", *flags, str(executable)])
+    mode = "log" if "--log" in flags else "silent" if "--silent" in flags else "open"
+    if existing:
+        startup.app.main()
+        startup.socket.write.assert_called_once_with(f"{mode}:{quote(uri, safe='')}".encode())
+        startup.window.assert_not_called()
+        return
+    window, timers = MagicMock(), MagicMock()
+    window.game_processes = []
+    startup.window.side_effect, startup.window.return_value = None, window
+    monkeypatch.setattr(startup.app, "QTimer", timers)
+    monkeypatch.setattr(QThread, "start", MagicMock())
+    monkeypatch.setattr(startup.app.display_config, "get_auto_fullscreen_gamepad", lambda: False)
+    monkeypatch.setattr(startup.app.display_config, "get_start_minimized", lambda: False)
+    def event_loop() -> int:
+        callback = next(call.args[1] for call in timers.singleShot.call_args_list
+                        if getattr(call.args[1], "__name__", "") == "handle_native_launch")
+        callback()
+        return 0
+    startup.qt_app.exec.side_effect = event_loop
+    with pytest.raises(SystemExit):
+        startup.app.main()
+    assert window.silent_launch_mode is (mode == "silent")
+    if mode == "silent":
+        window.toggleGame.assert_called_once_with(uri)
+    else:
+        window._load_native_games_async.assert_called_once()
+        window._load_native_games_async.call_args.args[0]([
+            ("Native", "", "", "", "", uri, "", "", "", "", 0, 0, "native", "", "", "")])
+        assert window.openGameDetailPage.call_args.args[0]["exec_line"] == uri
+        if mode == "log":
+            assert window._pending_log_exe == uri
+
+
 class TestNormalizeLaunchPath:
     def test_plain_path(self):
         assert normalize_launch_path("/tmp/game.exe") == "/tmp/game.exe"

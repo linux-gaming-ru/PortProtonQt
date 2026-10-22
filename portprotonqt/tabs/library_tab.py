@@ -1,5 +1,7 @@
 import os
+import re
 import shutil
+from pathlib import Path
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, cast
 
@@ -40,6 +42,7 @@ from portprotonqt.dialogs.proton_manager import (
 from portprotonqt.image_utils import COVER_IMAGE_EXTENSIONS
 from portprotonqt.localization import _, get_metadata_language, read_metadata_translations
 from portprotonqt.logger import get_logger
+from portprotonqt.native_games import NATIVE_URI_PREFIX, save_native_settings, is_native_executable
 from portprotonqt.scripts_utils.shortcut_tools import find_ext_ppdb
 from portprotonqt.scripts_utils.prefix_backup import BACKUP_EXTENSION
 from portprotonqt.steam_api import get_cached_steam_game_info, is_game_in_steam
@@ -100,7 +103,7 @@ class MainWindowLibraryTabMixin(_MainWindowTypingBase):
         display_filter = self.filter_keys[index]
         game_config.set_display_filter(display_filter)
         self.onlyInstalledCheckBox.setVisible(
-            display_filter not in ("steam", "portproton")
+            display_filter not in ("steam", "portproton", "native")
         )
         self._position_library_controls_widget()
         self._on_only_installed_changed(game_config.get_only_installed())
@@ -345,13 +348,14 @@ class MainWindowLibraryTabMixin(_MainWindowTypingBase):
 
         display_filter = game_config.get_display_filter()
         only_installed = game_config.get_only_installed()
-        self.filter_keys = ["all", "steam", "gog", "egs", "portproton", "favorites"]
+        self.filter_keys = ["all", "steam", "gog", "egs", "portproton", "native", "favorites"]
         self.filter_labels = [
             _("All"),
             "Steam",
             "GOG",
             "Epic Games",
             "PortProton",
+            _("Native"),
             _("Favorites"),
         ]
         self.gamesDisplayCombo = self._create_library_combo(self.filter_labels, _("Display Filter:"))
@@ -373,7 +377,7 @@ class MainWindowLibraryTabMixin(_MainWindowTypingBase):
         controls_layout.addWidget(self.gamesDisplayCombo, 1, 0)
         controls_layout.addWidget(self.onlyInstalledCheckBox, 4, 0)
         self.onlyInstalledCheckBox.setVisible(
-            display_filter not in ("steam", "portproton")
+            display_filter not in ("steam", "portproton", "native")
         )
 
         self.badge_view_keys = ["detailed", "compact", "hidden"]
@@ -615,7 +619,7 @@ class MainWindowLibraryTabMixin(_MainWindowTypingBase):
                 path = url.toLocalFile().lower()
                 if path.endswith(
                     LAUNCH_FILE_EXTENSIONS + PP_FILE_EXTENSIONS + THEME_ARCHIVE_EXTENSIONS
-                ):
+                ) or (os.path.isfile(url.toLocalFile()) and is_native_executable(url.toLocalFile())):
                     event.acceptProposedAction()
                     return
         event.ignore()
@@ -639,7 +643,7 @@ class MainWindowLibraryTabMixin(_MainWindowTypingBase):
                 self.open_local_autoinstall_card(path)
                 event.acceptProposedAction()
                 break
-            if path_lower.endswith(LAUNCH_FILE_EXTENSIONS):
+            if path_lower.endswith(LAUNCH_FILE_EXTENSIONS) or (os.path.isfile(path) and is_native_executable(path)):
                 self.openAddGameDialog(path)
                 event.acceptProposedAction()
                 break
@@ -718,6 +722,9 @@ class MainWindowLibraryTabMixin(_MainWindowTypingBase):
             name = dialog.nameEdit.text().strip()
             exe_path = dialog.exeEdit.text().strip()
             user_cover = dialog.coverEdit.text().strip()
+            native = is_native_executable(exe_path)
+            if native:
+                user_cover = dialog.last_cover_path or user_cover
 
             if not name or not exe_path:
                 return
@@ -752,9 +759,22 @@ class MainWindowLibraryTabMixin(_MainWindowTypingBase):
                 entry = parse_desktop_entry(desktop_path)
                 if not entry:
                     return
-                self._known_portproton_desktops.add(desktop_path)
+                if not native:
+                    self._known_portproton_desktops.add(desktop_path)
+                elif cover_path:
+                    desktop_entry = re.sub(r"^Icon=.*$", lambda _match: f"Icon={cover_path}", desktop_entry, flags=re.MULTILINE)
+                    self._write_desktop_file(desktop_entry, desktop_path)
+                if native:
+                    try:
+                        save_native_settings(desktop_path, {})
+                    except Exception as error:
+                        logger.warning("Cannot create native PPDB: %s", error)
+                        QMessageBox.warning(self, _("Error"), str(error))
+                        return
+                    for source in ("all", "native", "favorites"):
+                        getattr(self, "_loaded_library_cache", {}).pop(source, None)
                 description = entry.get("Comment", "")
-                exec_line = entry.get("Exec", exe_path)
+                exec_line = NATIVE_URI_PREFIX + desktop_path if native else entry.get("Exec", exe_path)
                 cover_for_shortcut = dialog.last_cover_path if dialog.last_cover_path else user_cover
                 self._sync_game_shortcuts_from_dialog(dialog, name, exec_line, cover_for_shortcut)
 
@@ -808,13 +828,15 @@ class MainWindowLibraryTabMixin(_MainWindowTypingBase):
                         steam_info.get("anticheat_status", ""),
                         last_played_timestamp,
                         playtime_seconds,
-                        "portproton",
+                        "native" if native else "portproton",
                         steam_info.get("anticheat_slug", ""),
                         steam_info.get("ppdb_id", ""),
                         steam_info.get("ppdb_rating", ""),
                     )
 
                     # Incremental add
+                    if native and game_config.get_display_filter() not in ("all", "native"):
+                        return
                     self.game_library_manager.add_game_incremental(game_data)
 
                     # Trigger visible images load
@@ -836,7 +858,7 @@ class MainWindowLibraryTabMixin(_MainWindowTypingBase):
                         cached_steam_info.get("anticheat_status", ""),
                         last_played_timestamp,
                         playtime_seconds,
-                        "portproton",
+                        "native" if native else "portproton",
                         cached_steam_info.get("anticheat_slug", ""),
                         cached_steam_info.get("ppdb_id", ""),
                         cached_steam_info.get("ppdb_rating", ""),
@@ -848,6 +870,27 @@ class MainWindowLibraryTabMixin(_MainWindowTypingBase):
 
     def _sync_game_shortcuts_from_dialog(self, dialog, game_name, exec_line, cover_path):
         """Apply shortcut options selected in add/edit game dialog."""
+        if exec_line.startswith(NATIVE_URI_PREFIX):
+            source = Path(exec_line.removeprefix(NATIVE_URI_PREFIX))
+            data_home = os.getenv("XDG_DATA_HOME", os.path.expanduser("~/.local/share"))
+            for directory, checkbox in (
+                (os.path.join(data_home, "applications"), dialog.add_to_menu_checkbox),
+                (QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DesktopLocation), dialog.add_to_desktop_checkbox),
+            ):
+                if directory and checkbox.isChecked():
+                    try:
+                        os.makedirs(directory, exist_ok=True)
+                        shutil.copyfile(source, Path(directory) / source.name)
+                        os.chmod(Path(directory) / source.name, 0o755)
+                    except OSError as error:
+                        logger.warning("Failed to copy native shortcut to %s: %s", directory, error)
+                        QMessageBox.warning(self, _("Error"), str(error))
+            if dialog.add_to_steam_checkbox.isChecked():
+                if not is_game_in_steam(game_name):
+                    self.context_menu_manager.add_to_steam(game_name, exec_line, cover_path)
+            elif is_game_in_steam(game_name):
+                self.context_menu_manager.remove_from_steam(game_name, exec_line, "native")
+            return
         applications_dir = os.path.join(os.path.expanduser("~"), ".local", "share", "applications")
         menu_path = os.path.join(applications_dir, f"{game_name}.desktop")
         if dialog.add_to_menu_checkbox.isChecked():

@@ -67,12 +67,12 @@ def parse_args():
     parser.add_argument(
         "--silent",
         action="store_true",
-        help="Launch supported Windows file in tray without showing the main window"
+        help="Launch supported Windows file or native game in tray without showing the main window"
     )
     parser.add_argument(
         "--log",
         action="store_true",
-        help="Enable PortProton logging for the launched Windows file"
+        help="Enable logging for the launched Windows file or native game"
     )
     parser.add_argument(
         "--restore-prefix",
@@ -89,7 +89,7 @@ def parse_args():
     parser.add_argument(
         'file_or_url',
         nargs='?',
-        help="Launch file path (.exe/.bat/.cmd/.msi/.reg/.iso/.mdf/.nrg) or portproton:// URL"
+        help="Launch file path (.exe/.bat/.cmd/.msi/.reg/.iso/.mdf/.nrg), native executable, or portproton:// URL"
     )
     if os.environ.get("STEAM_COMPAT") == "1" and "--" in sys.argv[1:]:
         separator_index = sys.argv.index("--")

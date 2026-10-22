@@ -402,6 +402,7 @@ class GameCard(AnimatedCard):
         self.steam_visible = str(game_source).lower() == "steam"
         self.gog_visible = str(game_source).lower() == "gog"
         self.egs_visible = str(game_source).lower() == "egs"
+        self.native_visible = str(game_source).lower() == "native"
         self.portproton_visible = str(game_source).lower() == "portproton"
         self.ppdb_visible = bool(self.ppdb_id) and not self.economy_mode
 
@@ -514,6 +515,13 @@ class GameCard(AnimatedCard):
             parent=self.coverWidget,
         )
         self.egsLabel.setVisible(self.egs_visible and not self.vertical_layout)
+
+        self.nativeLabel = SourceCorner(
+            icon=self.theme_manager.get_icon("badge_linux", as_path=True),
+            config=corner_config,
+            parent=self.coverWidget,
+        )
+        self.nativeLabel.setVisible(self.native_visible and not self.vertical_layout)
 
         portproton_icon = self.theme_manager.get_icon("badge_portproton", as_path=True)
         self.portprotonLabel = SourceCorner(
@@ -661,6 +669,7 @@ class GameCard(AnimatedCard):
             (self.steamLabel, "badge_steam"),
             (self.gogLabel, "badge_gog"),
             (self.egsLabel, "badge_egs"),
+            (self.nativeLabel, "badge_linux"),
             (self.portprotonLabel, "badge_portproton"),
         ):
             icon = self.theme_manager.get_icon(
@@ -882,6 +891,7 @@ class GameCard(AnimatedCard):
             (self.steam_visible, self.steamLabel),
             (self.gog_visible, self.gogLabel),
             (self.egs_visible, self.egsLabel),
+            (self.native_visible, self.nativeLabel),
             (self.portproton_visible, self.portprotonLabel),
         ]
 
@@ -905,6 +915,7 @@ class GameCard(AnimatedCard):
             self.portprotonLabel.raise_()
             self.gogLabel.raise_()
             self.egsLabel.raise_()
+            self.nativeLabel.raise_()
             self.steamLabel.raise_()
         except RuntimeError:
             pass
@@ -1046,6 +1057,7 @@ class GameCard(AnimatedCard):
         self.steam_visible = str(self.game_source).lower() == "steam"
         self.gog_visible = str(self.game_source).lower() == "gog"
         self.egs_visible = str(self.game_source).lower() == "egs"
+        self.native_visible = str(self.game_source).lower() == "native"
         self.portproton_visible = str(self.game_source).lower() == "portproton"
         self.ppdb_visible = bool(self.ppdb_id) and not self.economy_mode
         protondb_visible = is_valid_protondb_tier(self.protondb_tier) and not self.economy_mode
@@ -1056,6 +1068,7 @@ class GameCard(AnimatedCard):
             self.steamLabel.setVisible(self.steam_visible)
             self.gogLabel.setVisible(self.gog_visible)
             self.egsLabel.setVisible(self.egs_visible)
+            self.nativeLabel.setVisible(self.native_visible)
             self.portprotonLabel.setVisible(self.portproton_visible)
             self.ppdbLabel.setVisible(self.ppdb_visible and not hidden_badges)
             self.protondbLabel.setVisible(protondb_visible and not hidden_badges)

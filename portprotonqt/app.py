@@ -33,6 +33,7 @@ from portprotonqt.config import (
     window_config,
 )
 from portprotonqt.logger import get_logger, setup_logger
+from portprotonqt.native_games import NATIVE_URI_PREFIX, create_native_desktop_file
 from portprotonqt.cli import (
     parse_args,
     is_portproton_url,
@@ -239,6 +240,15 @@ def main():
     app.setApplicationVersion(__app_version__)
 
     args = parsed_args
+    native_launch_uri = None
+    if args.file_or_url and args.file_or_url.startswith(NATIVE_URI_PREFIX):
+        native_launch_uri = args.file_or_url
+    elif args.file_or_url and not is_launch_file(args.file_or_url):
+        target = normalize_launch_path(args.file_or_url)
+        if os.path.isfile(target) and os.access(target, os.X_OK) and not is_autoinstall_file(target) and not is_prefix_backup_file(target):
+            result = create_native_desktop_file(target, os.path.basename(target))
+            if result and os.path.isfile(result[1]):
+                native_launch_uri = NATIVE_URI_PREFIX + result[1]
     setup_logger(args.debug_level)
     logger = get_logger(__name__)
     if consume_download_counter_skip():
@@ -270,6 +280,9 @@ def main():
     elif is_restore_prefix_request(args):
         restore_prefix_path = normalize_launch_path(args.file_or_url)
         ipc_message = f"restore:{quote(restore_prefix_path, safe='')}"
+    elif native_launch_uri:
+        launch_action = "silent" if is_silent_launch and not args.log else "log" if args.log else "open"
+        ipc_message = f"{launch_action}:{quote(native_launch_uri, safe='')}"
     elif args.file_or_url and is_launch_file(args.file_or_url):
         launch_action = "silent" if is_silent_launch and not args.log else "log" if args.log else "open"
         ipc_message = f"{launch_action}:{normalize_launch_path(args.file_or_url)}"
@@ -367,7 +380,7 @@ def main():
             logger.warning("Failed to persist PORT_DATA_PATH in PortProtonQt config")
 
     # Check if we have a portproton:// URL or launch file to handle
-    if args.file_or_url and not restore_prefix_path and not gog_launch_uri and not egs_launch_uri:
+    if args.file_or_url and not restore_prefix_path and not gog_launch_uri and not egs_launch_uri and not native_launch_uri:
         if is_portproton_url(args.file_or_url):
             # Parse the portproton:// URL to get the full download URL
             download_url = parse_portproton_url(args.file_or_url)
@@ -452,7 +465,7 @@ def main():
 
     launch_path = exe_path or autoinstall_path
     silent_game_request = is_silent_launch and not args.log and bool(
-        exe_path or gog_launch_uri or egs_launch_uri
+        exe_path or gog_launch_uri or egs_launch_uri or native_launch_uri
     )
     window = MainWindow(app_name=__app_name__, version=version, launch_exe=launch_path, resolution=window_resolution, show_system_tab=args.ppqtos)
     window.silent_launch_mode = silent_game_request
@@ -462,9 +475,9 @@ def main():
         window.tray_manager.set_minimal_mode()
 
     def open_store_game_card(source: str, app_id: str, log_mode: bool = False) -> None:
-        exec_line = f"{source}://launch/{app_id}"
+        exec_line = NATIVE_URI_PREFIX + app_id if source == "native" else f"{source}://launch/{app_id}"
         if log_mode:
-            window._pending_log_exe = getattr(window, f"{source}_api").get_launch_target(app_id)
+            window._pending_log_exe = exec_line if source == "native" else getattr(window, f"{source}_api").get_launch_target(app_id)
 
         def open_card(games: list[tuple]) -> None:
             game = next((item for item in games if item[5] == exec_line), None)
@@ -478,7 +491,7 @@ def main():
                 "anticheat_status": game[9], "playtime_seconds": game[11],
                 "game_source": game[12], "anticheat_slug": game[13],
                 "ppdb_id": game[14], "ppdb_rating": game[15],
-                "protondb_appid": game[16],
+                "protondb_appid": game[16] if len(game) > 16 else "",
             })
 
         loader = getattr(window, f"_load_{source}_games_async")
@@ -506,6 +519,12 @@ def main():
             restart_target = target
             app.quit()
             return
+        if target.startswith(NATIVE_URI_PREFIX):
+            if silent and not log_mode:
+                window.toggleGame(target)
+            else:
+                open_store_game_card("native", target.removeprefix(NATIVE_URI_PREFIX), log_mode)
+            return
         if is_launch_file(target):
             path = normalize_launch_path(target)
             if silent:
@@ -520,7 +539,11 @@ def main():
         open_store_game_card(source, app_id, log_mode)
 
     # Handle launch file if provided
-    if exe_path:
+    if native_launch_uri:
+        def handle_native_launch() -> None:
+            handle_game_request(native_launch_uri, is_silent_launch and not args.log, args.log)
+        QTimer.singleShot(0, handle_native_launch)
+    elif exe_path:
         # Defer the call until after the window is shown
         def handle_launch_exe() -> None:
             handle_game_request(exe_path, is_silent_launch and not args.log, args.log)
@@ -601,8 +624,8 @@ def main():
                             if launch_path and is_launch_file(launch_path):
                                 logger.info("Opening launch file via IPC: %s", launch_path)
                                 handle_game_request(launch_path, False, log_mode)
-                            elif log_mode and launch_path.startswith(("gog://launch/", "egs://launch/")):
-                                handle_game_request(unquote(launch_path), False, True)
+                            elif launch_path.startswith(NATIVE_URI_PREFIX) or (log_mode and launch_path.startswith(("gog://launch/", "egs://launch/"))):
+                                handle_game_request(unquote(launch_path), False, log_mode)
                             else:
                                 logger.warning("Invalid launch file via IPC: %s", launch_path)
                         elif msg.startswith("restore:"):

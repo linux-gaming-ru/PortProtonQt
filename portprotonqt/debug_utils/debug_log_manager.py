@@ -6,6 +6,10 @@ import signal
 import subprocess
 import threading
 import time
+import tempfile
+import shutil
+from pathlib import Path
+from typing import IO
 
 from portprotonqt.logger import get_logger
 from portprotonqt.config import get_portproton_location
@@ -18,7 +22,7 @@ logger = get_logger(__name__)
 
 
 class DebugLogManager:
-    """Manages debug log creation with game launch and Wine output capture."""
+    """Manage debug logs for Wine and native game launches."""
 
     def __init__(self):
         self.process: subprocess.Popen | None = None
@@ -26,15 +30,19 @@ class DebugLogManager:
         self.start_command: list[str] | None = None
         self.wine_output: list[str] = []
         self.runtime_env: dict[str, str] | None = None
+        self.native_output: IO[str] | None = None
+        self.native_directory: str | None = None
         self.is_running = False
         self.output_queue = queue.Queue()
         self.output_thread = None
         self._stop_event = threading.Event()
 
     def start(self, exe_path: str, start_command: list[str]) -> bool:
-        """Start game with PW_LOG=1 and capture output."""
+        """Capture game output, enabling PW_LOG for PortProton launches."""
         if self.is_running:
             return False
+        if exe_path.startswith("native://"):
+            return self._start_native(exe_path)
 
         self.exe_path = exe_path
         self.start_command = start_command
@@ -86,6 +94,48 @@ class DebugLogManager:
             logger.error("Failed to start debug session: %s", e)
             return False
 
+    def _start_native(self, uri: str) -> bool:
+        from portprotonqt.native_games import get_native_launch
+
+        try:
+            command, directory = get_native_launch(uri.removeprefix("native://"))
+            self.native_output = tempfile.TemporaryFile(mode="w+", encoding="utf-8", errors="replace")
+            self.process = subprocess.Popen(
+                command, cwd=directory, stdout=self.native_output,
+                stderr=subprocess.STDOUT, start_new_session=True,
+            )
+        except Exception as error:
+            logger.error("Failed to start native debug session: %s", error)
+            if self.native_output is not None:
+                self.native_output.close()
+                self.native_output = None
+            return False
+        self.exe_path = uri.removeprefix("native://")
+        self.start_command = command
+        self.native_directory = directory
+        self.is_running = True
+        return True
+
+    def _save_native_log(self) -> str | None:
+        output = self.native_output
+        if output is None:
+            return None
+        destination = Path(self.native_directory or str(Path.home())) / "PortProtonQt.log"
+        try:
+            output.seek(0)
+            with destination.open("w", encoding="utf-8") as log:
+                log.write(generate_system_info("native://" + str(self.exe_path), self.start_command))
+                log.write(f"\nCommand: {self.start_command!r}\nWorking directory: {self.native_directory}\n\n")
+                shutil.copyfileobj(output, log)
+            return str(destination)
+        except OSError as error:
+            logger.error("Failed to save native debug log: %s", error)
+            return None
+        finally:
+            output.close()
+            self.native_output = None
+            self.native_directory = None
+
     def _read_output(self):
         """Read output from subprocess in a separate thread."""
         if self.process and self.process.stdout:
@@ -98,19 +148,20 @@ class DebugLogManager:
                 logger.debug("Error reading output: %s", e)
 
     def stop(self) -> str | None:
-        """Stop game and save debug log with captured Wine output."""
-        self._capture_env_vars()
+        """Stop the game and save its diagnostic log."""
+        if self.native_output is None:
+            self._capture_env_vars()
         self._stop_event.set()
 
         if self.is_running and self.process:
             try:
-                os.killpg(os.getpgid(self.process.pid), signal.SIGTERM)
+                os.killpg(self.process.pid if self.native_output is not None else os.getpgid(self.process.pid), signal.SIGTERM)
 
                 try:
                     time.sleep(0.1)
 
                     if self.process.poll() is None:
-                        os.killpg(os.getpgid(self.process.pid), signal.SIGKILL)
+                        os.killpg(self.process.pid if self.native_output is not None else os.getpgid(self.process.pid), signal.SIGKILL)
                 except ProcessLookupError:
                     pass
             except Exception as e:
@@ -123,7 +174,7 @@ class DebugLogManager:
         except queue.Empty:
             pass
 
-        log_file = self._save_log()
+        log_file = self._save_native_log() if self.native_output is not None else self._save_log()
 
         if self.process and self.process.stdout:
             try:
@@ -146,7 +197,8 @@ class DebugLogManager:
             self.is_running = False
             return False
 
-        self._capture_env_vars()
+        if self.native_output is None:
+            self._capture_env_vars()
         return True
 
     def _capture_env_vars(self) -> None:

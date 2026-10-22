@@ -10,7 +10,7 @@ from typing import Any, cast, TYPE_CHECKING
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (
     QDialog, QFormLayout, QHBoxLayout, QLabel, QVBoxLayout,
-    QProgressBar, QSizePolicy, QWidget, QCheckBox, QProgressDialog, QScrollArea, QLineEdit, QApplication
+    QProgressBar, QSizePolicy, QWidget, QCheckBox, QProgressDialog, QScrollArea, QLineEdit, QApplication, QMessageBox
 )
 from PySide6.QtCore import Qt, QObject, Signal, QTimer, QStandardPaths, QSize, QThread
 import psutil
@@ -31,6 +31,7 @@ from portprotonqt.config import (
     ui_config,
 )
 from portprotonqt.config.portproton import get_custom_icon_path, resolve_custom_data_dir
+from portprotonqt.native_games import create_native_desktop_file, is_native_executable
 from portprotonqt.logger import get_logger
 from portprotonqt.theme_manager import ThemeManager
 from portprotonqt.custom_widgets import AutoSizeButton
@@ -486,6 +487,9 @@ class AddGameDialog(DraggableDialog):
         self.add_to_steam_checkbox.setChecked(self._steam_shortcut_exists(current_name))
         self.add_to_menu_checkbox.setChecked(self._menu_shortcut_exists(current_name))
         self.add_to_desktop_checkbox.setChecked(self._desktop_shortcut_exists(current_name))
+        if not edit_mode and is_native_executable(self.exeEdit.text().strip()):
+            self.add_to_menu_checkbox.setChecked(True)
+            self.add_to_desktop_checkbox.setChecked(True)
 
         self.coverPreview = QLabel(self)
         self.coverPreview.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -623,7 +627,10 @@ class AddGameDialog(DraggableDialog):
         try:
             from portprotonqt.dialogs.file_explorer import FileExplorer
             initial_path = os.path.dirname(self.last_exe_path) if self.last_exe_path and os.path.isfile(self.last_exe_path) else None
-            file_explorer = FileExplorer(self, file_filter=LAUNCH_FILE_EXTENSIONS, initial_path=initial_path)
+            def file_filter(path: str) -> bool:
+                return path.lower().endswith(LAUNCH_FILE_EXTENSIONS) or is_native_executable(path)
+
+            file_explorer = FileExplorer(self, file_filter=file_filter, initial_path=initial_path)
             file_explorer.file_signal.file_selected.connect(self.onExeSelected)
             if not self.edit_mode:
                 folder_button = AutoSizeButton(_("Select folder"), icon=theme_manager.get_icon("folder", as_path=True))
@@ -962,6 +969,13 @@ class AddGameDialog(DraggableDialog):
 
         if not name:
             return None, None
+
+        if is_native_executable(exe_path):
+            cover = self.last_cover_path or self.coverEdit.text().strip()
+            result = create_native_desktop_file(exe_path, name, cover)
+            if result is None:
+                QMessageBox.warning(self, _("Error"), _("Failed to create shortcut: {name}").format(name=name))
+            return result or (None, None)
 
         if exe_path.lower().endswith(DISC_IMAGE_EXTENSIONS):
             parent_widget = cast("MainWindow | None", self.parentWidget())

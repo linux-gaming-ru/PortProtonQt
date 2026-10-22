@@ -2020,7 +2020,8 @@ def test_add_game_file_picker_offers_folder_selection_only_for_adding(
 
     app = QApplication.instance() or QApplication([])
     explorer = SimpleNamespace(file_signal=MagicMock(), button_layout=QHBoxLayout(), show=MagicMock())
-    monkeypatch.setattr(explorer_module, "FileExplorer", lambda *_args, **_kwargs: explorer)
+    create_explorer = MagicMock(return_value=explorer)
+    monkeypatch.setattr(explorer_module, "FileExplorer", create_explorer)
     monkeypatch.setattr(module, "AutoSizeButton", lambda text, **_kwargs: QPushButton(text))
     dialog = SimpleNamespace(
         last_exe_path=None, edit_mode=edit_mode, onExeSelected=MagicMock(),
@@ -2030,6 +2031,11 @@ def test_add_game_file_picker_offers_folder_selection_only_for_adding(
 
     module.AddGameDialog.browseExe(cast(Any, dialog))
 
+    file_filter = create_explorer.call_args.kwargs["file_filter"]
+    assert file_filter("/game.exe")
+    assert file_filter("/game")
+    assert file_filter("/game.AppImage")
+    assert not file_filter("/game.txt")
     explorer.file_signal.file_selected.connect.assert_called_once_with(dialog.onExeSelected)
     assert explorer.button_layout.count() == int(not edit_mode)
     if not edit_mode:
