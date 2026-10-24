@@ -18,6 +18,7 @@ import psutil
 import orjson
 
 from portprotonqt.logger import get_logger
+from portprotonqt.config.portproton import get_custom_icon_path
 from portprotonqt.icon_extractor import generate_thumbnail, get_exe_icon_cache_path
 from portprotonqt.dialogs import FileExplorer, ExeSettingsDialog
 from portprotonqt.dialogs.compatibility_report import CompatibilityReportDialog
@@ -1415,6 +1416,9 @@ class MainWindow(
                 executor.submit(self._process_desktop_file_async, file_path, on_desktop_processed)
 
     def _generate_missing_portproton_icon(self, game_exe: str, icon_path: str, desktop_name: str) -> str:
+        custom_icon = get_custom_icon_path(game_exe)
+        if custom_icon:
+            return custom_icon
         if not self.portproton_location:
             return ""
         if not game_exe.lower().endswith(".exe") or not os.path.isfile(game_exe):

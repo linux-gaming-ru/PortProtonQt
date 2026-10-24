@@ -2548,3 +2548,31 @@ def test_game_folder_review_x_imports_edited_rows(tmp_path: Path, monkeypatch: p
     dialog._show_folder_games([("Game", "Wrong.exe")])
     assert started[0].games == [("Game", str(executable))]
     dialog.deleteLater()
+
+
+def test_exe_dialog_saves_custom_icon(tmp_path: Path, monkeypatch: Any) -> None:
+    from PySide6.QtGui import QPixmap
+    from PySide6.QtWidgets import QDialog
+    from portprotonqt.context_menu_manager import CustomLineEdit
+    from portprotonqt.dialogs.base import AddGameDialog
+    from portprotonqt.config.portproton import get_custom_icon_path
+
+    _application = QApplication.instance() or QApplication([])
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    source = tmp_path / "selected.png"
+    image = QPixmap(16, 16)
+    image.fill()
+    assert image.save(str(source))
+    executable = str(tmp_path / "game.exe")
+    dialog = AddGameDialog.__new__(AddGameDialog)
+    QDialog.__init__(dialog)
+    dialog.edit_mode = False
+    dialog.iconEdit = CustomLineEdit(str(source), dialog)
+    dialog.exeEdit = CustomLineEdit(executable, dialog)
+    dialog.accept()
+    saved_icon = get_custom_icon_path(executable)
+    assert saved_icon
+    assert not QPixmap(saved_icon).isNull()
+    assert source.is_file()
+    assert dialog.result() == QDialog.DialogCode.Accepted
+    dialog.close()
