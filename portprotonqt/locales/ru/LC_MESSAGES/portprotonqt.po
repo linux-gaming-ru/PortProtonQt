@@ -9,7 +9,7 @@ msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: support@linux-gaming.ru\n"
 "POT-Creation-Date: 2026-03-22 13:50+0500\n"
-"PO-Revision-Date: 2026-10-21 16:27+0000\n"
+"PO-Revision-Date: 2026-10-24 09:27+0000\n"
 "Last-Translator: Andrei Stepanov <adem4ik@gmail.com>\n"
 "Language-Team: Russian <https://translate.codeberg.org/projects/portprotonqt/"
 "portprotonqt/ru/>\n"
@@ -33,6 +33,8 @@ msgid ""
 "PortProtonQt is already running. Stop it and all games, then restart for "
 "the new launch?"
 msgstr ""
+"PortProtonQt уже запущен. Остановить его и все игры, а затем перезапустить "
+"для нового запуска?"
 
 msgid "Yes"
 msgstr "Да"
@@ -965,19 +967,19 @@ msgstr "Запуск {0}"
 
 #, python-brace-format
 msgid "Scanning: {folder}"
-msgstr ""
+msgstr "Сканирование: {folder}"
 
 #, python-brace-format
 msgid "Checking existing shortcuts: {path}"
-msgstr ""
+msgstr "Проверка существующих ярлыков: {path}"
 
 #, python-brace-format
 msgid "Adding: {name}"
-msgstr ""
+msgstr "Добавление: {name}"
 
-#, fuzzy, python-brace-format
+#, python-brace-format
 msgid "Failed to create shortcut: {name}"
-msgstr "Не удалось создать папку: {error}"
+msgstr "Не удалось создать ярлык: {name}"
 
 msgid "Name:"
 msgstr "Название:"
@@ -1003,29 +1005,28 @@ msgstr "Предпросмотр обложки:"
 msgid "Apply"
 msgstr "Применить"
 
-#, fuzzy
 msgid "Select folder"
-msgstr "Удалить Папку"
+msgstr "Выбрать папку"
 
-#, fuzzy
 msgid "Processing games…"
-msgstr "Недавние"
+msgstr "Обработка игр…"
 
 #, python-brace-format
 msgid ""
 "Processed {completed}/{total}\n"
 "{current}"
 msgstr ""
+"Обработано {completed}/{total}\n"
+"{current}"
 
 msgid "Information"
 msgstr "Информация"
 
 msgid "No games found in the selected folder."
-msgstr ""
+msgstr "В выбранной папке игры не найдены."
 
-#, fuzzy
 msgid "Select games"
-msgstr "Недавние"
+msgstr "Выбрать игры"
 
 msgid "Close"
 msgstr "Закрыть"
