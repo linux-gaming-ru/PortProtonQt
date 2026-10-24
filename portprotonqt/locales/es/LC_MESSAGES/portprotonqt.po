@@ -1011,6 +1011,10 @@ msgstr "Portada personalizada:"
 msgid "Enter local path or URL for cover image"
 msgstr "Ingrese la ruta local o la URL de la imagen de portada"
 
+#, fuzzy
+msgid "Custom Icon:"
+msgstr "Portada personalizada:"
+
 msgid "Add shortcut to:"
 msgstr "Agregar acceso directo a:"
 
@@ -1019,6 +1023,9 @@ msgstr "Vista previa de la portada:"
 
 msgid "Apply"
 msgstr "Aplicar"
+
+msgid "Invalid image"
+msgstr "Imagen no válida"
 
 #, fuzzy
 msgid "Select folder"
@@ -1046,9 +1053,6 @@ msgstr "Juegos recientes"
 
 msgid "Close"
 msgstr ""
-
-msgid "Invalid image"
-msgstr "Imagen no válida"
 
 msgid "Failed to download cover"
 msgstr "No se ha podido descargar la portada"

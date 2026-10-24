@@ -993,6 +993,10 @@ msgstr "Capa Personalizada:"
 msgid "Enter local path or URL for cover image"
 msgstr "Informe o caminho local ou a URL da imagem de capa"
 
+#, fuzzy
+msgid "Custom Icon:"
+msgstr "Capa Personalizada:"
+
 msgid "Add shortcut to:"
 msgstr "Adicionar atalho em:"
 
@@ -1001,6 +1005,9 @@ msgstr "Pré-visualização da Capa:"
 
 msgid "Apply"
 msgstr "Aplicar"
+
+msgid "Invalid image"
+msgstr "Imagem inválida"
 
 #, fuzzy
 msgid "Select folder"
@@ -1028,9 +1035,6 @@ msgstr "Jogos Recentes"
 
 msgid "Close"
 msgstr "Fechar"
-
-msgid "Invalid image"
-msgstr "Imagem inválida"
 
 msgid "Failed to download cover"
 msgstr "Falha ao baixar a capa"

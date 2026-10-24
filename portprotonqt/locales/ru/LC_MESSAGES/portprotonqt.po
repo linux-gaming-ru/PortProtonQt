@@ -996,6 +996,10 @@ msgstr "Пользовательская обложка:"
 msgid "Enter local path or URL for cover image"
 msgstr "Введите локальный путь или URL обложки"
 
+#, fuzzy
+msgid "Custom Icon:"
+msgstr "Пользовательская обложка:"
+
 msgid "Add shortcut to:"
 msgstr "Добавить ярлык:"
 
@@ -1004,6 +1008,9 @@ msgstr "Предпросмотр обложки:"
 
 msgid "Apply"
 msgstr "Применить"
+
+msgid "Invalid image"
+msgstr "Недопустимое изображение"
 
 msgid "Select folder"
 msgstr "Выбрать папку"
@@ -1030,9 +1037,6 @@ msgstr "Выбрать игры"
 
 msgid "Close"
 msgstr "Закрыть"
-
-msgid "Invalid image"
-msgstr "Недопустимое изображение"
 
 msgid "Failed to download cover"
 msgstr "Не удалось скачать обложку"

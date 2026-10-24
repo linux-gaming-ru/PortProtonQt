@@ -959,6 +959,10 @@ msgstr "自定义封面："
 msgid "Enter local path or URL for cover image"
 msgstr "输入封面图像的本地路径或 URL"
 
+#, fuzzy
+msgid "Custom Icon:"
+msgstr "自定义封面："
+
 msgid "Add shortcut to:"
 msgstr "添加快捷方式到："
 
@@ -967,6 +971,9 @@ msgstr "封面预览："
 
 msgid "Apply"
 msgstr "应用"
+
+msgid "Invalid image"
+msgstr "图像无效"
 
 #, fuzzy
 msgid "Select folder"
@@ -995,9 +1002,6 @@ msgstr "最近游戏"
 #, fuzzy
 msgid "Close"
 msgstr "鼠标"
-
-msgid "Invalid image"
-msgstr "图像无效"
 
 msgid "Failed to download cover"
 msgstr "下载封面失败"

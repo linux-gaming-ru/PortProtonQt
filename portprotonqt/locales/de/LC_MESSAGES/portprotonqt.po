@@ -997,6 +997,10 @@ msgstr "Eigenes Titelbild:"
 msgid "Enter local path or URL for cover image"
 msgstr "Lokaler Pfad oder die URL für das Titelbild"
 
+#, fuzzy
+msgid "Custom Icon:"
+msgstr "Eigenes Titelbild:"
+
 msgid "Add shortcut to:"
 msgstr "Verknüpfung hinzufügen zu:"
 
@@ -1005,6 +1009,9 @@ msgstr "Titelbild-Vorschau:"
 
 msgid "Apply"
 msgstr "Anwenden"
+
+msgid "Invalid image"
+msgstr "Ungültiges Bild"
 
 msgid "Select folder"
 msgstr "Ordner auswählen"
@@ -1031,9 +1038,6 @@ msgstr "Spiele auswählen"
 
 msgid "Close"
 msgstr "Schließen"
-
-msgid "Invalid image"
-msgstr "Ungültiges Bild"
 
 msgid "Failed to download cover"
 msgstr "Herunterladen des Titelbildes fehlgeschlagen"
