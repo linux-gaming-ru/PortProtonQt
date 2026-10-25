@@ -9,7 +9,7 @@ msgstr ""
 "Project-Id-Version: PortProtonQt 0.1.1\n"
 "Report-Msgid-Bugs-To: support@linux-gaming.ru\n"
 "POT-Creation-Date: 2026-06-18 23:41+0500\n"
-"PO-Revision-Date: 2026-10-21 16:27+0000\n"
+"PO-Revision-Date: 2026-10-24 09:27+0000\n"
 "Last-Translator: Rubin13 <rubin13@noreply.codeberg.org>\n"
 "Language-Team: German <https://translate.codeberg.org/projects/portprotonqt/"
 "portprotonqt/de/>\n"
@@ -30,6 +30,8 @@ msgid ""
 "PortProtonQt is already running. Stop it and all games, then restart for "
 "the new launch?"
 msgstr ""
+"PortProtonQt läuft bereits. Möchtest du es sowie alle Spiele beenden und "
+"anschließend PortProtonQt neu starten?"
 
 msgid "Yes"
 msgstr "Ja"
@@ -966,19 +968,19 @@ msgstr "Start {0}"
 
 #, python-brace-format
 msgid "Scanning: {folder}"
-msgstr ""
+msgstr "Scannen: {folder}"
 
 #, python-brace-format
 msgid "Checking existing shortcuts: {path}"
-msgstr ""
+msgstr "Überprüfung vorhandener Verknüpfungen: {path}"
 
 #, python-brace-format
 msgid "Adding: {name}"
-msgstr ""
+msgstr "Hinzufügen: {name}"
 
-#, fuzzy, python-brace-format
+#, python-brace-format
 msgid "Failed to create shortcut: {name}"
-msgstr "Ordner konnte nicht erstellt werden: {error}"
+msgstr "Verknüpfung konnte nicht erstellt werden: {name}"
 
 msgid "Name:"
 msgstr "Titel:"
@@ -995,6 +997,10 @@ msgstr "Eigenes Titelbild:"
 msgid "Enter local path or URL for cover image"
 msgstr "Lokaler Pfad oder die URL für das Titelbild"
 
+#, fuzzy
+msgid "Custom Icon:"
+msgstr "Eigenes Titelbild:"
+
 msgid "Add shortcut to:"
 msgstr "Verknüpfung hinzufügen zu:"
 
@@ -1004,35 +1010,34 @@ msgstr "Titelbild-Vorschau:"
 msgid "Apply"
 msgstr "Anwenden"
 
-#, fuzzy
-msgid "Select folder"
-msgstr "Ordner löschen"
+msgid "Invalid image"
+msgstr "Ungültiges Bild"
 
-#, fuzzy
+msgid "Select folder"
+msgstr "Ordner auswählen"
+
 msgid "Processing games…"
-msgstr "Aktuelle Spiele"
+msgstr "Spiele werden verarbeitet…"
 
 #, python-brace-format
 msgid ""
 "Processed {completed}/{total}\n"
 "{current}"
 msgstr ""
+"Verarbeitet {completed}/{total}\n"
+"{current}"
 
 msgid "Information"
 msgstr "Information"
 
 msgid "No games found in the selected folder."
-msgstr ""
+msgstr "Im ausgewählten Ordner wurden keine Spiele gefunden."
 
-#, fuzzy
 msgid "Select games"
-msgstr "Aktuelle Spiele"
+msgstr "Spiele auswählen"
 
 msgid "Close"
 msgstr "Schließen"
-
-msgid "Invalid image"
-msgstr "Ungültiges Bild"
 
 msgid "Failed to download cover"
 msgstr "Herunterladen des Titelbildes fehlgeschlagen"

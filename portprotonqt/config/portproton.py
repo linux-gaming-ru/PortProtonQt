@@ -581,6 +581,14 @@ def resolve_custom_data_dir(custom_data_root: str, exe_path: str) -> str:
     return hashed_dir
 
 
+def get_custom_icon_path(exe_path: str) -> str:
+    """Return the existing custom icon for an executable."""
+    data_home = os.getenv("XDG_DATA_HOME", os.path.expanduser("~/.local/share"))
+    folder = resolve_custom_data_dir(os.path.join(data_home, "PortProtonQt", "custom_data"), exe_path)
+    path = os.path.join(folder, "icon.png")
+    return path if os.path.isfile(path) else ""
+
+
 def create_desktop_file(
     exe_path: str,
     game_name: str | None = None,
@@ -606,6 +614,7 @@ def create_desktop_file(
         "applications-games" if is_store_uri and not has_icon_source
         else os.path.join(base_path, "img", f"{icon_name}.png")
     )
+    icon_path = get_custom_icon_path(exe_path) or icon_path
     desktop_path = os.path.join(portproton_path, f"{game_name}.desktop")
     if icon_path != "applications-games":
         os.makedirs(os.path.dirname(icon_path), exist_ok=True)

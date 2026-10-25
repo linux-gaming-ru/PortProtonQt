@@ -653,3 +653,19 @@ def test_remote_cover_replaces_immediate_exe_fallback_only_on_success(
     callbacks[0](str(downloaded_path))
 
     assert loaded_paths == [str(fallback_path), str(downloaded_path)]
+
+
+def test_custom_icon_overrides_extracted_icon(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    from portprotonqt.config.portproton import get_custom_data_dir_name, get_custom_icon_path
+
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    executable = "/games/custom/game.exe"
+    folder = tmp_path / "PortProtonQt" / "custom_data" / get_custom_data_dir_name(executable)
+    folder.mkdir(parents=True)
+    icon = folder / "icon.png"
+    icon.write_bytes(b"custom icon")
+    assert get_custom_icon_path(executable) == str(icon)
+    assert get_exe_icon_cache_path(executable) == str(icon)
+    icon.unlink()
+    assert get_custom_icon_path(executable) == ""
+    assert get_exe_icon_cache_path(executable) != str(icon)

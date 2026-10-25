@@ -30,6 +30,7 @@ from portprotonqt.config import (
     parse_desktop_entry,
     ui_config,
 )
+from portprotonqt.config.portproton import get_custom_icon_path, resolve_custom_data_dir
 from portprotonqt.logger import get_logger
 from portprotonqt.theme_manager import ThemeManager
 from portprotonqt.custom_widgets import AutoSizeButton
@@ -429,6 +430,21 @@ class AddGameDialog(DraggableDialog):
         cover_button_label.setFixedWidth(cover_label.sizeHint().width())
         layout.addRow(cover_button_label, coverBrowseButton)
 
+        self.iconEdit = CustomLineEdit(self, theme=self.theme)
+        self.iconEdit.setStyleSheet(self.theme.ADDGAME_INPUT_STYLE)
+        self.iconEdit.setText(get_custom_icon_path(exe_path) if exe_path else "")
+        if steam_appid is None:
+            icon_label = QLabel(_("Custom Icon:"))
+            icon_label.setStyleSheet(self.theme.PARAMS_TITLE_STYLE)
+            icon_row = QHBoxLayout()
+            icon_row.addWidget(self.iconEdit)
+            icon_browse = AutoSizeButton(_("Browse…"), icon=theme_manager.get_icon("search", as_path=True))
+            icon_browse.setStyleSheet(self.theme.ACTION_BUTTON_STYLE)
+            icon_browse.clicked.connect(self.browseIcon)
+            icon_row.addWidget(icon_browse)
+            layout.addRow(icon_label, icon_row)
+        self.iconEdit.setVisible(steam_appid is None)
+
         self.add_to_steam_checkbox = QCheckBox()
         self.add_to_menu_checkbox = QCheckBox()
         self.add_to_desktop_checkbox = QCheckBox()
@@ -561,9 +577,43 @@ class AddGameDialog(DraggableDialog):
 
     def accept(self):
         """Handle Apply button."""
+        icon_path = self.iconEdit.text().strip()
+        exe_path = self.last_exe_path if self.edit_mode else self.exeEdit.text().strip()
+        if icon_path and exe_path and icon_path != get_custom_icon_path(exe_path):
+            from PySide6.QtWidgets import QMessageBox
+
+            image = QPixmap(icon_path)
+            if image.isNull():
+                QMessageBox.warning(self, _("Error"), _("Invalid image"))
+                return
+            data_home = os.getenv("XDG_DATA_HOME", os.path.expanduser("~/.local/share"))
+            folder = resolve_custom_data_dir(os.path.join(data_home, "PortProtonQt", "custom_data"), exe_path)
+            temporary_path = None
+            try:
+                os.makedirs(folder, exist_ok=True)
+                with tempfile.NamedTemporaryFile(dir=folder, suffix=".png", delete=False) as temporary:
+                    temporary_path = temporary.name
+                if not image.save(temporary_path, "PNG"):
+                    raise OSError("Failed to save icon")
+                os.replace(temporary_path, os.path.join(folder, "icon.png"))
+            except OSError as error:
+                logger.warning("Failed to save custom icon: %s", error)
+                QMessageBox.warning(self, _("Error"), str(error))
+                return
+            finally:
+                if temporary_path:
+                    Path(temporary_path).unlink(missing_ok=True)
         if hasattr(self, 'keyboard'):
             self.keyboard.hide()
         super().accept()
+
+    def browseIcon(self) -> None:
+        from portprotonqt.dialogs.file_explorer import FileExplorer
+
+        explorer = FileExplorer(self, file_filter=COVER_IMAGE_EXTENSIONS + (".ico",),
+                                initial_path=os.path.dirname(self.iconEdit.text()) or None)
+        explorer.file_signal.file_selected.connect(self.iconEdit.setText)
+        explorer.show()
 
     def browseExe(self):
         """Open file manager to select executable or disc image."""
@@ -926,6 +976,8 @@ class AddGameDialog(DraggableDialog):
 
         file_icon_name = THEMED_LAUNCH_ICON_NAMES.get(os.path.splitext(launch_path)[1].lower())
         file_icon_path = theme_manager.get_icon(file_icon_name, as_path=True) if file_icon_name else ""
+        if get_custom_icon_path(exe_path):
+            return desktop_entry, desktop_path
         if not self.last_cover_path and file_icon_path:
             desktop_entry = desktop_entry.replace(f"Icon={icon_path}\n", f"Icon={file_icon_path}\n")
         elif not self.last_cover_path and not generate_thumbnail(launch_path, icon_path, size=128):

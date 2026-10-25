@@ -152,9 +152,17 @@ class MainWindowLibraryTabMixin(_MainWindowTypingBase):
             card_orientation = "vertical"
         elif layout_mode in {"horizontal", "horizontal_top"}:
             card_orientation = "horizontal"
+        theme_mode = str(getattr(self.theme, "LIBRARY_LAYOUT_MODE", "grid"))
+        previous_mode = ui_config.get_library_layout_mode(theme_mode)
+        previous_orientation = ui_config.get_horizontal_card_orientation("theme")
         ui_config.set_library_layout_mode(layout_mode)
         ui_config.set_horizontal_card_orientation(card_orientation)
-        theme_mode = str(getattr(self.theme, "LIBRARY_LAYOUT_MODE", "grid"))
+        if (
+            previous_mode == ui_config.get_library_layout_mode(theme_mode)
+            and (previous_mode not in {"horizontal", "horizontal_top"}
+                 or previous_orientation == card_orientation)
+        ):
+            return
         self.game_library_manager.rebuild_library_layout(
             ui_config.get_library_layout_mode(theme_mode)
         )

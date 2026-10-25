@@ -919,6 +919,9 @@ msgstr ""
 msgid "Enter local path or URL for cover image"
 msgstr ""
 
+msgid "Custom Icon:"
+msgstr ""
+
 msgid "Add shortcut to:"
 msgstr ""
 
@@ -926,6 +929,9 @@ msgid "Cover Preview:"
 msgstr ""
 
 msgid "Apply"
+msgstr ""
+
+msgid "Invalid image"
 msgstr ""
 
 msgid "Select folder"
@@ -950,9 +956,6 @@ msgid "Select games"
 msgstr ""
 
 msgid "Close"
-msgstr ""
-
-msgid "Invalid image"
 msgstr ""
 
 msgid "Failed to download cover"
