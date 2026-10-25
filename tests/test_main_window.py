@@ -787,6 +787,9 @@ def test_vertical_theme_rebuilds_autoinstall_layout() -> None:
     window.auto_size_slider.maximum.return_value = 250
     window.autoInstallLoading = False
     window._start_autoinstall_load = MagicMock()
+    window.auto_install_tab_index = 1
+    window.stackedWidget = MagicMock()
+    window.stackedWidget.currentIndex.return_value = 1
 
     window.refresh_autoinstall_layout()
 
@@ -2650,7 +2653,7 @@ def test_library_layout_control_rebuilds_both_libraries(
     monkeypatch.setattr(
         library_tab_module.ui_config,
         "get_library_layout_mode",
-        lambda theme_mode: "grid",
+        MagicMock(side_effect=["list", "grid", "grid"]),
     )
 
     LibraryMixin._on_library_layout_changed(window, 1)
@@ -3136,3 +3139,92 @@ def test_shutdown_stops_batch_before_store_processes() -> None:
     process.kill.assert_called_once_with()
     assert process.waitForFinished.call_count == 2
     assert window.store_download_queue == []
+
+
+@mark.parametrize("mode", ["grid", "list", "horizontal", "horizontal_top"])
+def test_hidden_autoinstall_defers_layout_rebuild(mode: str, monkeypatch: MonkeyPatch) -> None:
+    window = cast(Any, AutoInstallMixin())
+    window.theme = SimpleNamespace(LIBRARY_LAYOUT_MODE=mode)
+    window.autoInstallContainer = MagicMock()
+    window.stackedWidget = MagicMock()
+    window.stackedWidget.currentIndex.return_value = 0
+    window.auto_install_tab_index = 1
+    window.autoInstallLoaded = True
+    window._set_autoinstall_container_layout = MagicMock()
+    window._start_autoinstall_load = MagicMock()
+    monkeypatch.setattr(autoinstall_tab_module.ui_config, "get_library_layout_mode", lambda _: mode)
+
+    window.refresh_autoinstall_layout()
+    window.refresh_autoinstall_layout()
+
+    assert window._autoinstall_layout_pending is True
+    assert window.autoInstallLoaded is False
+    window._set_autoinstall_container_layout.assert_not_called()
+    window._start_autoinstall_load.assert_not_called()
+
+
+def test_autoinstall_load_applies_pending_layout_before_loading() -> None:
+    window = cast(Any, AutoInstallMixin())
+    window._autoinstall_layout_pending = True
+    window.autoInstallLoaded = True
+    window.refresh_autoinstall_layout = MagicMock()
+    window.portproton_api = MagicMock()
+
+    window._start_autoinstall_load()
+
+    window.refresh_autoinstall_layout.assert_called_once_with()
+    window.portproton_api.start_autoinstall_games_load.assert_not_called()
+
+
+def test_library_theme_grid_switch_preserves_cards(
+    monkeypatch: MonkeyPatch, tmp_config_dir: Path,
+) -> None:
+    window = cast(Any, SimpleNamespace(
+        library_layout_keys=["theme", "grid"],
+        theme=SimpleNamespace(LIBRARY_LAYOUT_MODE="grid"),
+        game_library_manager=SimpleNamespace(rebuild_library_layout=MagicMock()),
+        refresh_autoinstall_layout=MagicMock(),
+    ))
+    monkeypatch.setattr(library_tab_module.ui_config, "get_library_layout_mode", lambda _: "grid")
+    monkeypatch.setattr(library_tab_module.ui_config, "set_library_layout_mode", MagicMock())
+    monkeypatch.setattr(library_tab_module.ui_config, "set_horizontal_card_orientation", MagicMock())
+
+    LibraryMixin._on_library_layout_changed(window, 1)
+    LibraryMixin._on_library_layout_changed(window, 0)
+
+    window.game_library_manager.rebuild_library_layout.assert_not_called()
+    window.refresh_autoinstall_layout.assert_not_called()
+
+
+def test_deferred_autoinstall_layout_loads_latest_mode_once(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    window = cast(Any, AutoInstallMixin())
+    window.theme = SimpleNamespace(LIBRARY_LAYOUT_MODE="grid")
+    window.autoInstallContainer = MagicMock()
+    window.autoInstallStatusHeader = MagicMock()
+    window.auto_size_slider = MagicMock()
+    window.auto_size_slider.maximum.return_value = 250
+    window.stackedWidget = MagicMock()
+    window.stackedWidget.currentIndex.return_value = 0
+    window.auto_install_tab_index = 1
+    window.autoInstallLoaded = True
+    window.autoInstallLoading = False
+    window._set_autoinstall_container_layout = MagicMock()
+    window._on_autoinstall_games_loaded = MagicMock()
+    window.portproton_api = MagicMock()
+    mode = ["list"]
+    monkeypatch.setattr(autoinstall_tab_module.ui_config, "get_library_layout_mode", lambda _: mode[0])
+
+    window.refresh_autoinstall_layout()
+    mode[0] = "vertical"
+    window.refresh_autoinstall_layout()
+    window.stackedWidget.currentIndex.return_value = 1
+    window._start_autoinstall_load()
+
+    window._set_autoinstall_container_layout.assert_called_once_with("vertical")
+    window.portproton_api.start_autoinstall_games_load.assert_called_once_with(
+        window._on_autoinstall_games_loaded, force_refresh=False,
+    )
+    assert window._autoinstall_layout_pending is False
+    assert window.autoInstallLoading is True

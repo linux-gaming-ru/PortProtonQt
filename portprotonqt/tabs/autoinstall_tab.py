@@ -397,6 +397,11 @@ class MainWindowAutoInstallTabMixin(_MainWindowTypingBase):
         """Rebuild auto-install cards after a live library layout change."""
         if not hasattr(self, "autoInstallContainer"):
             return
+        if self.stackedWidget.currentIndex() != self.auto_install_tab_index:
+            self._autoinstall_layout_pending = True
+            self.autoInstallLoaded = False
+            return
+        self._autoinstall_layout_pending = False
         mode = ui_config.get_library_layout_mode(
             str(getattr(self.theme, "LIBRARY_LAYOUT_MODE", "grid"))
         )
@@ -487,6 +492,9 @@ class MainWindowAutoInstallTabMixin(_MainWindowTypingBase):
                 return
 
     def _start_autoinstall_load(self, force_refresh: bool = False) -> None:
+        if getattr(self, "_autoinstall_layout_pending", False):
+            self.refresh_autoinstall_layout()
+            return
         if self.autoInstallLoaded or self.autoInstallLoading:
             return
         if not hasattr(self, "_on_autoinstall_games_loaded"):
