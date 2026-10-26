@@ -2576,3 +2576,57 @@ def test_exe_dialog_saves_custom_icon(tmp_path: Path, monkeypatch: Any) -> None:
     assert source.is_file()
     assert dialog.result() == QDialog.DialogCode.Accepted
     dialog.close()
+
+
+@pytest.mark.parametrize("source_appid", [None, 620])
+@pytest.mark.parametrize("extension", ["png", "jpg"])
+def test_steam_artwork_sgdb_fallback(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, source_appid: int | None, extension: str
+) -> None:
+    requested = []
+    applied = []
+    original = b"original artwork bytes"
+
+    def fetch(name: str, callback: Any, image_type: str) -> None:
+        requested.append((name, image_type))
+        callback(f"https://cdn2.steamgriddb.com/grid/{image_type}.{extension}")
+
+    def download(url: str, destination: str, timeout: int, callback: Any) -> None:
+        if "steamstatic.com" in url:
+            callback(None)
+            return
+        Path(destination).write_bytes(original)
+        callback(destination)
+
+    monkeypatch.setattr(steam_shortcuts, "fetch_sgdb_cover_async", fetch)
+    monkeypatch.setattr(steam_shortcuts.downloader, "download_async", download)
+    monkeypatch.setattr(steam_shortcuts, "call_steam_api", lambda *args: applied.append(args))
+    steam_shortcuts._download_covers(123, (source_appid, "Portal 2"), str(tmp_path), True)
+    assert requested == [("Portal 2", kind) for kind in ("grids", "heroes", "logos", "hgrids")]
+    assert len(applied) == 4
+    assert all(call[3] == extension for call in applied)
+    for suffix in ("p", "_hero", "_logo", ""):
+        assert (tmp_path / f"123{suffix}.{extension}").read_bytes() == original
+
+
+def test_sgdb_artwork_cache_separates_types(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import portprotonqt.steam_api.api as api
+
+    monkeypatch.setattr(api, "CacheManager", lambda: SimpleNamespace(cache_dir=tmp_path))
+    downloads = []
+
+    def download(url: str, path: str, timeout: int, callback: Any) -> None:
+        downloads.append(url)
+        Path(path).write_text(f'"{url}"', encoding="utf-8")
+        callback(path)
+
+    monkeypatch.setattr(api.downloader, "download_async", download)
+    completed = []
+    for image_type in ("grids", "heroes", "grids", "heroes"):
+        api.fetch_sgdb_cover_async("Portal/2", completed.append, image_type)
+    assert len(downloads) == 2
+    assert downloads[0].endswith("Portal%2F2/grids")
+    assert downloads[1].endswith("Portal%2F2/heroes")
+    assert completed == downloads + downloads

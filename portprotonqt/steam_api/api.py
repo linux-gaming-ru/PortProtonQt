@@ -47,10 +47,12 @@ SGDB_CACHE_DURATION = 24 * 60 * 60
 STEAM_CLIENT_ICON_SIZES = (16, 32, 64, 128, 256)
 
 
-def fetch_sgdb_cover_async(game_name: str, callback: Callable[[str], None]) -> None:
+def fetch_sgdb_cover_async(
+    game_name: str, callback: Callable[[str], None], image_type: str = "grids"
+) -> None:
     """Asynchronously fetch cover image URL from steamgrid.usebottles.com."""
-    encoded = urllib.parse.quote(game_name)
-    url = f"https://steamgrid.usebottles.com/api/search/{encoded}"
+    encoded = urllib.parse.quote(game_name, safe="")
+    url = f"https://steamgrid.usebottles.com/api/search/{encoded}/{image_type}"
 
     def process_response(result: str | None) -> None:
         if not result or not os.path.exists(result):
@@ -75,7 +77,7 @@ def fetch_sgdb_cover_async(game_name: str, callback: Callable[[str], None]) -> N
 
     cache_manager = CacheManager()
     safe_name = "".join(c for c in game_name if c.isalnum() or c in " -_")[:50]
-    cache_file = cache_manager.cache_dir / f"sgdb_{safe_name}.json"
+    cache_file = cache_manager.cache_dir / f"sgdb_{safe_name}_{image_type}.json"
     if cache_file.exists() and time.time() - cache_file.stat().st_mtime < SGDB_CACHE_DURATION:
         process_response(str(cache_file))
         return
