@@ -9,7 +9,7 @@
 
   <p>
     <a href="https://git.linux-gaming.ru/Linux-Gaming/PortProtonQt/releases"><img src="https://img.shields.io/github/v/release/linux-gaming-ru/PortProtonQt?style=flat-square&amp;label=Релиз" alt="Релизы"></a>
-    <a href="https://git.linux-gaming.ru/Linux-Gaming/PortProtonQt/releases"><img src="https://img.shields.io/badge/Загрузки-14.1k-green?style=flat-square" alt="Всего загрузок"></a>
+    <a href="https://git.linux-gaming.ru/Linux-Gaming/PortProtonQt/releases"><img src="https://img.shields.io/badge/Загрузки-17.9k-green?style=flat-square" alt="Всего загрузок"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/Лицензия-GPL--3.0-blue?style=flat-square" alt="Лицензия: GPL-3.0"></a>
     <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-3.11+-blue?style=flat-square&amp;logo=python" alt="Python 3.11+"></a>
     <a href="https://git.linux-gaming.ru/Linux-Gaming/PortProtonQt"><img src="https://img.shields.io/badge/Платформа-Linux-blue?style=flat-square&amp;logo=linux" alt="Платформа: Linux"></a>
