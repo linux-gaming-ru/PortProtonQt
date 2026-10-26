@@ -50,6 +50,7 @@
 - Исправлена гонка при запуске игры с `--silent`
 
 ### Contributors
+- @Dervart
 - @adem4ik
 - @rogerio-mattos
 - @Rubin13
