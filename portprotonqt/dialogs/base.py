@@ -430,10 +430,13 @@ class AddGameDialog(DraggableDialog):
         cover_button_label.setFixedWidth(cover_label.sizeHint().width())
         layout.addRow(cover_button_label, coverBrowseButton)
 
+        show_icon = steam_appid is None or bool(
+            exe_path and exe_path.startswith(("gog://launch/", "egs://launch/"))
+        )
         self.iconEdit = CustomLineEdit(self, theme=self.theme)
         self.iconEdit.setStyleSheet(self.theme.ADDGAME_INPUT_STYLE)
         self.iconEdit.setText(get_custom_icon_path(exe_path) if exe_path else "")
-        if steam_appid is None:
+        if show_icon:
             icon_label = QLabel(_("Custom Icon:"))
             icon_label.setStyleSheet(self.theme.PARAMS_TITLE_STYLE)
             icon_row = QHBoxLayout()
@@ -443,7 +446,7 @@ class AddGameDialog(DraggableDialog):
             icon_browse.clicked.connect(self.browseIcon)
             icon_row.addWidget(icon_browse)
             layout.addRow(icon_label, icon_row)
-        self.iconEdit.setVisible(steam_appid is None)
+        self.iconEdit.setVisible(show_icon)
 
         self.add_to_steam_checkbox = QCheckBox()
         self.add_to_menu_checkbox = QCheckBox()

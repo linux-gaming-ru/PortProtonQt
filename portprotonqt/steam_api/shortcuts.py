@@ -435,8 +435,9 @@ def add_to_steam(
     if error:
         return (False, error)
 
-    icon_source = get_custom_icon_path(exe_path) or icon_source or (None if is_store_uri else exe_path)
-    icon_path = _generate_icon(icon_source, portproton_dir) if icon_source else ""
+    custom_icon = get_custom_icon_path(script_path) or get_custom_icon_path(exe_path)
+    icon_source = custom_icon or icon_source or (None if is_store_uri else exe_path)
+    icon_path = custom_icon or (_generate_icon(icon_source, portproton_dir) if icon_source else "")
 
     steam_home = get_steam_home()
     if not steam_home:
