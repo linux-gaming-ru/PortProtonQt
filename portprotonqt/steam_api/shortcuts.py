@@ -7,7 +7,9 @@ import re
 import shlex
 import shutil
 import zlib
+from functools import partial
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import orjson
 import requests
@@ -33,6 +35,7 @@ from portprotonqt.steam_api.utils import (
 )
 from portprotonqt.steam_api.api import (
     get_steam_game_info_async,
+    fetch_sgdb_cover_async,
 )
 
 logger = get_logger(__name__)
@@ -328,11 +331,12 @@ def _add_shortcut_via_vdf(
 
 def _download_covers(
     appid: int,
-    steam_appid: int,
+    steam_appid: tuple[int | None, str],
     grid_dir: str,
     was_api_used: bool
 ) -> None:
     """Download cover images for the game."""
+    source_appid, game_name = steam_appid
     cover_types = [
         ("p.jpg", "library_600x900_2x.jpg"),
         ("_hero.jpg", "library_hero.jpg"),
@@ -349,7 +353,7 @@ def _download_covers(
                         with open(result_path, 'rb') as f:
                             img_b64 = base64.b64encode(f.read()).decode('utf-8')
                         logger.info(f"Applying cover type '{steam_name}' via API for AppID {appid}")
-                        ext = Path(steam_name).suffix.lstrip('.')
+                        ext = Path(result_path).suffix.lstrip('.')
                         call_steam_api("setGrid", appid, index, ext, img_b64)
                     except Exception as e:
                         logger.error(f"Failed to apply cover '{steam_name}' via API: {e}")
@@ -358,14 +362,45 @@ def _download_covers(
         except Exception as e:
             logger.error(f"Failed to process cover {steam_name} for appid {steam_appid}: {e}")
 
+    def download_sgdb(index: int, cover_file: str, steam_name: str) -> None:
+        image_type = ("grids", "heroes", "logos", "hgrids")[index]
+
+        def on_url(url: str) -> None:
+            if not url.startswith("https://cdn2.steamgriddb.com/"):
+                on_cover_download(None, steam_name, index)
+                return
+            extension = Path(urlsplit(url).path).suffix.lower()
+            if extension not in (".png", ".jpg", ".jpeg"):
+                logger.warning("Unsupported SGDB artwork format: %s", extension)
+                on_cover_download(None, steam_name, index)
+                return
+            destination = str(Path(cover_file).with_suffix(extension))
+            downloader.download_async(
+                url, destination, timeout=5,
+                callback=partial(on_cover_download, steam_name=steam_name, index=index),
+            )
+
+        fetch_sgdb_cover_async(game_name, on_url, image_type)
+
+    def on_steam_download(
+        index: int, steam_name: str, cover_file: str, result: str | None
+    ) -> None:
+        if result:
+            on_cover_download(result, steam_name, index)
+        else:
+            download_sgdb(index, cover_file, steam_name)
+
     for i, (suffix, steam_name) in enumerate(cover_types):
         cover_file = os.path.join(grid_dir, f"{appid}{suffix}")
-        cover_url = f"https://cdn.cloudflare.steamstatic.com/steam/apps/{steam_appid}/{steam_name}"
+        if not source_appid:
+            download_sgdb(i, cover_file, steam_name)
+            continue
+        cover_url = f"https://cdn.cloudflare.steamstatic.com/steam/apps/{source_appid}/{steam_name}"
         downloader.download_async(
             cover_url,
             cover_file,
             timeout=5,
-            callback=lambda result, index=i, name=steam_name: on_cover_download(result, name, index)
+            callback=partial(on_steam_download, i, steam_name, cover_file)
         )
 
 
@@ -475,10 +510,10 @@ def add_to_steam(
         nonlocal steam_appid
         steam_appid = game_info.get("appid")
         if not steam_appid or not isinstance(steam_appid, int):
-            logger.info("No valid Steam appid found, skipping cover download")
+            _download_covers(appid, (None, game_name), str(grid_dir), was_api_used)
             return
         logger.info(f"Found Steam AppID {steam_appid} for cover download")
-        _download_covers(appid, steam_appid, str(grid_dir), was_api_used)
+        _download_covers(appid, (steam_appid, game_name), str(grid_dir), was_api_used)
 
     get_steam_game_info_async(game_name, exec_line, on_game_info)
 
@@ -491,10 +526,9 @@ def add_to_steam(
 def _delete_cover_files(grid_dir: str, appid: int) -> None:
     """Delete cover files for a game."""
     cover_files = [
-        os.path.join(grid_dir, f"{appid}.jpg"),
-        os.path.join(grid_dir, f"{appid}p.jpg"),
-        os.path.join(grid_dir, f"{appid}_hero.jpg"),
-        os.path.join(grid_dir, f"{appid}_logo.png")
+        os.path.join(grid_dir, f"{appid}{suffix}{extension}")
+        for suffix in ("", "p", "_hero", "_logo")
+        for extension in (".jpg", ".png", ".jpeg")
     ]
     for cover_file in cover_files:
         if os.path.exists(cover_file):

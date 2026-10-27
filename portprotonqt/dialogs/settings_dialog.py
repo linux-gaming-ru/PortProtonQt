@@ -1108,6 +1108,8 @@ class ExeSettingsDialog(
                 break
 
         source_header = source_table.horizontalHeader()
+        if source_header.sectionResizeMode(1) == QHeaderView.ResizeMode.ResizeToContents:
+            source_table.resizeColumnToContents(1)
         target_header = self.favorites_table.horizontalHeader()
         target_header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         target_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)

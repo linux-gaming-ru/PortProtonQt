@@ -226,6 +226,7 @@ class MainWindowControlHintsMixin:
 
         keyboard_hints = [
             ("key_enter", _("Select"), "confirm"),
+            ("key_space", _("Select multiple"), None),
             ("key_backspace", _("Back"), "back"),
             ("key_e", _("Add a shortcut"), "add_game"),
             ("key_context", _("Menu"), "context_menu"),
