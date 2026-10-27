@@ -16,6 +16,7 @@ import requests
 import vdf
 import websocket
 
+from portprotonqt.config.portproton import get_custom_icon_path
 from portprotonqt.logger import get_logger
 from portprotonqt.downloader import Downloader
 from portprotonqt.icon_extractor import generate_thumbnail
@@ -434,7 +435,7 @@ def add_to_steam(
     if error:
         return (False, error)
 
-    icon_source = icon_source or (None if is_store_uri else exe_path)
+    icon_source = get_custom_icon_path(exe_path) or icon_source or (None if is_store_uri else exe_path)
     icon_path = _generate_icon(icon_source, portproton_dir) if icon_source else ""
 
     steam_home = get_steam_home()

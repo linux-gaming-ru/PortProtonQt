@@ -92,6 +92,8 @@ def test_add_to_steam_for_all_accounts(
         steam_shortcuts, "get_portproton_start_command", lambda: "start"
     )
     icon_path = str(tmp_path / "game-icon.png")
+    selected_icon = str(tmp_path / "custom_data" / "icon.png")
+    monkeypatch.setattr(steam_shortcuts, "get_custom_icon_path", lambda _path: selected_icon)
     generate_icon = MagicMock(return_value=icon_path)
     monkeypatch.setattr(steam_shortcuts, "_generate_icon", generate_icon)
     monkeypatch.setattr(
@@ -106,7 +108,7 @@ def test_add_to_steam_for_all_accounts(
     )
 
     assert result is True
-    generate_icon.assert_called_once_with(str(executable), str(tmp_path))
+    generate_icon.assert_called_once_with(str(selected_icon), str(tmp_path))
     for account_id in ("1", "2"):
         shortcuts_path = (
             steam_home / "userdata" / account_id / "config" / "shortcuts.vdf"
