@@ -92,6 +92,12 @@ def test_add_to_steam_for_all_accounts(
         steam_shortcuts, "get_portproton_start_command", lambda: "start"
     )
     icon_path = str(tmp_path / "game-icon.png")
+    selected_icon = str(tmp_path / "custom_data" / "icon.png")
+    custom_icon_path = target if target.startswith(("gog://", "egs://")) else str(executable)
+    custom_icon_lookup = MagicMock(
+        side_effect=lambda path: selected_icon if path == custom_icon_path else ""
+    )
+    monkeypatch.setattr(steam_shortcuts, "get_custom_icon_path", custom_icon_lookup)
     generate_icon = MagicMock(return_value=icon_path)
     monkeypatch.setattr(steam_shortcuts, "_generate_icon", generate_icon)
     monkeypatch.setattr(
@@ -106,7 +112,11 @@ def test_add_to_steam_for_all_accounts(
     )
 
     assert result is True
-    generate_icon.assert_called_once_with(str(executable), str(tmp_path))
+    generate_icon.assert_not_called()
+    assert custom_icon_lookup.call_args_list[0].args == (
+        str(tmp_path / "steam_scripts" / "Test Game.sh"),
+    )
+    assert custom_icon_lookup.call_args_list[1].args == (custom_icon_path,)
     for account_id in ("1", "2"):
         shortcuts_path = (
             steam_home / "userdata" / account_id / "config" / "shortcuts.vdf"
@@ -114,7 +124,7 @@ def test_add_to_steam_for_all_accounts(
         assert shortcuts_path.is_file()
         shortcuts = steam_shortcuts.safe_vdf_load(shortcuts_path)["shortcuts"]
         assert shortcuts["0"]["AppName"] == "Test Game"
-        assert shortcuts["0"]["icon"] == icon_path
+        assert shortcuts["0"]["icon"] == selected_icon
     script = (tmp_path / "steam_scripts" / "Test Game.sh").read_text()
     assert target in script
 
@@ -861,7 +871,8 @@ class TestGetSteamShortcutPath:
 
 
 class TestEditSteamShortcut:
-    def test_steam_dialog_has_no_executable_row(self, monkeypatch: Any) -> None:
+    @pytest.mark.parametrize("store", ["steam", "gog", "egs"])
+    def test_steam_dialog_has_no_executable_row(self, monkeypatch: Any, store: str) -> None:
         from portprotonqt.dialogs.base import AddGameDialog
 
         _application = QApplication.instance() or QApplication([])
@@ -885,11 +896,13 @@ class TestEditSteamShortcut:
             edit_mode=True,
             game_name="Game",
             steam_appid="730",
+            exe_path=f"{store}://launch/730" if store != "steam" else None,
         )
 
         labels = [label.text() for label in dialog.findChildren(QLabel)]
         assert "Path to Executable:" not in labels
         assert dialog.exeEdit.isHidden()
+        assert dialog.iconEdit.isHidden() == (store == "steam")
         assert all(
             label.isHidden()
             for label in dialog.findChildren(QLabel)
@@ -978,10 +991,15 @@ class TestEditSteamShortcut:
             "", "", "", "", 0, 0, "egs",
         )
         manager.game_library_manager = MagicMock(games=[gog_game, egs_game])
-        monkeypatch.setattr(context_menu, "AddGameDialog", lambda **_kwargs: dialog)
+        make_dialog = MagicMock(return_value=dialog)
+        monkeypatch.setattr(context_menu, "AddGameDialog", make_dialog)
 
         manager._edit_id_shortcut("GOG Game", "/old.jpg", ("gog", "123"))
         manager._edit_id_shortcut("EGS Game", "/old.jpg", ("egs", "ABC"))
+
+        assert [call.kwargs["exe_path"] for call in make_dialog.call_args_list] == [
+            "gog://launch/123", "egs://launch/ABC",
+        ]
 
         custom_root = tmp_path / "PortProtonQt" / "custom_data"
         for storage_id in ("gog-123", "egs-ABC"):
@@ -2550,7 +2568,8 @@ def test_game_folder_review_x_imports_edited_rows(tmp_path: Path, monkeypatch: p
     dialog.deleteLater()
 
 
-def test_exe_dialog_saves_custom_icon(tmp_path: Path, monkeypatch: Any) -> None:
+@pytest.mark.parametrize("store", [None, "gog", "egs"])
+def test_exe_dialog_saves_custom_icon(tmp_path: Path, monkeypatch: Any, store: str | None) -> None:
     from PySide6.QtGui import QPixmap
     from PySide6.QtWidgets import QDialog
     from portprotonqt.context_menu_manager import CustomLineEdit
@@ -2563,10 +2582,11 @@ def test_exe_dialog_saves_custom_icon(tmp_path: Path, monkeypatch: Any) -> None:
     image = QPixmap(16, 16)
     image.fill()
     assert image.save(str(source))
-    executable = str(tmp_path / "game.exe")
+    executable = f"{store}://launch/123" if store else str(tmp_path / "game.exe")
     dialog = AddGameDialog.__new__(AddGameDialog)
     QDialog.__init__(dialog)
-    dialog.edit_mode = False
+    dialog.edit_mode = bool(store)
+    dialog.last_exe_path = executable
     dialog.iconEdit = CustomLineEdit(str(source), dialog)
     dialog.exeEdit = CustomLineEdit(executable, dialog)
     dialog.accept()
@@ -2630,3 +2650,25 @@ def test_sgdb_artwork_cache_separates_types(
     assert downloads[0].endswith("Portal%2F2/grids")
     assert downloads[1].endswith("Portal%2F2/heroes")
     assert completed == downloads + downloads
+
+
+@pytest.mark.parametrize("image_type", ["grids", "heroes", "logos", "hgrids"])
+def test_sgdb_cloud_urls_use_proxy(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, image_type: str
+) -> None:
+    import portprotonqt.steam_api.api as api
+    import portprotonqt.portproton_api as portproton_api
+
+    monkeypatch.setattr(api, "CacheManager", lambda: SimpleNamespace(cache_dir=tmp_path))
+    monkeypatch.setattr(portproton_api, "get_user_conf_setting", lambda name: "CLOUD")
+    url = f"https://cdn2.steamgriddb.com/{image_type}/asset.png"
+
+    def download(_url: str, path: str, timeout: int, callback: Any) -> None:
+        Path(path).write_text(f'"{url}"', encoding="utf-8")
+        callback(path)
+
+    monkeypatch.setattr(api.downloader, "download_async", download)
+    completed = []
+    api.fetch_sgdb_cover_async("Portal 2", completed.append, image_type)
+
+    assert completed == [f"https://deckyloader.ru/sgdb-cdn/{image_type}/asset.png"]

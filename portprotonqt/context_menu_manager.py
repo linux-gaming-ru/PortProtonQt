@@ -1429,7 +1429,8 @@ class ContextMenuManager:
             logger.warning("Invalid %s game ID for shortcut editing: %s", source, app_id)
             return
         dialog = AddGameDialog(parent=self.parent, theme=self.theme, edit_mode=True,
-                               game_name=game_name, cover_path=cover_path, steam_appid=app_id)
+                               game_name=game_name, cover_path=cover_path, steam_appid=app_id,
+                               exe_path=f"{source}://launch/{app_id}" if source in {"gog", "egs"} else None)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         new_name = dialog.nameEdit.text().strip()

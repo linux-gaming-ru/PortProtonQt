@@ -45,3 +45,4 @@ portprotonqt/locales/*/LC_MESSAGES/*.mo
 .codex
 CODE_QUALITY_PLAN.md
 .repowise
+.pz

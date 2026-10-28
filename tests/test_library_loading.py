@@ -451,6 +451,7 @@ def test_failed_protondb_completion_preserves_library_scroll(
 ) -> None:
     from portprotonqt.main_window import MainWindow
     from portprotonqt.steam_api import api
+    import portprotonqt.portproton_api as portproton_api
 
     manager, _ = library_scene
     manager.rebuild_library_layout(scenario[0])
@@ -459,6 +460,7 @@ def test_failed_protondb_completion_preserves_library_scroll(
     main.getColorPalette_from_pixmap = MagicMock()
     main.game_library_manager = manager
     main._get_portproton_desktop_files = lambda: set()
+    monkeypatch.setattr(portproton_api, "get_user_conf_setting", lambda _key: None)
     monkeypatch.setattr(api, "load_protondb_status", lambda _appid: None)
     monkeypatch.setattr(api, "CacheManager", lambda: SimpleNamespace(cache_dir=tmp_path))
     responses: list[Callable[[str | None], None]] = []

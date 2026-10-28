@@ -16,6 +16,7 @@ import requests
 import vdf
 import websocket
 
+from portprotonqt.config.portproton import get_custom_icon_path
 from portprotonqt.logger import get_logger
 from portprotonqt.downloader import Downloader
 from portprotonqt.icon_extractor import generate_thumbnail
@@ -366,7 +367,10 @@ def _download_covers(
         image_type = ("grids", "heroes", "logos", "hgrids")[index]
 
         def on_url(url: str) -> None:
-            if not url.startswith("https://cdn2.steamgriddb.com/"):
+            if not url.startswith((
+                "https://cdn2.steamgriddb.com/",
+                "https://deckyloader.ru/sgdb-cdn/",
+            )):
                 on_cover_download(None, steam_name, index)
                 return
             extension = Path(urlsplit(url).path).suffix.lower()
@@ -434,8 +438,9 @@ def add_to_steam(
     if error:
         return (False, error)
 
-    icon_source = icon_source or (None if is_store_uri else exe_path)
-    icon_path = _generate_icon(icon_source, portproton_dir) if icon_source else ""
+    custom_icon = get_custom_icon_path(script_path) or get_custom_icon_path(exe_path)
+    icon_source = custom_icon or icon_source or (None if is_store_uri else exe_path)
+    icon_path = custom_icon or (_generate_icon(icon_source, portproton_dir) if icon_source else "")
 
     steam_home = get_steam_home()
     if not steam_home:
