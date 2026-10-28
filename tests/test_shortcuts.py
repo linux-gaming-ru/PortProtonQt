@@ -2650,3 +2650,25 @@ def test_sgdb_artwork_cache_separates_types(
     assert downloads[0].endswith("Portal%2F2/grids")
     assert downloads[1].endswith("Portal%2F2/heroes")
     assert completed == downloads + downloads
+
+
+@pytest.mark.parametrize("image_type", ["grids", "heroes", "logos", "hgrids"])
+def test_sgdb_cloud_urls_use_proxy(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, image_type: str
+) -> None:
+    import portprotonqt.steam_api.api as api
+    import portprotonqt.portproton_api as portproton_api
+
+    monkeypatch.setattr(api, "CacheManager", lambda: SimpleNamespace(cache_dir=tmp_path))
+    monkeypatch.setattr(portproton_api, "get_user_conf_setting", lambda name: "CLOUD")
+    url = f"https://cdn2.steamgriddb.com/{image_type}/asset.png"
+
+    def download(_url: str, path: str, timeout: int, callback: Any) -> None:
+        Path(path).write_text(f'"{url}"', encoding="utf-8")
+        callback(path)
+
+    monkeypatch.setattr(api.downloader, "download_async", download)
+    completed = []
+    api.fetch_sgdb_cover_async("Portal 2", completed.append, image_type)
+
+    assert completed == [f"https://deckyloader.ru/sgdb-cdn/{image_type}/asset.png"]

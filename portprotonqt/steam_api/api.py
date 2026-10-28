@@ -69,6 +69,14 @@ def fetch_sgdb_cover_async(
             if text.startswith('"') and text.endswith('"'):
                 text = text[1:-1]
             if text:
+                from portprotonqt.portproton_api import get_user_conf_setting
+
+                if get_user_conf_setting("MIRROR") == "CLOUD":
+                    text = text.replace(
+                        "https://cdn2.steamgriddb.com/",
+                        "https://deckyloader.ru/sgdb-cdn/",
+                        1,
+                    )
                 logger.debug("Got SGDB cover URL for %s: %s", game_name, text)
             callback(text)
         except Exception as e:
@@ -227,7 +235,12 @@ def get_protondb_tier_async(appid: int, callback: Callable[[str], None]) -> None
         callback(cached.get("tier", ""))
         return
 
-    url = f"https://www.protondb.com/api/v1/reports/summaries/{appid}.json"
+    from portprotonqt.portproton_api import get_user_conf_setting
+
+    if get_user_conf_setting("MIRROR") == "CLOUD":
+        url = f"https://deckyloader.ru/protondb/{appid}.json"
+    else:
+        url = f"https://www.protondb.com/api/v1/reports/summaries/{appid}.json"
 
     def process_response(result: str | None) -> None:
         if not result or not os.path.exists(result):

@@ -367,7 +367,10 @@ def _download_covers(
         image_type = ("grids", "heroes", "logos", "hgrids")[index]
 
         def on_url(url: str) -> None:
-            if not url.startswith("https://cdn2.steamgriddb.com/"):
+            if not url.startswith((
+                "https://cdn2.steamgriddb.com/",
+                "https://deckyloader.ru/sgdb-cdn/",
+            )):
                 on_cover_download(None, steam_name, index)
                 return
             extension = Path(urlsplit(url).path).suffix.lower()
