@@ -1071,9 +1071,13 @@ class MainWindow(
                 self._load_gog_games_async(gog_callback)
                 self._load_egs_games_async(egs_callback)
             else:
-                # For 'all' filter - load games from different sources in parallel to prevent blocking
+                # Load selected sources in parallel.
                 results = {'portproton': [], 'steam': [], 'gog': [], 'egs': []}
-                completed = dict.fromkeys(results, False)
+                selected_sources = set(display_filter.split(","))
+                completed = {
+                    source: bool(selected_sources & results.keys()) and source not in selected_sources
+                    for source in results
+                }
 
                 def on_all_games():
                     seen = set()
@@ -1115,11 +1119,13 @@ class MainWindow(
                     completed['egs'] = True
                     check_completion()
 
-                # Load all sources in parallel
-                self._load_portproton_games_async(portproton_callback)
-                self._load_steam_games_async(steam_callback)
-                self._load_gog_games_async(gog_callback)
-                self._load_egs_games_async(egs_callback)
+                callbacks = {
+                    "portproton": portproton_callback, "steam": steam_callback,
+                    "gog": gog_callback, "egs": egs_callback,
+                }
+                for source, callback in callbacks.items():
+                    if not completed[source]:
+                        getattr(self, f"_load_{source}_games_async")(callback)
 
         # Run loading immediately to show status without delay
         start_loading()

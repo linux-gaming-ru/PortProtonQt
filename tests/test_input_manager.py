@@ -1567,3 +1567,68 @@ def test_x_edits_keyboard_without_triggering_dialog_action(monkeypatch: MonkeyPa
     handled.assert_called_once_with(button, 1)
     clicked.assert_not_called()
     dialog.close()
+
+
+@mark.parametrize("row", [0, 1])
+def test_gamepad_combo_confirm_emits_activation(row: int) -> None:
+    application = QApplication.instance() or QApplication([])
+    combo = QComboBox()
+    combo.addItems(["GOG", "PortProton"])
+    activated = []
+    combo.activated.connect(activated.append)
+    combo.show()
+    combo.showPopup()
+    combo.view().setCurrentIndex(combo.model().index(row, 0))
+    manager = InputManager.__new__(InputManager)
+    confirm = next(iter(input_manager.BUTTONS["confirm"]))
+
+    assert manager._handle_list_view_button(combo.view(), confirm)
+
+    assert activated == [row]
+    assert combo.currentIndex() == row
+    assert not combo.view().isVisible()
+    combo.close()
+    application.processEvents()
+
+
+def test_readonly_combo_confirm_opens_popup_without_keyboard() -> None:
+    application = QApplication.instance() or QApplication([])
+    combo = QComboBox()
+    combo.addItems(["GOG", "PortProton"])
+    combo.setEditable(True)
+    field = combo.lineEdit()
+    assert field is not None
+    field.setReadOnly(True)
+    keyboard = MagicMock()
+    manager = InputManager.__new__(InputManager)
+    manager._parent = cast(MainWindowProtocol, SimpleNamespace(keyboard=keyboard))
+    confirm = next(iter(input_manager.BUTTONS["confirm"]))
+    combo.show()
+
+    assert not manager._route_button_to_text_input(combo, field, confirm)
+    assert manager._handle_combo_button(field, confirm)
+    assert combo.view().isVisible()
+    keyboard.show_for_widget.assert_not_called()
+    combo.hidePopup()
+    combo.close()
+    application.processEvents()
+
+
+def test_confirm_on_open_combo_activates_highlighted_row() -> None:
+    application = QApplication.instance() or QApplication([])
+    combo = QComboBox()
+    combo.addItems(["GOG", "PortProton"])
+    activated = []
+    combo.activated.connect(activated.append)
+    combo.show()
+    combo.showPopup()
+    combo.view().setCurrentIndex(combo.model().index(1, 0))
+    manager = InputManager.__new__(InputManager)
+    confirm = next(iter(input_manager.BUTTONS["confirm"]))
+
+    assert manager._handle_combo_button(combo, confirm)
+
+    assert activated == [1]
+    assert not combo.view().isVisible()
+    combo.close()
+    application.processEvents()

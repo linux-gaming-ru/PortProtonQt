@@ -1,8 +1,8 @@
 import os
 from itertools import accumulate
 from PySide6.QtWidgets import QLabel, QPushButton, QStyle, QStyleOptionButton, QWidget, QLayout, QLayoutItem, QScrollArea, QGraphicsOpacityEffect, QComboBox
-from PySide6.QtCore import Qt, Signal, QRect, QRectF, QSize, Property, QPropertyAnimation, QEasingCurve, QTimer, QEvent
-from PySide6.QtGui import QFont, QFontMetrics, QIcon, QPainter, QPalette, QColor, QWheelEvent
+from PySide6.QtCore import QObject, Qt, Signal, QRect, QRectF, QSize, Property, QPropertyAnimation, QEasingCurve, QTimer, QEvent
+from PySide6.QtGui import QMouseEvent, QFont, QFontMetrics, QIcon, QPainter, QPalette, QColor, QWheelEvent
 from PySide6.QtSvg import QSvgRenderer
 from portprotonqt.theme_manager import ThemeManager
 from portprotonqt.config import ui_config
@@ -17,6 +17,19 @@ class CustomComboBox(QComboBox):
     def __init__(self, parent=None, theme=None):
         super().__init__(parent)
         self.theme = theme
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        line_edit = self.lineEdit()
+        if (
+            watched is line_edit and line_edit is not None and line_edit.isReadOnly()
+            and isinstance(event, QMouseEvent) and event.button() == Qt.MouseButton.LeftButton
+        ):
+            if event.type() == QEvent.Type.MouseButtonPress:
+                return True
+            if event.type() == QEvent.Type.MouseButtonRelease:
+                self.showPopup()
+                return True
+        return super().eventFilter(watched, event)
 
     def contextMenuEvent(self, event):
         line_edit = self.lineEdit()
