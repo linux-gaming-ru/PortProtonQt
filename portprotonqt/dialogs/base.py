@@ -365,6 +365,8 @@ class AddGameDialog(DraggableDialog):
         from portprotonqt.context_menu_manager import CustomLineEdit
         self.theme = theme if theme else theme_manager.apply_theme(ui_config.get_theme())
         self.edit_mode = edit_mode
+        if exe_path is None and steam_appid is not None:
+            exe_path = f"steam://rungameid/{steam_appid}"
         self.last_exe_path = exe_path
         self.last_cover_path = cover_path
         refresh_games = getattr(parent, "refreshGames", None)
@@ -430,23 +432,18 @@ class AddGameDialog(DraggableDialog):
         cover_button_label.setFixedWidth(cover_label.sizeHint().width())
         layout.addRow(cover_button_label, coverBrowseButton)
 
-        show_icon = steam_appid is None or bool(
-            exe_path and exe_path.startswith(("gog://launch/", "egs://launch/"))
-        )
         self.iconEdit = CustomLineEdit(self, theme=self.theme)
         self.iconEdit.setStyleSheet(self.theme.ADDGAME_INPUT_STYLE)
         self.iconEdit.setText(get_custom_icon_path(exe_path) if exe_path else "")
-        if show_icon:
-            icon_label = QLabel(_("Custom Icon:"))
-            icon_label.setStyleSheet(self.theme.PARAMS_TITLE_STYLE)
-            icon_row = QHBoxLayout()
-            icon_row.addWidget(self.iconEdit)
-            icon_browse = AutoSizeButton(_("Browse…"), icon=theme_manager.get_icon("search", as_path=True))
-            icon_browse.setStyleSheet(self.theme.ACTION_BUTTON_STYLE)
-            icon_browse.clicked.connect(self.browseIcon)
-            icon_row.addWidget(icon_browse)
-            layout.addRow(icon_label, icon_row)
-        self.iconEdit.setVisible(show_icon)
+        icon_label = QLabel(_("Custom Icon:"))
+        icon_label.setStyleSheet(self.theme.PARAMS_TITLE_STYLE)
+        icon_row = QHBoxLayout()
+        icon_row.addWidget(self.iconEdit)
+        icon_browse = AutoSizeButton(_("Browse…"), icon=theme_manager.get_icon("search", as_path=True))
+        icon_browse.setStyleSheet(self.theme.ACTION_BUTTON_STYLE)
+        icon_browse.clicked.connect(self.browseIcon)
+        icon_row.addWidget(icon_browse)
+        layout.addRow(icon_label, icon_row)
 
         self.add_to_steam_checkbox = QCheckBox()
         self.add_to_menu_checkbox = QCheckBox()

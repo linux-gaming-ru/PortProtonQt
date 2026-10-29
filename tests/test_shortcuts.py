@@ -171,6 +171,7 @@ def _make_exe(tmp_path: Path, name: str = "game.exe", subdir: str = "") -> str:
 
 
 def _patch_location(monkeypatch: Any, tmp_path: Path) -> None:
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
     monkeypatch.setattr(
         "portprotonqt.config.portproton.get_portproton_location",
         lambda: str(tmp_path / "PortProtonQt"),
@@ -902,7 +903,9 @@ class TestEditSteamShortcut:
         labels = [label.text() for label in dialog.findChildren(QLabel)]
         assert "Path to Executable:" not in labels
         assert dialog.exeEdit.isHidden()
-        assert dialog.iconEdit.isHidden() == (store == "steam")
+        assert not dialog.iconEdit.isHidden()
+        if store == "steam":
+            assert dialog.last_exe_path == "steam://rungameid/730"
         assert all(
             label.isHidden()
             for label in dialog.findChildren(QLabel)
@@ -2568,7 +2571,7 @@ def test_game_folder_review_x_imports_edited_rows(tmp_path: Path, monkeypatch: p
     dialog.deleteLater()
 
 
-@pytest.mark.parametrize("store", [None, "gog", "egs"])
+@pytest.mark.parametrize("store", [None, "gog", "egs", "steam"])
 def test_exe_dialog_saves_custom_icon(tmp_path: Path, monkeypatch: Any, store: str | None) -> None:
     from PySide6.QtGui import QPixmap
     from PySide6.QtWidgets import QDialog
@@ -2583,6 +2586,8 @@ def test_exe_dialog_saves_custom_icon(tmp_path: Path, monkeypatch: Any, store: s
     image.fill()
     assert image.save(str(source))
     executable = f"{store}://launch/123" if store else str(tmp_path / "game.exe")
+    if store == "steam":
+        executable = "steam://rungameid/123"
     dialog = AddGameDialog.__new__(AddGameDialog)
     QDialog.__init__(dialog)
     dialog.edit_mode = bool(store)
@@ -2594,6 +2599,12 @@ def test_exe_dialog_saves_custom_icon(tmp_path: Path, monkeypatch: Any, store: s
     assert saved_icon
     assert not QPixmap(saved_icon).isNull()
     assert source.is_file()
+    if store == "steam":
+        from portprotonqt.steam_api.api import fetch_client_icon_async
+
+        callback = MagicMock()
+        fetch_client_icon_async(123, callback)
+        callback.assert_called_once_with(saved_icon)
     assert dialog.result() == QDialog.DialogCode.Accepted
     dialog.close()
 
