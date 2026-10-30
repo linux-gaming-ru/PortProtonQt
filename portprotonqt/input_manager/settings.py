@@ -476,7 +476,14 @@ class SettingsInputMixin(InputMixin):
         if table != self.settings_dialog.advanced_table:
             table.setFocus(Qt.FocusReason.OtherFocusReason)
             return
+        entry_widget = table.cellWidget(row, 0)
+        if isinstance(entry_widget, QLineEdit):
+            entry_widget.setFocus(Qt.FocusReason.OtherFocusReason)
+            return
         cell_widget = table.cellWidget(row, 1)
+        if isinstance(cell_widget, QPushButton):
+            cell_widget.setFocus(Qt.FocusReason.OtherFocusReason)
+            return
         if isinstance(cell_widget, QComboBox):
             line_edit = cell_widget.lineEdit()
             if cell_widget.isEditable() and line_edit is not None:
@@ -492,8 +499,12 @@ class SettingsInputMixin(InputMixin):
             and cell_widget.property("ppqt_run_after_exe_widget")
         ):
             line_edit = cell_widget.findChild(QLineEdit)
-            if line_edit and line_edit.isEnabled():
+            if line_edit and line_edit.isEnabled() and not line_edit.isHidden():
                 line_edit.setFocus(Qt.FocusReason.OtherFocusReason)
+                return
+            button = cell_widget.findChild(QPushButton)
+            if button and button.isEnabled():
+                button.setFocus(Qt.FocusReason.OtherFocusReason)
                 return
         table.setFocus(Qt.FocusReason.OtherFocusReason)
 
@@ -501,6 +512,20 @@ class SettingsInputMixin(InputMixin):
         """Move focus between inline line edit and button in settings cell."""
         if not self.settings_dialog or table != self.settings_dialog.advanced_table:
             return False
+        focused = QApplication.focusWidget()
+        for row in range(table.rowCount()):
+            entry_widget = table.cellWidget(row, 0)
+            delete_button = table.cellWidget(row, 1)
+            if not isinstance(entry_widget, QLineEdit) or not isinstance(delete_button, QPushButton):
+                continue
+            if focused not in (entry_widget, delete_button):
+                continue
+            widget = delete_button if focused == entry_widget else entry_widget
+            if not widget.isEnabled():
+                return False
+            table.setCurrentCell(row, 1)
+            widget.setFocus(Qt.FocusReason.OtherFocusReason)
+            return True
         if table.currentColumn() != 1:
             return False
 
@@ -508,15 +533,14 @@ class SettingsInputMixin(InputMixin):
         if cell_widget is None or not cell_widget.property("ppqt_run_after_exe_widget"):
             return False
 
-        line_edit = cell_widget.findChild(QLineEdit)
-        button = cell_widget.findChild(QPushButton)
+        widgets = [cell_widget.findChild(QLineEdit), *cell_widget.findChildren(QPushButton)]
+        widgets = [widget for widget in widgets if widget and widget.isEnabled() and not widget.isHidden()]
         focused = QApplication.focusWidget()
-        if value > 0 and focused == line_edit and button and button.isEnabled():
-            button.setFocus(Qt.FocusReason.OtherFocusReason)
-            return True
-        if value < 0 and focused == button and line_edit and line_edit.isEnabled():
-            line_edit.setFocus(Qt.FocusReason.OtherFocusReason)
-            return True
+        if focused in widgets:
+            index = widgets.index(focused) + (1 if value > 0 else -1)
+            if 0 <= index < len(widgets):
+                widgets[index].setFocus(Qt.FocusReason.OtherFocusReason)
+                return True
         return False
 
     def _focus_first_row_in_current_settings_table(self):

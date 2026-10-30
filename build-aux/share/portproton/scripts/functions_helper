@@ -4012,6 +4012,25 @@ pw_launch_wrapper () {
         return
     fi
 
+    local -a wrapper_scripts=()
+    local wrapper_script
+    local wrapper_scripts_valid=1
+    if [[ "${PW_RUN_AFTER_EXE}" == *","* ]] ; then
+        IFS=',' read -r -a wrapper_scripts <<< "${PW_RUN_AFTER_EXE}"
+        for wrapper_script in "${wrapper_scripts[@]}" ; do
+            if [[ ! -f "${wrapper_script}" || "${wrapper_script,,}" == *.exe ]] ; then
+                wrapper_scripts_valid=0
+            fi
+        done
+        if [[ "${wrapper_scripts_valid}" == 1 ]] ; then
+            for wrapper_script in "${wrapper_scripts[@]}" ; do
+                "${wrapper_script}"
+            done
+            "$@"
+            return
+        fi
+    fi
+
     local -a wrapper_cmd
     eval "wrapper_cmd=(${PW_RUN_AFTER_EXE})"
     if [[ ${#wrapper_cmd[@]} -eq 0 ]] ; then
@@ -4193,9 +4212,22 @@ portwine_launch () {
             fi
         done
     else
+        local -a run_after_exes=() run_after_environment=()
+        local run_after_entry run_after_index
+        local run_after_valid=1
+        if [[ -f "${PW_RUN_AFTER_EXE:-}" ]] ; then
+            run_after_exes=("${PW_RUN_AFTER_EXE}")
+        else
+            IFS=',' read -r -a run_after_exes <<< "${PW_RUN_AFTER_EXE:-}"
+        fi
+        for run_after_entry in "${run_after_exes[@]}" ; do
+            if [[ ! -f "${run_after_entry}" || "${run_after_entry,,}" != *.exe ]] ; then
+                run_after_valid=0
+            fi
+        done
         if [[ -n "${PW_RUN_AFTER_EXE:-}" ]] \
-        && [[ -f "${PW_RUN_AFTER_EXE}" ]] \
-        && [[ "${PW_RUN_AFTER_EXE,,}" =~ \.exe$ ]] \
+        && [[ "${run_after_valid}" == 1 ]] \
+        && [[ ${#run_after_exes[@]} -gt 0 ]] \
         && [[ "${PW_EXE_FILE,,}" =~ \.exe$ ]]
         then
             local wait_delay wait_delay_int run_after_bat
@@ -4219,6 +4251,7 @@ portwine_launch () {
                 pw_exe_file_win="z:${PW_EXE_FILE//\//\\}"
             fi
             pw_exe_file_win="${pw_exe_file_win//\//\\}"
+            local PW_RUN_AFTER_EXE="${run_after_exes[0]}"
             run_after_exe_win="$("${WINELOADER}" winepath -w "${PW_RUN_AFTER_EXE}" 2>/dev/null | tr -d '\r')"
             if [[ -z "${run_after_exe_win}" ]] ; then
                 if [[ "${PW_RUN_AFTER_EXE}" == "${wine_drive_c}/"* ]] ; then
@@ -4237,10 +4270,30 @@ timeout /t ${wait_delay_int} /nobreak
 start "" "%PW_RUN_AFTER_SECOND_PATH%"
 EOF
 
-            LAUNCH_PARAMETERS="" proxy_launch_parameters="" \
-                PW_RUN_AFTER_MAIN_PATH="${pw_exe_file_win}" \
-                PW_RUN_AFTER_SECOND_PATH="${run_after_exe_win}" \
-                pw_run "${PW_VD_TMP[@]}" "${run_after_bat}"
+            local run_after_first_win="${run_after_exe_win}"
+            for ((run_after_index=1; run_after_index<${#run_after_exes[@]}; run_after_index++)) ; do
+                run_after_entry="${run_after_exes[run_after_index]}"
+                run_after_exe_win="$("${WINELOADER}" winepath -w "${run_after_entry}" 2>/dev/null | tr -d '\r')"
+                if [[ -z "${run_after_exe_win}" ]] ; then
+                    if [[ "${run_after_entry}" == "${wine_drive_c}/"* ]] ; then
+                        run_after_exe_win="c:\\${run_after_entry#"${wine_drive_c}/"}"
+                    else
+                        run_after_exe_win="z:${run_after_entry//\//\\}"
+                    fi
+                fi
+                run_after_environment+=("PW_RUN_AFTER_PATH_${run_after_index}=${run_after_exe_win//\//\\}")
+                printf 'start "" "%%PW_RUN_AFTER_PATH_%s%%"\r\n' "${run_after_index}" >> "${run_after_bat}"
+            done
+
+            (
+                if [[ ${#run_after_environment[@]} -gt 0 ]] ; then
+                    export "${run_after_environment[@]}"
+                fi
+                PW_RUN_AFTER_EXE="" LAUNCH_PARAMETERS="" proxy_launch_parameters="" \
+                    PW_RUN_AFTER_MAIN_PATH="${pw_exe_file_win}" \
+                    PW_RUN_AFTER_SECOND_PATH="${run_after_first_win}" \
+                    pw_run "${PW_VD_TMP[@]}" "${run_after_bat}"
+            )
             try_remove_file "${run_after_bat}"
         else
             case "${PW_EXE_FILE,,}" in

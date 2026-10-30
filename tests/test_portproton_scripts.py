@@ -43,20 +43,22 @@ gui_config () {
 
 
 @mark.parametrize("second_name", ["Game.exe", "Trainer.exe"])
-def test_run_after_accepts_same_exe(tmp_path: Path, second_name: str) -> None:
+@mark.parametrize("copies", [1, 3])
+def test_run_after_accepts_same_exe(tmp_path: Path, second_name: str, copies: int) -> None:
     helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text()
-    condition = helper.split('        if [[ -n "${PW_RUN_AFTER_EXE:-}" ]]', 1)[1].split(
+    condition = helper.split('        local -a run_after_exes=', 1)[1].split(
         "        then", 1,
     )[0]
+    condition = '        local -a run_after_exes=' + condition
     main_exe = tmp_path / "Game.exe"
     second_exe = tmp_path / second_name
     main_exe.touch()
     second_exe.touch()
     result = subprocess.run(
-        ["bash", "-c", 'if [[ -n "${PW_RUN_AFTER_EXE:-}" ]]' + condition
-         + "then exit 0; else exit 1; fi"],
+        ["bash", "-c", 'check_run_after() {\n' + condition
+         + "then return 0; else return 1; fi; }; check_run_after"],
         env={**os.environ, "PW_EXE_FILE": str(main_exe),
-             "PW_RUN_AFTER_EXE": str(second_exe)},
+             "PW_RUN_AFTER_EXE": ",".join([str(second_exe)] * copies)},
         capture_output=True, text=True, check=False,
     )
     assert result.returncode == 0, result.stderr
@@ -112,7 +114,9 @@ def test_run_after_paths_are_passed_in_environment(tmp_path: Path, trainer_path:
     )[0]
     main_path = "D:\\Games\\Test Game\\Test Game.exe"
     result = subprocess.run(
-        ["bash", "-c", 'pw_run() { env; }\ncat > "$run_after_bat" <<EOF\n' + block],
+        ["bash", "-c", 'pw_run() { env; }\nlaunch() {\n'
+         'local -a run_after_exes=(unused) run_after_environment=()\n'
+         'cat > "$run_after_bat" <<EOF\n' + block + '\n}; launch'],
         env={**os.environ, "run_after_bat": str(tmp_path / "launch.bat"),
              "pw_exe_file_win": main_path, "run_after_exe_win": trainer_path,
              "wait_delay_int": "3", "LAUNCH_PARAMETERS": ""},
@@ -120,6 +124,7 @@ def test_run_after_paths_are_passed_in_environment(tmp_path: Path, trainer_path:
     )
     assert f"PW_RUN_AFTER_MAIN_PATH={main_path}" in result.stdout
     assert f"PW_RUN_AFTER_SECOND_PATH={trainer_path}" in result.stdout
+    assert "PW_RUN_AFTER_EXE=\n" in result.stdout
     batch = (tmp_path / "launch.bat").read_text(encoding="ascii")
     assert 'start "" "%PW_RUN_AFTER_SECOND_PATH%"' in batch
 
@@ -232,3 +237,69 @@ def test_executable_metadata_uses_pefile_and_preserves_lnk_fallback(
     if expected_calls == ["pe"]:
         assert "File Description: Description" in metadata
         assert "Company Name: Sony" in metadata
+
+
+def test_run_after_batch_preserves_duplicate_entries(tmp_path: Path) -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text()
+    block = helper.split('            cat > "${run_after_bat}" <<EOF\n', 1)[1].split(
+        '            try_remove_file "${run_after_bat}"', 1,
+    )[0]
+    exe = tmp_path / "EVE online.exe"
+    exe.touch()
+    script = '''
+loader() { printf 'Z:%s' "$3"; }
+pw_run() { env; }
+launch() {
+local -a run_after_exes=("$EXE" "$EXE" "$EXE") run_after_environment=()
+local run_after_index run_after_entry
+WINELOADER=loader
+cat > "$run_after_bat" <<EOF
+''' + block + '\n}; launch'
+    batch_path = tmp_path / "launch.bat"
+    result = subprocess.run(
+        ["bash", "-c", script], capture_output=True, text=True, check=True,
+        env={**os.environ, "EXE": str(exe), "run_after_bat": str(batch_path),
+             "pw_exe_file_win": "Z:\\EVE online.exe",
+             "run_after_exe_win": "Z:\\EVE online.exe", "wait_delay_int": "3"},
+    )
+    batch = batch_path.read_text()
+    assert batch.count('start ""') == 4
+    assert '%PW_RUN_AFTER_PATH_1%' in batch
+    assert '%PW_RUN_AFTER_PATH_2%' in batch
+    expected = "Z:" + str(exe).replace("/", "\\")
+    assert f"PW_RUN_AFTER_PATH_1={expected}" in result.stdout
+    assert f"PW_RUN_AFTER_PATH_2={expected}" in result.stdout
+
+
+def test_run_after_wrapper_runs_script_list_with_duplicates(tmp_path: Path) -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text()
+    wrapper = helper.split("pw_launch_wrapper () {", 1)[1].split(
+        "export -f pw_launch_wrapper", 1,
+    )[0]
+    first = tmp_path / "first script.sh"
+    second = tmp_path / "second.sh"
+    for script, message in [(first, "first"), (second, "second")]:
+        script.write_text(f"#!/bin/bash\nprintf '{message}\\n'\n")
+        script.chmod(0o700)
+    result = subprocess.run(
+        ["bash", "-c", "pw_launch_wrapper () {" + wrapper
+         + "\npw_launch_wrapper printf 'game\\n'"],
+        env={**os.environ, "PW_RUN_AFTER_EXE": f"{first},{second},{first}"},
+        capture_output=True, text=True, check=True,
+    )
+    assert result.stdout.splitlines() == ["first", "second", "first", "game"]
+
+
+def test_run_after_wrapper_preserves_command_with_comma(tmp_path: Path) -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text()
+    wrapper = helper.split("pw_launch_wrapper () {", 1)[1].split(
+        "export -f pw_launch_wrapper", 1,
+    )[0]
+    result = subprocess.run(
+        ["bash", "-c", "pw_launch_wrapper () {" + wrapper
+         + "\npw_launch_wrapper printf 'game\\n'"],
+        cwd=tmp_path,
+        env={**os.environ, "PW_RUN_AFTER_EXE": "printf '%s\\n' first,second"},
+        capture_output=True, text=True, check=True,
+    )
+    assert result.stdout.splitlines() == ["first,second", "game"]

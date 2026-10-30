@@ -3,7 +3,7 @@
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
-from typing import cast
+from typing import Any, cast
 
 import pytest
 from PySide6.QtCore import QEvent, QRect, Qt, QTimer
@@ -458,6 +458,22 @@ def test_settings_table_descriptions_and_centered_controls(theme_name: str) -> N
     table.selectRow(1)
     ExeSettingsDialog.eventFilter(cast(ExeSettingsDialog, dialog), table.viewport(), QEvent(QEvent.Type.Paint))
     assert isinstance(table.cellWidget(1, 0), QLabel)
+    label = table.cellWidget(1, 0)
+    ExeSettingsDialog._set_favorite_text_cells(
+        cast(ExeSettingsDialog, dialog), 1, "key", "Updated", "New <description>",
+    )
+    ExeSettingsDialog.eventFilter(cast(ExeSettingsDialog, dialog), table.viewport(), QEvent(QEvent.Type.Paint))
+    assert table.cellWidget(1, 0) is label
+    assert isinstance(label, QLabel)
+    assert label.text() == theme.SETTINGS_SELECTED_TEXT_HTML.format(
+        text="Updated<br>" + theme.SETTINGS_SELECTED_DESCRIPTION_HTML.format(
+            description="New &lt;description&gt;",
+        ),
+    )
+    updated_item = table.item(1, 0)
+    assert updated_item is not None
+    assert updated_item.data(Qt.ItemDataRole.AccessibleTextRole) == "Updated\nNew <description>"
+    assert updated_item.text() == ""
     table.close()
 
 
@@ -925,3 +941,93 @@ def test_settings_close_waits_for_pending_save(monkeypatch) -> None:
     dialog.reject()
     assert dialog.close_after_save
     dialog.deleteLater()
+
+
+def test_run_after_normalization_preserves_duplicates(tmp_path: Path) -> None:
+    from portprotonqt.dialogs.settings_dialog import ExeSettingsDialog
+
+    dialog = SimpleNamespace(exe_path=str(tmp_path / "Game.exe"))
+    dialog._resolve_run_after_exe_path = lambda value: ExeSettingsDialog._resolve_run_after_exe_path(cast(ExeSettingsDialog, dialog), value)
+    value = "EVE.exe,EVE.exe,Trainer.exe"
+    assert dialog._resolve_run_after_exe_path(value) == ",".join(
+        str(tmp_path / name) for name in value.split(",")
+    )
+
+
+def test_run_after_inline_entries_preserve_duplicates(tmp_path: Path) -> None:
+    from portprotonqt.dialogs.settings_dialog import ExeSettingsDialog
+
+    owner = cast(Any, QWidget())
+    owner.advanced_table = QTableWidget(2, 3)
+    owner.theme = SimpleNamespace(ACTION_BUTTON_STYLE="", LINE_EDIT_STYLE="")
+    container = QWidget()
+    target = QLineEdit(container)
+    owner.advanced_table.setCellWidget(0, 1, container)
+    from PySide6.QtWidgets import QTableWidgetItem
+
+    owner.advanced_table.setItem(1, 0, QTableWidgetItem("next setting"))
+    exe = tmp_path / "Game.exe"
+    exe.touch()
+    target.setText(f"{exe},{exe}")
+    ExeSettingsDialog._toggle_run_after_entries(cast(ExeSettingsDialog, owner), target)
+    assert owner.advanced_table.rowCount() == 4
+    item = owner.advanced_table.item(1, 0)
+    assert item is not None and item.text() == str(exe)
+    item = owner.advanced_table.item(2, 0)
+    assert item is not None and item.text() == str(exe)
+    ExeSettingsDialog._toggle_run_after_entries(cast(ExeSettingsDialog, owner), target)
+    assert owner.advanced_table.rowCount() == 2
+    item = owner.advanced_table.item(1, 0)
+    assert item is not None and item.text() == "next setting"
+    owner.advanced_table.deleteLater()
+
+
+def test_run_after_entry_paint_preserves_text_and_height() -> None:
+    from PySide6.QtWidgets import QTableWidgetItem
+    from portprotonqt.dialogs.settings_dialog import ExeSettingsDialog
+
+    table = QTableWidget(1, 2)
+    table.viewport().setProperty("ppqt_settings_values", True)
+    table.setItem(0, 0, QTableWidgetItem("Game.exe"))
+    entry = QLineEdit("Game.exe")
+    table.setCellWidget(0, 0, entry)
+    table.resizeRowsToContents()
+    table.show()
+    QApplication.processEvents()
+    height = table.rowHeight(0)
+
+    for _ in range(2):
+        ExeSettingsDialog.eventFilter(
+            cast(ExeSettingsDialog, SimpleNamespace()),
+            table.viewport(), QEvent(QEvent.Type.Paint),
+        )
+
+    assert entry.text() == "Game.exe"
+    item = table.item(0, 0)
+    assert item is not None and item.text() == "Game.exe"
+    assert table.rowHeight(0) == height
+    assert entry.height() >= entry.sizeHint().height()
+    table.close()
+    table.deleteLater()
+
+
+def test_run_after_removing_only_entry_clears_field(tmp_path: Path) -> None:
+    from PySide6.QtWidgets import QTableWidgetItem
+    from portprotonqt.dialogs.settings_dialog import ExeSettingsDialog
+
+    owner = cast(Any, QWidget())
+    owner.advanced_table = QTableWidget(2, 3)
+    owner.theme = SimpleNamespace(ACTION_BUTTON_STYLE="", LINE_EDIT_STYLE="")
+    owner._toggle_run_after_entries = lambda target: ExeSettingsDialog._toggle_run_after_entries(cast(ExeSettingsDialog, owner), target)
+    container = QWidget()
+    target = QLineEdit(container)
+    owner.advanced_table.setCellWidget(0, 1, container)
+    owner.advanced_table.setItem(1, 0, QTableWidgetItem("next setting"))
+    exe = tmp_path / "Game.exe"
+    exe.touch()
+    target.setText(str(exe))
+    owner._toggle_run_after_entries(target)
+    ExeSettingsDialog._remove_run_after_entry(cast(ExeSettingsDialog, owner), target, 0)
+    assert target.text() == ""
+    assert owner.advanced_table.rowCount() == 2
+    owner.advanced_table.deleteLater()

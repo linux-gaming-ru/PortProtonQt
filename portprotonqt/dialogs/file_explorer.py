@@ -607,7 +607,9 @@ class FileExplorer(DraggableDialog):
             if not self.directory_only:
                 files = [f for f in items if os.path.isfile(os.path.join(self.current_path, f))]
                 if self.file_filter:
-                    if isinstance(self.file_filter, str):
+                    if callable(self.file_filter):
+                        files = [f for f in files if self.file_filter(os.path.join(self.current_path, f))]
+                    elif isinstance(self.file_filter, str):
                         files = [f for f in files if f.lower().endswith(self.file_filter)]
                     elif isinstance(self.file_filter, tuple):
                         files = [f for f in files if any(f.lower().endswith(ext) for ext in self.file_filter)]
