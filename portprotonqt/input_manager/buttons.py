@@ -2,6 +2,7 @@ import time
 
 from PySide6.QtCore import QPoint, QTimer, Slot, Qt
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QApplication,
     QComboBox,
     QDialog,
@@ -134,10 +135,15 @@ class ButtonInputMixin(InputMixin):
         return True
 
     def _handle_combo_button(self, focused: QWidget | None, button_code: int) -> bool:
+        if isinstance(focused, QLineEdit) and focused.isReadOnly():
+            focused = self._find_parent_combo(focused)
         if not isinstance(focused, QComboBox):
             return False
         if button_code in BUTTONS['confirm']:
-            focused.showPopup()
+            if focused.view().isVisible():
+                self._activate_list_view_selection(focused.view())
+            else:
+                focused.showPopup()
             return True
         if button_code in BUTTONS['back'] and focused.view().isVisible():
             focused.hidePopup()
@@ -162,7 +168,10 @@ class ButtonInputMixin(InputMixin):
         self, active: QWidget, focused: QWidget | None, button_code: int
     ) -> bool:
         keyboard = getattr(active, 'keyboard', None) or getattr(self._parent, 'keyboard', None)
-        if button_code in BUTTONS['confirm'] and isinstance(focused, QLineEdit):
+        if (
+            button_code in BUTTONS['confirm'] and isinstance(focused, QLineEdit)
+            and not focused.isReadOnly()
+        ):
             if keyboard:
                 keyboard.show_for_widget(focused)
                 return True
@@ -173,7 +182,7 @@ class ButtonInputMixin(InputMixin):
             combo = self._find_parent_combo(focused)
         if combo is not None and combo.isEditable():
             line_edit = combo.lineEdit()
-            if line_edit is not None and keyboard:
+            if line_edit is not None and not line_edit.isReadOnly() and keyboard:
                 line_edit.setFocus()
                 keyboard.show_for_widget(line_edit)
                 return True
@@ -193,7 +202,7 @@ class ButtonInputMixin(InputMixin):
             parent = parent.parentWidget()
         return None
 
-    def _activate_list_view_selection(self, view: QListView) -> None:
+    def _activate_list_view_selection(self, view: QAbstractItemView) -> None:
         index = view.currentIndex()
         if not index.isValid():
             return
@@ -202,6 +211,7 @@ class ButtonInputMixin(InputMixin):
             combo.setCurrentIndex(index.row())
             combo.hidePopup()
             combo.setFocus(Qt.FocusReason.OtherFocusReason)
+            combo.activated.emit(index.row())
             return
         view.activated.emit(index)
         view.clicked.emit(index)

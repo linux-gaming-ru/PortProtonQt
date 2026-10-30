@@ -727,6 +727,25 @@ COMBOBOX_STYLE = f"""
     }}
 """
 
+SOURCE_FILTER_STYLE = f"""
+    QComboBox QAbstractItemView {{
+        background: {color_surface};
+    }}
+    QListView::indicator {{
+        width: {sourceFilterIndicatorSize}px;
+        height: {sourceFilterIndicatorSize}px;
+        border: {border_thin} {color_border_input};
+        border-radius: {sourceFilterIndicatorRadius}px;
+        background: {color_bg};
+        image: none;
+    }}
+    QListView::indicator:checked {{
+        background: {color_accent};
+        border: {border_thin} {color_text};
+        image: url({theme_manager.get_icon("check", current_theme_name, as_path=True)});
+    }}
+"""
+
 SCROLL_STYLE = f"""
     QScrollBar:vertical {{
         width: 10px;

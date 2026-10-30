@@ -97,7 +97,24 @@ class MainWindowLibraryTabMixin(_MainWindowTypingBase):
     def _on_library_filter_changed(self, index: int) -> None:
         if index < 0 or index >= len(self.filter_keys):
             return
-        display_filter = self.filter_keys[index]
+        selected = set(game_config.get_display_filter().split(","))
+        key = self.filter_keys[index]
+        if key in ("all", "favorites"):
+            selected = {key}
+        else:
+            selected -= {"all", "favorites"}
+            selected.symmetric_difference_update({key})
+        display_filter = ",".join(key for key in self.filter_keys if key in selected) or "all"
+        selected = set(display_filter.split(","))
+        combo = self.gamesDisplayCombo
+        combo.setCurrentIndex(self.filter_keys.index(display_filter.split(",")[0]))
+        for row, source in enumerate(self.filter_keys):
+            combo.setItemData(row, Qt.CheckState.Checked if source in selected
+                              else Qt.CheckState.Unchecked, Qt.ItemDataRole.CheckStateRole)
+        combo.setCurrentText(" + ".join(
+            label for source, label in zip(self.filter_keys, self.filter_labels, strict=True)
+            if source in selected
+        ))
         game_config.set_display_filter(display_filter)
         self.onlyInstalledCheckBox.setVisible(
             display_filter not in ("steam", "portproton")
@@ -356,11 +373,27 @@ class MainWindowLibraryTabMixin(_MainWindowTypingBase):
         ]
         self.gamesDisplayCombo = self._create_library_combo(self.filter_labels, _("Display Filter:"))
         self._set_combo_current_key(
-            self.gamesDisplayCombo,
-            self.filter_keys,
-            display_filter,
+            self.gamesDisplayCombo, self.filter_keys, display_filter.split(",")[0]
         )
-        self.gamesDisplayCombo.currentIndexChanged.connect(self._on_library_filter_changed)
+        self.gamesDisplayCombo.setEditable(True)
+        line_edit = self.gamesDisplayCombo.lineEdit()
+        if line_edit is not None:
+            line_edit.setReadOnly(True)
+            line_edit.installEventFilter(self.gamesDisplayCombo)
+        self.gamesDisplayCombo.setStyleSheet(
+            self.gamesDisplayCombo.styleSheet() + self.theme.SOURCE_FILTER_STYLE
+        )
+        selected = set(display_filter.split(","))
+        for row, source in enumerate(self.filter_keys):
+            self.gamesDisplayCombo.setItemData(
+                row, Qt.CheckState.Checked if source in selected else Qt.CheckState.Unchecked,
+                Qt.ItemDataRole.CheckStateRole,
+            )
+        self.gamesDisplayCombo.setCurrentText(" + ".join(
+            label for source, label in zip(self.filter_keys, self.filter_labels, strict=True)
+            if source in selected
+        ))
+        self.gamesDisplayCombo.activated.connect(self._on_library_filter_changed)
         self.gamesDisplayCombo.activated.connect(self._delay_library_controls_hover_close)
 
         self.onlyInstalledCheckBox = QCheckBox(_("Show only installed games"))
@@ -506,9 +539,13 @@ class MainWindowLibraryTabMixin(_MainWindowTypingBase):
             source_refresh()
 
         if not callable(source_loader):
-            if self.gog_api.auth_path.is_file():
+            if (
+                display_filter in ("all", "favorites") or "gog" in display_filter.split(",")
+            ) and self.gog_api.auth_path.is_file():
                 self._refresh_gog_library()
-            if self.egs_api.user_path.is_file():
+            if (
+                display_filter in ("all", "favorites") or "egs" in display_filter.split(",")
+            ) and self.egs_api.user_path.is_file():
                 self._refresh_egs_library()
 
         # Reload games using the existing loadGames functionality

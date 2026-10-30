@@ -16,6 +16,7 @@ from portprotonqt.logger import get_logger
 from portprotonqt.downloader import Downloader
 from portprotonqt.localization import get_steam_language
 from portprotonqt.config import CACHE_DIR, THEMED_LAUNCH_ICON_NAMES, extract_exec_target_path, ui_config
+from portprotonqt.config.portproton import get_custom_icon_path
 from portprotonqt.image_utils import COVER_IMAGE_EXTENSIONS
 from portprotonqt.steam_api.utils import decode_text, get_local_steam_cover
 from portprotonqt.steam_api.cache import (
@@ -191,6 +192,11 @@ def fetch_client_icon_async(appid: int | str, callback: Callable[[str], None]) -
     appid_str = str(appid).strip()
     if not appid_str.isdigit():
         callback("")
+        return
+
+    custom_icon = get_custom_icon_path(f"steam://rungameid/{appid_str}")
+    if custom_icon:
+        callback(custom_icon)
         return
 
     cache_dir = CacheManager().cache_dir

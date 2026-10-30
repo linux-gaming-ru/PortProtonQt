@@ -14,6 +14,7 @@ import psutil
 from pytest import MonkeyPatch, fixture, mark, raises
 from PySide6.QtCore import QEvent, QEventLoop, QObject, QPoint, QPointF, Qt, QTimer
 from PySide6.QtGui import QAction, QMouseEvent, QPixmap, QWheelEvent
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -23,6 +24,8 @@ from PySide6.QtWidgets import (
     QMenu,
     QMainWindow,
     QMessageBox,
+    QStyle,
+    QStyleOptionComboBox,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -32,10 +35,11 @@ from PySide6.QtWidgets import (
 from portprotonqt.animations.library_controls import _animation_duration
 from portprotonqt.animations.game_card import GameCardAnimations
 from portprotonqt.config import game_config
-from portprotonqt.custom_widgets import AutoHideScrollArea, AutoSizeButton
+from portprotonqt.custom_widgets import AutoHideScrollArea, AutoSizeButton, CustomComboBox
 from portprotonqt.detail_pages import DetailPageManager
 from portprotonqt.game_card import GameCard, SourceCorner
 from portprotonqt.game_library_manager import FullLibraryTile, GameLibraryManager
+from portprotonqt.input_manager import InputManager
 from portprotonqt.main_window import MainWindow
 from portprotonqt.search_utils import SearchOptimizer, search_index
 from portprotonqt.tray_manager import TrayManager
@@ -1421,7 +1425,7 @@ def test_library_source_filter_stays_top_aligned_without_checkbox(
     _application = QApplication.instance() or QApplication([])
     window = MainWindow.__new__(MainWindow)
     test_window = cast(Any, window)
-    test_window.theme = SimpleNamespace(CHECKBOX_STYLE="")
+    test_window.theme = SimpleNamespace(CHECKBOX_STYLE="", SOURCE_FILTER_STYLE="")
     test_window._create_library_combo = lambda labels, _tooltip: QComboBox()
     test_window._set_combo_current_key = lambda *_args: None
     test_window._register_gamepad_tooltip = lambda *_args: None
@@ -2612,7 +2616,7 @@ def test_horizontal_layout_menu_maps_endless_modes(
     monkeypatch.setattr(library_tab_module.ui_config, "get_economy_mode", lambda: False)
     monkeypatch.setattr(library_tab_module.ui_config, "get_library_layout_mode", lambda _: "theme")
     window = cast(Any, SimpleNamespace(
-        theme=SimpleNamespace(CHECKBOX_STYLE=""),
+        theme=SimpleNamespace(CHECKBOX_STYLE="", SOURCE_FILTER_STYLE=""),
         _create_library_combo=lambda labels, tooltip: QComboBox(),
         _set_combo_current_key=MagicMock(),
         _register_gamepad_tooltip=MagicMock(),
@@ -2884,15 +2888,22 @@ def test_library_refresh_updates_connected_gog_library(
         ("load", {"force_load": True}),
     ]
 
+@mark.parametrize("display_filter, stores", [
+    ("all", ["gog", "egs"]),
+    ("gog,portproton", ["gog"]),
+    ("steam,portproton", []),
+])
 def test_library_refresh_updates_connected_stores_for_all_filter(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
+    display_filter: str,
+    stores: list[str],
 ) -> None:
     gog_auth_path = tmp_path / "gog_auth.json"
     egs_user_path = tmp_path / "egs_user.json"
     gog_auth_path.touch()
     egs_user_path.touch()
-    monkeypatch.setattr(game_config, "get_display_filter", lambda: "all")
+    monkeypatch.setattr(game_config, "get_display_filter", lambda: display_filter)
     monkeypatch.setattr(
         library_tab_module.QTimer,
         "singleShot",
@@ -2914,11 +2925,7 @@ def test_library_refresh_updates_connected_stores_for_all_filter(
 
     LibraryMixin.refreshGames(cast(Any, window))
 
-    assert calls == [
-        "gog",
-        "egs",
-        ("load", {"force_load": True}),
-    ]
+    assert calls == [*stores, ("load", {"force_load": True})]
 
 def test_library_refresh_skips_gog_for_portproton_filter(
     tmp_path: Path,
@@ -3121,7 +3128,6 @@ def test_autoinstall_table_columns_match_header(
             assert abs(heading.mapTo(window, heading.rect().center()).x()
                        - value.mapTo(window, value.rect().center()).x()) <= 1
     window.stackedWidget.deleteLater()
-    window.deleteLater()
 
 
 def test_shutdown_stops_batch_before_store_processes() -> None:
@@ -3228,3 +3234,147 @@ def test_deferred_autoinstall_layout_loads_latest_mode_once(
     )
     assert window._autoinstall_layout_pending is False
     assert window.autoInstallLoading is True
+
+
+@mark.parametrize("initial, index, expected", [
+    ("all", 2, "gog"),
+    ("gog", 4, "gog,portproton"),
+    ("gog,portproton", 2, "portproton"),
+    ("portproton", 4, "all"),
+    ("gog,portproton", 0, "all"),
+    ("gog,portproton", 5, "favorites"),
+    ("favorites", 2, "gog"),
+])
+def test_library_source_multiselection(
+    initial: str, index: int, expected: str, monkeypatch: MonkeyPatch,
+) -> None:
+    _application = QApplication.instance() or QApplication([])
+    combo = QComboBox()
+    labels = ["All", "Steam", "GOG", "Epic Games", "PortProton", "Favorites"]
+    combo.addItems(labels)
+    combo.setEditable(True)
+    saved = MagicMock()
+    monkeypatch.setattr(game_config, "get_display_filter", lambda: initial)
+    monkeypatch.setattr(game_config, "set_display_filter", saved)
+    window = cast(Any, SimpleNamespace(
+        filter_keys=["all", "steam", "gog", "egs", "portproton", "favorites"],
+        filter_labels=labels, gamesDisplayCombo=combo,
+        onlyInstalledCheckBox=MagicMock(),
+        _position_library_controls_widget=MagicMock(),
+        _on_only_installed_changed=MagicMock(),
+    ))
+
+    combo.activated.connect(lambda row: LibraryMixin._on_library_filter_changed(window, row))
+    combo.view().setCurrentIndex(combo.model().index(index, 0))
+    manager = InputManager.__new__(InputManager)
+    manager._activate_list_view_selection(combo.view())
+
+    saved.assert_called_once_with(expected)
+    assert combo.currentText() == " + ".join(
+        label for key, label in zip(window.filter_keys, labels, strict=True)
+        if key in expected.split(",")
+    )
+    for row, key in enumerate(window.filter_keys):
+        assert combo.itemData(row, Qt.ItemDataRole.CheckStateRole) == (
+            Qt.CheckState.Checked if key in expected.split(",") else Qt.CheckState.Unchecked
+        )
+
+
+def test_library_loads_only_selected_sources(monkeypatch: MonkeyPatch) -> None:
+    _application = QApplication.instance() or QApplication([])
+    monkeypatch.setattr(game_config, "get_display_filter", lambda: "gog,portproton")
+    monkeypatch.setattr(game_config, "get_only_installed", lambda: False)
+    callbacks = {}
+    loaded = MagicMock()
+    window = cast(Any, SimpleNamespace(
+        _loading_games=False, launch_exe=None, games_loaded=SimpleNamespace(emit=loaded),
+        _load_gog_games_async=lambda callback: callbacks.update(gog=callback),
+        _load_portproton_games_async=lambda callback: callbacks.update(portproton=callback),
+        _load_steam_games_async=MagicMock(), _load_egs_games_async=MagicMock(),
+    ))
+
+    MainWindow.loadGames(window, force_load=True)
+    pp_game = ("PP", "", "", "", "", "pp.exe")
+    gog_game = ("GOG", "", "", "", "", "gog://launch/1")
+    callbacks["gog"]([gog_game])
+    loaded.assert_not_called()
+    callbacks["portproton"]([pp_game])
+
+    loaded.assert_called_once_with([pp_game, gog_game])
+    window._load_steam_games_async.assert_not_called()
+    window._load_egs_games_async.assert_not_called()
+
+
+@mark.parametrize("click_target", ["text", "arrow"])
+def test_library_source_filter_opens_across_entire_field(
+    click_target: str, monkeypatch: MonkeyPatch,
+) -> None:
+    application = QApplication.instance() or QApplication([])
+    window = MainWindow.__new__(MainWindow)
+    test_window = cast(Any, window)
+    source_style = "QListView::indicator { image: none; }"
+    test_window.theme = SimpleNamespace(
+        CHECKBOX_STYLE="", SOURCE_FILTER_STYLE=source_style,
+        COMBOBOX_STYLE="QComboBox { combobox-popup: 0; }", SCROLL_STYLE="",
+    )
+    test_window._register_gamepad_tooltip = lambda *_args: None
+    test_window._delay_library_controls_hover_close = lambda: None
+    test_window._position_library_controls_widget = lambda: None
+    test_window._on_only_installed_changed = lambda _checked: None
+    saved = MagicMock()
+    monkeypatch.setattr(game_config, "get_display_filter", lambda: "gog")
+    monkeypatch.setattr(game_config, "set_display_filter", saved)
+    monkeypatch.setattr(game_config, "get_only_installed", lambda: False)
+    monkeypatch.setattr(library_tab_module.ui_config, "get_economy_mode", lambda: False)
+    controls = QWidget()
+    LibraryMixin._add_library_filter_controls(window, QGridLayout(controls))
+    controls.show()
+    application.processEvents()
+    combo = test_window.gamesDisplayCombo
+    line_edit = combo.lineEdit()
+    option = QStyleOptionComboBox()
+    combo.initStyleOption(option)
+    arrow = combo.style().subControlRect(
+        QStyle.ComplexControl.CC_ComboBox, option, QStyle.SubControl.SC_ComboBoxArrow, combo
+    )
+    global_point = combo.mapToGlobal(
+        line_edit.geometry().center() if click_target == "text" else arrow.center()
+    )
+    target = QApplication.widgetAt(global_point)
+    assert isinstance(target, QWidget) and target is (line_edit if click_target == "text" else combo)
+    assert source_style in combo.styleSheet()
+
+    QTest.mouseMove(target, target.mapFromGlobal(global_point))
+    QTest.mouseClick(target, Qt.MouseButton.LeftButton, pos=target.mapFromGlobal(global_point))
+    application.processEvents()
+    assert combo.view().isVisible()
+    index = combo.model().index(test_window.filter_keys.index("portproton"), 0)
+    QTest.mouseMove(combo.view().viewport(), combo.view().visualRect(index).center())
+    QTest.mouseClick(combo.view().viewport(), Qt.MouseButton.LeftButton,
+                     pos=combo.view().visualRect(index).center())
+    application.processEvents()
+    saved.assert_called_once_with("gog,portproton")
+    assert combo.currentText() == "GOG + PortProton"
+    controls.close()
+
+
+@mark.parametrize("readonly", [True, False])
+def test_custom_combo_opens_readonly_field_on_mouse_release(readonly: bool) -> None:
+    application = QApplication.instance() or QApplication([])
+    combo = CustomComboBox()
+    combo.addItems(["GOG", "PortProton"])
+    combo.setEditable(True)
+    line_edit = combo.lineEdit()
+    assert line_edit is not None
+    line_edit.setReadOnly(readonly)
+    line_edit.installEventFilter(combo)
+    combo.show()
+    application.processEvents()
+
+    QTest.mousePress(line_edit, Qt.MouseButton.LeftButton, pos=line_edit.rect().center())
+    assert not combo.view().isVisible()
+    QTest.mouseRelease(line_edit, Qt.MouseButton.LeftButton, pos=line_edit.rect().center())
+    application.processEvents()
+    assert combo.view().isVisible() is readonly
+    combo.hidePopup()
+    combo.close()
