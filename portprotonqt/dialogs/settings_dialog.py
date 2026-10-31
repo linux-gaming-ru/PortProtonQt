@@ -290,6 +290,11 @@ class ExeSettingsDialog(
         """Resolve run-after executable relative to the main executable."""
         if not exe_path:
             return exe_path
+        if "," in exe_path and not os.path.isfile(os.path.expanduser(exe_path)):
+            return ",".join(
+                self._resolve_run_after_exe_path(path.strip())
+                for path in exe_path.split(",") if path.strip()
+            )
         normalized = os.path.normpath(os.path.expanduser(exe_path))
         if os.path.isabs(normalized):
             return normalized
@@ -299,6 +304,70 @@ class ExeSettingsDialog(
         if not game_dir:
             return normalized
         return os.path.normpath(os.path.join(game_dir, normalized))
+
+    def _toggle_run_after_entries(self, target: QLineEdit) -> None:
+        table = self.advanced_table
+        row = next(index for index in range(table.rowCount())
+                   if table.cellWidget(index, 1) is target.parentWidget())
+        expanded = bool(target.property("ppqt_run_after_expanded"))
+        target.setProperty("ppqt_run_after_expanded", not expanded)
+        if expanded:
+            while row + 1 < table.rowCount():
+                item = table.item(row + 1, 0)
+                if item is None or item.data(Qt.ItemDataRole.UserRole) != "run_after_entry":
+                    break
+                table.removeRow(row + 1)
+            return
+        entries = [target.text()] if os.path.isfile(target.text()) else target.text().split(",")
+        if not target.text():
+            entries = [""]
+        for index, path in enumerate(entries):
+            entry_row = row + index + 1
+            table.insertRow(entry_row)
+            item = QTableWidgetItem(path)
+            item.setData(Qt.ItemDataRole.UserRole, "run_after_entry")
+            item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
+            table.setItem(entry_row, 0, item)
+            entry_edit = QLineEdit(path)
+            entry_edit.setStyleSheet(self.theme.LINE_EDIT_STYLE)
+            entry_edit.installEventFilter(self)
+            entry_edit.textChanged.connect(
+                lambda value, offset=index, widget=target: self._update_run_after_entry(widget, offset, value)
+            )
+            table.setCellWidget(entry_row, 0, entry_edit)
+            button = AutoSizeButton("", icon=ThemeManager().get_icon("delete", as_path=True))
+            button.setStyleSheet(self.theme.ACTION_BUTTON_STYLE)
+            button.clicked.connect(
+                lambda _checked=False, offset=index, widget=target: self._remove_run_after_entry(widget, offset)
+            )
+            table.setCellWidget(entry_row, 1, button)
+        table.resizeRowsToContents()
+
+    def _update_run_after_entry(self, target: QLineEdit, index: int, value: str) -> None:
+        entries = target.text().split(",")
+        if index < len(entries):
+            entries[index] = value
+            target.setText(",".join(entries))
+
+    def _remove_run_after_entry(self, target: QLineEdit, index: int) -> None:
+        entries = [target.text()] if os.path.isfile(target.text()) else target.text().split(",")
+        entries.pop(index)
+        self._toggle_run_after_entries(target)
+        target.setText(",".join(entries))
+        if entries:
+            self._toggle_run_after_entries(target)
+        target.setFocus(Qt.FocusReason.OtherFocusReason)
+
+    def _clear_run_after_entries(self, target: QLineEdit) -> None:
+        table = self.advanced_table
+        for row in reversed(range(table.rowCount())):
+            item = table.item(row, 0)
+            if item and item.data(Qt.ItemDataRole.UserRole) == "run_after_entry":
+                table.removeRow(row)
+        target.setProperty("ppqt_run_after_expanded", False)
+        target.clear()
+        if target.isVisible():
+            target.setFocus(Qt.FocusReason.OtherFocusReason)
 
     def _get_setting_file_selector_path(self, current_path: str) -> str:
         """Get initial path for setting file selectors."""
@@ -403,7 +472,7 @@ class ExeSettingsDialog(
         self.advanced_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         self.advanced_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
         self.advanced_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        self.advanced_table.horizontalHeader().resizeSection(1, 230)
+        self.advanced_table.horizontalHeader().resizeSection(1, self.theme.RUN_AFTER_VALUE_WIDTH)
         self.advanced_table.setWordWrap(True)
         self.advanced_table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         self.advanced_table.setTextElideMode(Qt.TextElideMode.ElideNone)
@@ -951,10 +1020,12 @@ class ExeSettingsDialog(
                 if setting['key'] == 'PW_RUN_AFTER_EXE':
                     text_container = QWidget()
                     text_container.setProperty("ppqt_run_after_exe_widget", True)
-                    text_layout = QHBoxLayout(text_container)
-                    text_layout.setContentsMargins(0, 0, 0, 0)
-                    text_layout.setSpacing(6)
-                    text_layout.addWidget(line_edit)
+                    container_layout = QVBoxLayout(text_container)
+                    container_layout.setContentsMargins(0, 0, 0, 0)
+                    container_layout.addWidget(line_edit)
+                    line_edit.hide()
+                    text_layout = QHBoxLayout()
+                    container_layout.addLayout(text_layout)
 
                     browse_button = AutoSizeButton("...", icon=ThemeManager().get_icon("folder", as_path=True))
                     browse_button.setStyleSheet(self.theme.ACTION_BUTTON_STYLE)
@@ -966,26 +1037,38 @@ class ExeSettingsDialog(
                     def open_run_after_exe_selector(
                         _checked: bool = False,
                         target_line_edit=line_edit,
-                        file_filter="",
+                        file_filter=lambda path: path.lower().endswith(".exe") or os.access(path, os.X_OK),
                     ):
                         from portprotonqt.dialogs.file_explorer import FileExplorer
-
-                        initial_path = self._get_setting_file_selector_path(
-                            target_line_edit.text().strip()
-                        )
 
                         file_explorer = FileExplorer(
                             self,
                             theme=self.theme,
                             file_filter=file_filter,
-                            initial_path=initial_path,
+                            initial_path=self._get_setting_file_selector_path(
+                                target_line_edit.text().rsplit(",", 1)[-1].strip()
+                            ),
                         )
                         file_explorer.file_signal.file_selected.connect(
-                            lambda file_path, target=target_line_edit: target.setText(os.path.normpath(file_path))
+                            lambda path, target=target_line_edit: target.setText(
+                                ",".join(filter(None, [target.text().strip(), os.path.normpath(path)]))
+                            )
                         )
                         file_explorer.exec()
 
                     browse_button.clicked.connect(open_run_after_exe_selector)
+                    expand_button = AutoSizeButton("≡")
+                    expand_button.setStyleSheet(self.theme.ACTION_BUTTON_STYLE)
+                    expand_button.clicked.connect(
+                        lambda _checked=False, target=line_edit: self._toggle_run_after_entries(target)
+                    )
+                    clear_button = AutoSizeButton("", icon=ThemeManager().get_icon("delete", as_path=True))
+                    clear_button.setStyleSheet(self.theme.ACTION_BUTTON_STYLE)
+                    clear_button.clicked.connect(
+                        lambda _checked=False, target=line_edit: self._clear_run_after_entries(target)
+                    )
+                    text_layout.addWidget(clear_button)
+                    text_layout.addWidget(expand_button)
                     text_layout.addWidget(browse_button)
                     self.advanced_table.setCellWidget(row, 1, text_container)
                 else:
@@ -1732,15 +1815,20 @@ class ExeSettingsDialog(
                 item = table.item(row, 0)
                 if item is None:
                     continue
+                widget = table.cellWidget(row, 0)
+                if widget is not None and not isinstance(widget, QLabel):
+                    continue
+                text = item.data(Qt.ItemDataRole.AccessibleTextRole)
+                if text is None:
+                    text = item.text()
+                    item.setData(Qt.ItemDataRole.AccessibleTextRole, text)
+                    item.setText("")
                 label = cast(QLabel | None, table.cellWidget(row, 0))
                 if label is None:
-                    text = item.text()
                     label = QLabel()
                     label.setTextFormat(Qt.TextFormat.RichText)
                     label.setWordWrap(True)
                     label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-                    item.setData(Qt.ItemDataRole.AccessibleTextRole, text)
-                    item.setText("")
                     table.setCellWidget(row, 0, label)
                     label.setAutoFillBackground(False)
                     label.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
@@ -1755,7 +1843,6 @@ class ExeSettingsDialog(
                 label.setPalette(palette)
                 if label.foregroundRole() != QPalette.ColorRole.Text:
                     label.setForegroundRole(QPalette.ColorRole.Text)
-                text = item.data(Qt.ItemDataRole.AccessibleTextRole)
                 name, separator, description = text.partition("\n")
                 formatted_text = escape(name)
                 if separator:

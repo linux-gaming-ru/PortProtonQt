@@ -1632,3 +1632,28 @@ def test_confirm_on_open_combo_activates_highlighted_row() -> None:
     assert not combo.view().isVisible()
     combo.close()
     application.processEvents()
+
+
+@mark.parametrize("direction", [-1, 1])
+@mark.parametrize("column", [0, 1])
+def test_run_after_dpad_reaches_delete_from_entry(direction: int, column: int) -> None:
+    from portprotonqt.input_manager.settings import SettingsInputMixin
+
+    app = QApplication.instance() or QApplication([])
+    table = QTableWidget(1, 2)
+    entry = QLineEdit("game.exe")
+    remove = QPushButton("delete")
+    table.setCellWidget(0, 0, entry)
+    table.setCellWidget(0, 1, remove)
+    manager = SimpleNamespace(settings_dialog=SimpleNamespace(advanced_table=table))
+    table.show()
+    table.activateWindow()
+    table.setCurrentCell(0, column)
+    entry.setFocus()
+    app.processEvents()
+    assert SettingsInputMixin._move_settings_inline_button_focus(cast(SettingsInputMixin, manager), table, direction)
+    assert QApplication.focusWidget() == remove
+    assert SettingsInputMixin._move_settings_inline_button_focus(cast(SettingsInputMixin, manager), table, -direction)
+    assert QApplication.focusWidget() == entry
+    table.close()
+    table.deleteLater()

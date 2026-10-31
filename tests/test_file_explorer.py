@@ -1,5 +1,6 @@
 """Tests for themed file explorer icons."""
 
+import os
 from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
@@ -27,6 +28,30 @@ from portprotonqt.dialogs.file_explorer import (
 )
 
 _application = QApplication.instance() or QApplication([])
+
+
+def test_executable_filter_keeps_exe_and_linux_executables(tmp_path: Path) -> None:
+    from PySide6.QtCore import QMimeDatabase
+    from PySide6.QtWidgets import QLabel
+
+    for name in ("Game.EXE", "launcher", "notes.txt"):
+        (tmp_path / name).touch()
+    (tmp_path / "launcher").chmod(0o755)
+    (tmp_path / "folder").mkdir()
+    explorer = SimpleNamespace(
+        file_list=QListWidget(), current_path=str(tmp_path), directory_only=False,
+        thumbnail_cache={}, pending_thumbnails={}, deferred_thumbnails={}, file_items={},
+        path_history={}, path_label=QLabel(), mime_db=QMimeDatabase(),
+        file_filter=lambda path: path.lower().endswith(".exe") or os.access(path, os.X_OK),
+        _get_list_icon=lambda name: None, _get_file_type_icon=lambda path: None,
+        schedule_thumbnail_loading=lambda: None,
+    )
+
+    FileExplorer.update_file_list(cast(FileExplorer, explorer))
+
+    assert [explorer.file_list.item(i).text() for i in range(explorer.file_list.count())] == [
+        "../", "folder/", "Game.EXE", "launcher",
+    ]
 
 
 def test_gamepad_opens_file_explorer_context_menu(monkeypatch: MonkeyPatch) -> None:
