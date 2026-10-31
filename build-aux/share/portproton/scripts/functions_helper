@@ -2389,7 +2389,6 @@ pw_optiscaler_sync_files () {
             for dll in $OPTISCALER_FILES ; do rm -fr "$PATH_TO_GAME/$dll"; done
             for dll in $ORIGINAL_GAME_DLLS ; do [[ -e "$PATH_TO_GAME/${dll}.b" ]] && mv -f "$PATH_TO_GAME/${dll}.b" "$PATH_TO_GAME/${dll}" 2>/dev/null; done
             try_remove_file "$PATH_TO_GAME/optiscaler_version"
-            try_remove_file "$PATH_TO_GAME/dxvk.conf"
         fi
         return 0
     fi
@@ -2401,7 +2400,6 @@ pw_optiscaler_sync_files () {
 
     check_variables OPTISCALER_FG_TYPE "Nukems"
     sed -i "s|FGType =.*|FGType = $OPTISCALER_FG_TYPE|g" "$OPTISCALER_PATH/OptiScaler.ini"
-    echo "" > "$PATH_TO_GAME/dxvk.conf"
     if [[ -f "$PATH_TO_GAME/dxgi.dll" ]] \
     && [[ -f "$PATH_TO_GAME/specialk_version" ]]
     then
@@ -2420,7 +2418,11 @@ pw_optiscaler_sync_files () {
         echo "$PW_OPTISCALER_VER" > "$PATH_TO_GAME/optiscaler_version"
     fi
     export PW_USE_NVAPI_AND_DLSS="1"
-    set_to_dxvk_conf nvidia_new
+    export DXVK_NVAPI_DRIVER_VERSION="99999"
+    if [[ $(check_vendor_gpu) != "nvidia" ]] ; then
+        export DXVK_NVAPI_ALLOW_OTHER_DRIVERS="1"
+    fi
+    export PW_USE_RAY_TRACING="1"
 }
 
 pw_specialk_set_ini_value () {
@@ -2895,64 +2897,9 @@ start_portproton () {
         export DXVK_ASYNC="1"
     fi
 
-    set_to_dxvk_conf () {
-        case "$1" in
-            default)
-                sed -i \
-                    -e /'dxgi.customDeviceDesc =/c # dxgi.customDeviceDesc =' \
-                    -e /'dxgi.customDeviceId =/c # dxgi.customDeviceId =' \
-                    -e /'dxgi.customVendorId =/c # dxgi.customVendorId =' \
-                    -e /'dxgi.hideNvidiaGpu =/c # dxgi.hideNvidiaGpu =' \
-                    -e /'d3d11.cachedDynamicResources =/c # d3d11.cachedDynamicResources =' \
-                    -e /'dxgi.maxFrameLatency =/c # dxgi.maxFrameLatency =' \
-                    -e /'d3d9.maxFrameLatency =/c # d3d9.maxFrameLatency =' \
-                    -e /'dxgi.syncInterval =/c # dxgi.syncInterval =' \
-                    -e /'d3d9.presentInterval =/c # d3d9.presentInterval =' \
-                    -e /'dxgi.numBackBuffers =/c # dxgi.numBackBuffers =' \
-                    -e /'d3d9.numBackBuffers =/c # d3d9.numBackBuffers =' \
-                    -e /'d3d9.deviceLossOnFocusLoss =/c # d3d9.deviceLossOnFocusLoss =' \
-                    -e /'d3d9.countLosableResources =/c # d3d9.countLosableResources =' \
-                "${DXVK_CONFIG_FILE}"
-
-                export WINE_HIDE_NVIDIA_GPU="0"
-                export WINE_HIDE_AMD_GPU="0"
-                unset DXVK_NVAPI_DRIVER_VERSION DXVK_NVAPI_ALLOW_OTHER_DRIVERS WINEHAGS
-                ;;
-
-            nvidia_new)
-                sed -i \
-                    -e /'dxgi.customDeviceDesc =/c dxgi.customDeviceDesc = "NVIDIA GeForce RTX 4090"' \
-                    -e /'dxgi.customDeviceId =/c dxgi.customDeviceId = 2684' \
-                    -e /'dxgi.customVendorId =/c dxgi.customVendorId = 10de' \
-                    -e /'dxgi.hideNvidiaGpu =/c dxgi.hideNvidiaGpu = False' \
-                "${DXVK_CONFIG_FILE}"
-
-                # export WINE_HIDE_AMD_GPU="1"
-                export DXVK_NVAPI_DRIVER_VERSION="99999"
-                if [[ $(check_vendor_gpu) != "nvidia" ]] ; then
-                    export DXVK_NVAPI_ALLOW_OTHER_DRIVERS="1"
-                fi
-                export PW_USE_NVAPI_AND_DLSS="1"
-                export PW_USE_RAY_TRACING="1"
-                ;;
-
-            low_latency)
-                sed -i \
-                    -e /'d3d11.cachedDynamicResources =/c d3d11.cachedDynamicResources = a' \
-                    -e /'dxgi.maxFrameLatency =/c dxgi.maxFrameLatency = 1' \
-                    -e /'d3d9.maxFrameLatency =/c d3d9.maxFrameLatency = 1' \
-                    -e /'dxgi.syncInterval =/c dxgi.syncInterval = 0' \
-                    -e /'d3d9.presentInterval =/c d3d9.presentInterval = 0' \
-                    -e /'dxgi.numBackBuffers =/c dxgi.numBackBuffers = 2' \
-                    -e /'d3d9.numBackBuffers =/c d3d9.numBackBuffers = 2' \
-                    -e /'d3d9.deviceLossOnFocusLoss =/c d3d9.deviceLossOnFocusLoss = True' \
-                    -e /'d3d9.countLosableResources =/c d3d9.countLosableResources = True' \
-                    -e /'dxvk.tearFree =/c dxvk.tearFree = False' \
-                "${DXVK_CONFIG_FILE}"
-                ;;
-        esac
-    }
-    set_to_dxvk_conf default
+    export WINE_HIDE_NVIDIA_GPU="0"
+    export WINE_HIDE_AMD_GPU="0"
+    unset DXVK_NVAPI_DRIVER_VERSION DXVK_NVAPI_ALLOW_OTHER_DRIVERS WINEHAGS
 
     # NVAPI, DLSS AND FAKE DLSS
     if [[ -d "$PATH_TO_GAME/Engine" ]]; then

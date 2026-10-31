@@ -129,6 +129,18 @@ def test_run_after_paths_are_passed_in_environment(tmp_path: Path, trainer_path:
     assert 'start "" "%PW_RUN_AFTER_SECOND_PATH%"' in batch
 
 
+def test_scripts_do_not_modify_dxvk_config() -> None:
+    scripts = Path("build-aux/share/portproton/scripts")
+    helper = (scripts / "functions_helper").read_text(encoding="utf-8")
+    start = (scripts / "start.sh").read_text(encoding="utf-8")
+
+    assert "set_to_dxvk_conf" not in helper
+    assert 'try_remove_file "$PATH_TO_GAME/dxvk.conf"' not in helper
+    assert '> "$PATH_TO_GAME/dxvk.conf"' not in helper
+    assert 'cp -f "${PORT_CONF_PATH}/dxvk.conf"' not in start
+    assert 'export DXVK_CONFIG_FILE="$PATH_TO_GAME/dxvk.conf"' in helper
+
+
 def test_game_launch_marker_is_emitted_for_wine_and_proton() -> None:
     helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text(
         encoding="utf-8",
