@@ -23,7 +23,6 @@ export WINEARCH="win64"
 export WINEUSERNAME="steamuser"
 export WINE_WIN_START="start /wait /high /unix"
 export PW_MUST_WINEDLLOVERRIDES="steam_api,steam_api64,steamclient,steamclient64=n;dotnetfx35.exe,dotnetfx35setup.exe=b;winemenubuilder.exe="
-export DXVK_CONFIG_FILE="${PORT_DATA_PATH}/data/dxvk.conf"
 export PW_RT_MOUNT_RO=("")
 export PW_RT_MOUNT_RW=("/media" "/mnt" "/run/media/${USER}" "${PORT_DATA_PATH}")
 

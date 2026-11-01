@@ -178,7 +178,6 @@ source "${PORT_SCRIPTS_PATH}/var"
 cd "${XDG_DATA_HOME:-$HOME}" || fatal "Data directory not found: ${XDG_DATA_HOME:-$HOME}"
 
 [[ ! -f "$VKBASALT_CONFIG_FILE" ]] && cp -f "${PORT_CONF_PATH}/vkBasalt.conf" "$VKBASALT_CONFIG_FILE"
-[[ ! -f "$DXVK_CONFIG_FILE" ]] && cp -f "${PORT_CONF_PATH}/dxvk.conf" "$DXVK_CONFIG_FILE"
 
 export STEAM_SCRIPTS="${PORT_DATA_PATH}/steam_scripts"
 create_new_dir "$STEAM_SCRIPTS"
