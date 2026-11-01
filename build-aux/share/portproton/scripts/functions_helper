@@ -2986,6 +2986,10 @@ start_portproton () {
     else
         export DXVK_ENABLE_NVAPI="0"
     fi
+    # Wine's saved environment must not override the current NVAPI setting.
+    get_and_set_reg_file --delete 'Volatile Environment' 'DXVK_ENABLE_NVAPI' '' '' 'user'
+    get_and_set_reg_file --delete 'Volatile Environment' 'DXVK_NVAPI_ALLOW_OTHER_DRIVERS' '' '' 'user'
+    get_and_set_reg_file --delete 'Volatile Environment' 'DXVK_NVAPI_DRIVER_VERSION' '' '' 'user'
 
     if [[ "${PW_HEAP_DELAY_FREE}" == 1 ]]
     then export WINE_HEAP_DELAY_FREE="1"
