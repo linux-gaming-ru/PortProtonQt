@@ -9,7 +9,7 @@ msgstr ""
 "Project-Id-Version: PortProtonQt 0.1.1\n"
 "Report-Msgid-Bugs-To: support@linux-gaming.ru\n"
 "POT-Creation-Date: 2026-06-04 10:32+0500\n"
-"PO-Revision-Date: 2026-10-17 23:27+0000\n"
+"PO-Revision-Date: 2026-11-01 00:08+0000\n"
 "Last-Translator: rogerio-mattos <rogerio-mattos@noreply.codeberg.org>\n"
 "Language-Team: Portuguese (Brazil) <https://translate.codeberg.org/projects/"
 "portprotonqt/portprotonqt/pt_BR/>\n"
@@ -32,6 +32,8 @@ msgid ""
 "PortProtonQt is already running. Stop it and all games, then restart for "
 "the new launch?"
 msgstr ""
+"O PortProtonQt já está em execução. Deseja encerrá-lo junto com todos os "
+"jogos abertos e reiniciá-lo para iniciar uma nova sessão?"
 
 msgid "Yes"
 msgstr "Sim"
@@ -149,9 +151,8 @@ msgstr "A pasta já existe: {file_name}"
 msgid "Failed to rename file: {error}"
 msgstr "Falha ao renomear o arquivo: {error}"
 
-#, fuzzy
 msgid "Select multiple"
-msgstr "Selecionar Tudo"
+msgstr "Selecionar vários"
 
 msgid "Delete from PortProton"
 msgstr "Excluir do PortProton"
@@ -481,9 +482,13 @@ msgid ""
 "characters:\n"
 "\n"
 msgstr ""
+"Foram encontrados caracteres cirílicos nos seguintes caminhos. O Wine pode "
+"funcionar de forma instável. Mova o jogo ou o PortProton para um caminho sem "
+"caracteres cirílicos:\n"
+"\n"
 
 msgid "Don't remind again"
-msgstr ""
+msgstr "Não lembrar novamente"
 
 msgid "Game not found."
 msgstr "Jogo não encontrado."
@@ -964,19 +969,19 @@ msgstr "Iniciando {0}"
 
 #, python-brace-format
 msgid "Scanning: {folder}"
-msgstr ""
+msgstr "Verificado: {folder}"
 
 #, python-brace-format
 msgid "Checking existing shortcuts: {path}"
-msgstr ""
+msgstr "Verificando os atalhos existentes: {path}"
 
 #, python-brace-format
 msgid "Adding: {name}"
-msgstr ""
+msgstr "Adicionando: {name}"
 
-#, fuzzy, python-brace-format
+#, python-brace-format
 msgid "Failed to create shortcut: {name}"
-msgstr "Falha ao criar a pasta: {error}"
+msgstr "Falha ao criar atalho: {name}"
 
 msgid "Name:"
 msgstr "Nome:"
@@ -993,9 +998,8 @@ msgstr "Capa Personalizada:"
 msgid "Enter local path or URL for cover image"
 msgstr "Informe o caminho local ou a URL da imagem de capa"
 
-#, fuzzy
 msgid "Custom Icon:"
-msgstr "Capa Personalizada:"
+msgstr "Ícone personalizado:"
 
 msgid "Add shortcut to:"
 msgstr "Adicionar atalho em:"
@@ -1009,29 +1013,28 @@ msgstr "Aplicar"
 msgid "Invalid image"
 msgstr "Imagem inválida"
 
-#, fuzzy
 msgid "Select folder"
-msgstr "Excluir Pasta"
+msgstr "Selecionar pasta"
 
-#, fuzzy
 msgid "Processing games…"
-msgstr "Jogos Recentes"
+msgstr "Processando jogos…"
 
 #, python-brace-format
 msgid ""
 "Processed {completed}/{total}\n"
 "{current}"
 msgstr ""
+"Processados: {completed}/{total}\n"
+"{current}"
 
 msgid "Information"
 msgstr "Informação"
 
 msgid "No games found in the selected folder."
-msgstr ""
+msgstr "Nenhum jogo encontrado na pasta selecionada."
 
-#, fuzzy
 msgid "Select games"
-msgstr "Jogos Recentes"
+msgstr "Selecionar jogos"
 
 msgid "Close"
 msgstr "Fechar"
@@ -2401,7 +2404,7 @@ msgid "Show compatibility report after game crash"
 msgstr "Mostrar relatório de compatibilidade após a falha do jogo"
 
 msgid "Disable Cyrillic path warning"
-msgstr ""
+msgstr "Desativar aviso de caminho em cirílico"
 
 msgid "Disable ALT Linux i586 dependency check"
 msgstr "Desativar verificação de dependências do ALT Linux i586"
