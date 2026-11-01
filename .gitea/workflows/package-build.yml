@@ -80,7 +80,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.appimage == 'true' || github.event_name == 'workflow_dispatch'
     container:
-      image: archlinux:base-devel@sha256:3cbf69d2d5958d6a294f3722c5668e6187c4df8e00fa27f72352f0bf83e495e1
+      image: archlinux:base-devel@sha256:624bdc7fc6615155d67bc34cf7146c0c9fd0e3c92943977da63a630e4ca49c30
       options: --privileged --device /dev/fuse
     steps:
       - name: Configure Arch mirror
@@ -195,7 +195,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.arch == 'true' || github.event_name == 'workflow_dispatch'
     container:
-      image: archlinux:base-devel@sha256:3cbf69d2d5958d6a294f3722c5668e6187c4df8e00fa27f72352f0bf83e495e1
+      image: archlinux:base-devel@sha256:624bdc7fc6615155d67bc34cf7146c0c9fd0e3c92943977da63a630e4ca49c30
 
     steps:
       - name: Configure Arch mirror
@@ -266,7 +266,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.debian == 'true' || github.event_name == 'workflow_dispatch'
     container:
-      image: debian:trixie-20261005@sha256:913f6706df59a68922d1dd08f78c2476560a8d367897200a6005b00e5f67c2d5
+      image: debian:trixie-20261027@sha256:2dc419c6d7fe3dad0a2f9fd469c34cc90b0f9ba642d8fde837fe3d7d34a0e7f1
       options: --privileged
 
     steps:
