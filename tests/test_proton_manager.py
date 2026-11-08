@@ -219,3 +219,74 @@ def test_disabled_steam_proton_scanning_keeps_local_versions(
             assert manager.get_installed_versions() == [("LocalWine", str(local_wine))]
     compat.assert_not_called()
     home.assert_not_called()
+
+
+def test_metadata_error_preserves_local_versions(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from PySide6.QtWidgets import QLabel, QStackedWidget, QTabWidget
+    import portprotonqt.dialogs.proton_manager as module
+
+    app = QApplication.instance() or QApplication([])
+    local_version = tmp_path / "GE-Proton"
+    local_version.mkdir()
+    manager = SimpleNamespace(
+        content_stack=QStackedWidget(),
+        tab_widget=QTabWidget(),
+        theme=SimpleNamespace(GETWINE_WINDOW_STYLE=""),
+    )
+    manager.content_stack.addWidget(QWidget())
+    manager.content_stack.addWidget(QWidget())
+    manager.tab_widget.addTab(QWidget(), "Loading")
+
+    def create_installed_tab() -> None:
+        assert local_version.is_dir()
+        manager.tab_widget.addTab(QLabel(local_version.name), "Installed")
+
+    manager.create_installed_tab = create_installed_tab
+    monkeypatch.setattr(module, "_", lambda text: text)
+    module.ProtonManager.on_wine_data_load_error(cast(Any, manager), "ConnectionError: " + "x" * 2000)
+
+    assert manager.content_stack.currentIndex() == 1
+    assert manager.tab_widget.count() == 1
+    assert manager.tab_widget.currentIndex() == 0
+    assert manager.tab_widget.widget(0).text() == local_version.name
+    manager.tab_widget.deleteLater()
+    manager.content_stack.deleteLater()
+    app.processEvents()
+
+
+def test_installed_sizes_update_after_metadata_error(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from PySide6.QtCore import QEventLoop, QTimer
+    from PySide6.QtWidgets import QPushButton, QTableWidget
+    from portprotonqt.theme_manager import ThemeWrapper, load_theme
+    import portprotonqt.dialogs.proton_manager as module
+
+    app = QApplication.instance() or QApplication([])
+    version = tmp_path / "GE-Proton"
+    version.mkdir()
+    (version / "wine").write_bytes(b"x" * 2048)
+    monkeypatch.setattr(module.ProtonManager, "start_loading_wine_data", lambda self: None)
+    monkeypatch.setattr(module, "AutoSizeButton", lambda text, **kwargs: QPushButton(text))
+    monkeypatch.setattr(module.ProtonManager, "get_installed_versions", lambda self: [("GE-Proton", str(version))])
+    manager = module.ProtonManager(portproton_location=str(tmp_path), theme=ThemeWrapper(load_theme("standart")))
+    manager.on_wine_data_load_error("Offline")
+    workers = list(manager._installed_size_tables)
+    loop = QEventLoop()
+    workers[0].finished.connect(loop.quit)
+    QTimer.singleShot(3000, loop.quit)
+    loop.exec()
+    app.processEvents()
+    try:
+        installed_tab = manager.tab_widget.widget(0)
+        assert installed_tab is not None
+        table = installed_tab.findChild(QTableWidget)
+        assert table is not None
+        size_item = table.item(0, 2)
+        assert size_item is not None
+        assert size_item.text() == "2.0 KiB"
+    finally:
+        from shiboken6 import isValid
+        for worker in workers:
+            if isValid(worker):
+                worker.wait()
+        manager.close()
+        app.processEvents()
