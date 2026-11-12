@@ -408,3 +408,428 @@ class TestParseResolution:
 
     def test_empty_string(self):
         assert parse_resolution("") is None
+
+
+def test_list_games_json_data(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from portprotonqt.cli import _list_portproton_games
+    from portprotonqt.config import portproton
+
+    executable = tmp_path / "Game with spaces.exe"
+    shortcut = tmp_path / "game.desktop"
+    shortcut.write_text(
+        '[Desktop Entry]\nName=Test Game\n'
+        f'Exec=portprotonqt --silent "{executable}"\nIcon=test-icon\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(portproton, "get_portproton_location", lambda: str(tmp_path))
+    monkeypatch.setattr(portproton, "get_portproton_scripts_path", lambda: None)
+    monkeypatch.setattr("portprotonqt.cli._get_game_metadata", lambda *args: {
+        "name": "Test Game", "description": "Description", "cover": "cover.png",
+        "appid": 123, "custom_icon": "",
+    })
+    games = _list_portproton_games(str(tmp_path), {}, {})
+    assert len(games) == 1
+    assert games[0]["description"] == "Description"
+    assert games[0]["cover"] == "cover.png"
+    assert games[0]["appid"] == 123
+    assert not {"metadata", "desktop_entry", "custom_icon"} & games[0].keys()
+    assert {key: games[0][key] for key in (
+        "id", "name", "desktop_file", "exec", "executable", "directory", "icon", "ppdb"
+    )} == {
+        "id": "portproton:game.desktop", "name": "Test Game",
+        "desktop_file": str(shortcut),
+        "exec": f'portprotonqt --silent "{executable}"',
+        "executable": str(executable), "directory": str(tmp_path),
+        "icon": "test-icon", "ppdb": f"{executable}.ppdb",
+    }
+
+
+def test_list_games_unconfigured(monkeypatch: pytest.MonkeyPatch) -> None:
+    from portprotonqt.cli import _list_portproton_games
+    from portprotonqt.config import portproton
+
+    monkeypatch.setattr(portproton, "get_portproton_location", lambda: None)
+    assert _list_portproton_games(None, {}, {}) == []
+
+
+def test_parse_list_games(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sys, "argv", ["portprotonqt", "--list-games"])
+    assert parse_args().list_games
+
+
+def test_export_custom_artwork(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from portprotonqt.cli import _get_game_metadata
+    from portprotonqt.config.portproton import resolve_custom_data_dir
+
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setattr("portprotonqt.steam_api.api.get_cached_steam_game_info", lambda *args: {
+        "name": "Cached", "description": "Cached description", "appid": "123",
+    })
+    monkeypatch.setattr("portprotonqt.localization.get_metadata_language", lambda: "en")
+    monkeypatch.setattr("portprotonqt.time_utils.get_playtime_for_exe", lambda *args: 42)
+    monkeypatch.setattr("portprotonqt.time_utils.get_last_launch_timestamp", lambda *args: 100)
+    executable = str(tmp_path / "Game.exe")
+    folder = Path(resolve_custom_data_dir(str(tmp_path / "PortProtonQt/custom_data"), executable))
+    folder.mkdir(parents=True)
+    (folder / "metadata.txt").write_text("name_en=Custom\ndescription_en=Description\n")
+    (folder / "cover.png").touch()
+    (folder / "icon.png").touch()
+    metadata = _get_game_metadata("Original", "launch", executable)
+    assert metadata["name"] == "Custom"
+    assert metadata["description"] == "Description"
+    assert metadata["cover"] == str(folder / "cover.png")
+    assert metadata["custom_icon"] == str(folder / "icon.png")
+    assert metadata["appid"] == "123"
+    assert metadata["playtime_seconds"] == 42
+
+
+def test_export_runtime(tmp_path: Path) -> None:
+    from portprotonqt.cli import _get_game_runtime
+
+    executable = str(tmp_path / "Game.exe")
+    Path(f"{executable}.ppdb").write_text(
+        'export PW_WINE_USE="PROTON_LG"\nexport PW_PREFIX_NAME="GAME"\n'
+    )
+    runner = tmp_path / "data/dist/PROTON_TEST"
+    runner.mkdir(parents=True)
+    runtime = _get_game_runtime(tmp_path, executable, {"PW_PROTON_LG_VER": "PROTON_TEST"}, {})
+    assert runtime["runner"] == "PROTON_TEST"
+    assert "runner_version" not in runtime
+    assert runtime["runner_path"] == str(runner)
+    assert runtime["runner_installed"]
+    assert runtime["prefix_path"] == str(tmp_path / "data/prefixes/GAME")
+
+
+def test_settings_do_not_execute_shell(tmp_path: Path) -> None:
+    from portprotonqt.cli import _read_game_settings
+
+    marker = tmp_path / "should-not-exist"
+    settings = tmp_path / "settings"
+    settings.write_text(
+        f'export PW_WINE_USE="$(touch {marker})"\n'
+        'export PW_PREFIX_NAME="Game prefix"\n'
+        'check_variables PW_VULKAN_USE "1"\n'
+    )
+    assert _read_game_settings(settings) == {"PW_PREFIX_NAME": "Game prefix", "PW_VULKAN_USE": "1"}
+    assert not marker.exists()
+
+
+def test_list_games_exits_before_gui(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture) -> None:
+    import orjson
+    from portprotonqt import app
+
+    monkeypatch.setattr(app, "parse_args", lambda: SimpleNamespace(list_games=True, game_info=None, edit_game=None, pretty=True, fields=None, all_games=True))
+    monkeypatch.setattr("portprotonqt.cli.list_games", lambda: [{"name": "Игра"}])
+    gui = MagicMock(side_effect=AssertionError("GUI must not start"))
+    monkeypatch.setattr(app, "QApplication", gui)
+    assert app.main() == 0
+    output = capsys.readouterr().out
+    assert orjson.loads(output) == [{"name": "Игра"}]
+    assert output == '[\n  {\n    "name": "Игра"\n  }\n]\n'
+    gui.assert_not_called()
+
+
+@pytest.mark.parametrize("external", [False, True])
+def test_runtime_wine_layout(tmp_path: Path, external: bool) -> None:
+    from portprotonqt.cli import _get_game_runtime
+
+    runner = tmp_path / "External Wine" if external else tmp_path / "data/dist/PROTON_TEST"
+    (runner / "files/bin-wow64").mkdir(parents=True)
+    selected = str(runner) if external else "PROTON_TEST"
+    runtime = _get_game_runtime(tmp_path, None, {}, {
+        "PW_WINE_USE": selected, "PW_USE_WOW64": "1", "PW_PREFIX_NAME": "CUSTOM",
+    })
+    assert runtime["wine_path"] == str(runner / "files/bin-wow64/wine")
+    assert runtime["wineserver_path"] == str(runner / "files/bin-wow64/wineserver")
+    assert runtime["prefix_path"] == str(tmp_path / "data/prefixes/CUSTOM")
+
+
+@pytest.mark.parametrize("source,backend", [("gog", "gog_api.GOGAPI"), ("egs", "egs_api.EGSAPI")])
+def test_list_store_games(source: str, backend: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    from portprotonqt.cli import _list_store_games
+
+    api = MagicMock()
+    api.load_library.return_value = [
+        {"app_id": "123", "title": "Installed", "description": "Details", "cover": "store.jpg"},
+        {"app_id": "456", "title": "Owned"},
+    ]
+    api.load_installed.return_value = {"123": {}}
+    api.is_game_installed.side_effect = lambda app_id, installed: app_id in installed
+    api.get_launch_target.return_value = "/games/game.exe"
+    monkeypatch.setattr(f"portprotonqt.{backend}", lambda: api)
+    monkeypatch.setattr("portprotonqt.main_window.MainWindow._get_custom_store_data",
+                        lambda source, app_id, name: (name, "custom.jpg"))
+    monkeypatch.setattr("portprotonqt.cli._get_game_metadata", lambda *args: {"custom_icon": "icon.png"})
+    games = _list_store_games(source, None, {}, {})
+    assert [game["id"] for game in games] == [f"{source}:123", f"{source}:456"]
+    assert all(game["source"] == source for game in games)
+    assert games[0]["description"] == "Details"
+    assert games[0]["cover"] == "custom.jpg"
+    assert games[0]["icon"] == "icon.png"
+    assert games[0]["exec"] == f"{source}://launch/123"
+    assert games[1]["exec"] == f"{source}://install/456"
+    assert games[1]["executable"] is None
+    api.get_launch_target.assert_called_once_with("123")
+
+
+def test_list_steam_games(monkeypatch: pytest.MonkeyPatch) -> None:
+    from portprotonqt.cli import _list_steam_games
+
+    monkeypatch.setattr("portprotonqt.steam_api.get_steam_installed_games", lambda: [("Game", 123, 100, 42)])
+    monkeypatch.setattr("portprotonqt.steam_api.api.get_cached_full_steam_game_info",
+                        lambda *args: {"description": "Details", "cover": "cached.jpg"})
+    monkeypatch.setattr("portprotonqt.main_window.MainWindow._get_custom_store_data",
+                        lambda *args: ("Custom", "custom.jpg"))
+    game = _list_steam_games()[0]
+    assert game["id"] == "steam:123"
+    assert game["source"] == "steam"
+    assert game["name"] == "Custom"
+    assert game["cover"] == "custom.jpg"
+    assert game["exec"] == "steam://rungameid/123"
+    assert game["playtime_seconds"] == 42
+
+
+def test_list_all_sources_without_portproton(monkeypatch: pytest.MonkeyPatch) -> None:
+    from portprotonqt.cli import list_games
+
+    monkeypatch.setattr("portprotonqt.config.portproton.get_portproton_location", lambda: None)
+    monkeypatch.setattr("portprotonqt.config.portproton.get_portproton_scripts_path", lambda: None)
+    monkeypatch.setattr("portprotonqt.cli._list_steam_games", lambda: [{"source": "steam"}])
+    monkeypatch.setattr("portprotonqt.cli._list_store_games", lambda source, *args: [{"source": source}])
+    assert [game["source"] for game in list_games()] == ["steam", "gog", "egs"]
+
+
+@pytest.mark.parametrize("format_flag,pretty", [("--pretty", True), ("--raw", False)])
+def test_json_format_args(format_flag: str, pretty: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sys, "argv", ["portprotonqt", "--game-info", "steam:123", format_flag])
+    args = parse_args()
+    assert args.game_info == "steam:123"
+    assert args.pretty is pretty
+
+
+@pytest.mark.parametrize("game_id", ["steam:123", "gog:123", "missing"])
+def test_game_info_output(game_id: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture) -> None:
+    import orjson
+    from portprotonqt import app
+
+    monkeypatch.setattr(app, "parse_args", lambda: SimpleNamespace(
+        list_games=False, game_info=game_id, edit_game=None, pretty=False, fields=None,
+    ))
+    monkeypatch.setattr("portprotonqt.cli.list_games", lambda: [
+        {"id": "steam:123", "source": "steam"}, {"id": "gog:123", "source": "gog"},
+    ])
+    code = app.main()
+    output = capsys.readouterr().out
+    if game_id == "missing":
+        assert code == 1
+        assert output == ""
+    else:
+        assert code == 0
+        assert orjson.loads(output)["id"] == game_id
+        assert len(output.splitlines()) == 1
+
+
+@pytest.mark.parametrize("flags", [
+    ["--pretty", "--raw"], ["--list-games", "--game-info", "steam:123"], ["--game-info"],
+])
+def test_library_conflicting_args(flags: list[str], monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sys, "argv", ["portprotonqt", *flags])
+    with pytest.raises(SystemExit) as error:
+        parse_args()
+    assert error.value.code == 2
+
+
+@pytest.fixture
+def editable_game(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict:
+    from portprotonqt.cli import _read_game_settings
+
+    executable = tmp_path / "Game with spaces.exe"
+    executable.touch()
+    ppdb = Path(f"{executable}.ppdb")
+    ppdb.write_text('# Keep this comment\nexport PW_MANGOHUD="0"\nexport PW_WINDOWS_VER="10"\n')
+    game = {"id": "portproton:game.desktop", "source": "portproton", "executable": str(executable)}
+    monkeypatch.setattr("portprotonqt.cli.list_games", lambda: [
+        {**game, "runtime": {"settings": _read_game_settings(ppdb)}},
+    ])
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text()
+    functions = "\n".join(
+        name + helper.split(name, 1)[1].split("\n}\n", 1)[0] + "\n}"
+        for name in ("set_several_variables () {", "edit_db_from_gui () {")
+    )
+    script = tmp_path / "start.sh"
+    script.write_text(
+        '#!/usr/bin/env bash\nset -e\n' + functions + '\n'
+        'print_info () { printf "%s\\n" "$*"; }\n'
+        'print_error () { printf "%s\\n" "$*" >&2; }\n'
+        'PORTWINE_DB_FILE="${3}.ppdb"\n'
+        'set_several_variables "${@:4}"\nedit_db_from_gui $keys_all\n'
+    )
+    monkeypatch.setattr("portprotonqt.config.portproton.get_portproton_start_command",
+                        lambda: ["bash", str(script)])
+    return {**game, "ppdb": ppdb, "script": script}
+
+
+def test_edit_game_roundtrip(editable_game: dict) -> None:
+    from portprotonqt.cli import edit_game
+
+    result = edit_game(editable_game["id"], [
+        "PW_MANGOHUD=1", 'LAUNCH_PARAMETERS=--option=value "quoted"',
+        "PW_PREFIX_NAME=GAME", "WINEDLLOVERRIDES=d3d11=n,b;dxgi=n",
+    ])
+    settings = result["runtime"]["settings"]
+    assert settings["PW_MANGOHUD"] == "1"
+    assert settings["LAUNCH_PARAMETERS"] == '--option=value "quoted"'
+    assert settings["WINEDLLOVERRIDES"] == "d3d11=n,b;dxgi=n"
+    assert settings["PW_PREFIX_NAME"] == "GAME"
+    assert settings["PW_WINDOWS_VER"] == "10"
+    assert editable_game["ppdb"].read_text().startswith("# Keep this comment\n")
+
+
+@pytest.mark.parametrize("change", [
+    "PW_MANGOHUD=2", "NOT_A_SETTING=1", "PW_MANGOHUD", "PW_PREFIX_NAME=../other",
+    "PW_PREFIX_NAME=", "PW_MANGOHUD=$(touch /tmp/forbidden)", "PW_MANGOHUD=1\ntrue",
+    "LAUNCH_PARAMETERS=a|b", "LAUNCH_PARAMETERS=`id`",
+])
+def test_edit_game_rejects_invalid_values(editable_game: dict, change: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    from portprotonqt.cli import edit_game
+
+    run = MagicMock()
+    monkeypatch.setattr("subprocess.run", run)
+    before = editable_game["ppdb"].read_bytes()
+    with pytest.raises(ValueError):
+        edit_game(editable_game["id"], ["PW_MANGOHUD=1", change])
+    run.assert_not_called()
+    assert editable_game["ppdb"].read_bytes() == before
+
+
+@pytest.mark.parametrize("source", ["portproton", "gog", "egs"])
+def test_edit_game_sources(editable_game: dict, source: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    from portprotonqt.cli import edit_game
+
+    monkeypatch.setattr("portprotonqt.cli.list_games", lambda: [{**editable_game, "source": source}])
+    edit_game(editable_game["id"], ["PW_MANGOHUD=1"])
+    assert 'export PW_MANGOHUD="1"' in editable_game["ppdb"].read_text()
+
+
+@pytest.mark.parametrize("mode", ["missing", "steam", "uninstalled", "no-script", "failed", "not-saved"])
+def test_edit_game_errors(editable_game: dict, mode: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    from portprotonqt.cli import edit_game
+
+    if mode == "missing":
+        monkeypatch.setattr("portprotonqt.cli.list_games", lambda: [])
+    elif mode in {"steam", "uninstalled"}:
+        game = {**editable_game, "source": "steam"} if mode == "steam" else {**editable_game, "executable": None}
+        monkeypatch.setattr("portprotonqt.cli.list_games", lambda: [game])
+    elif mode == "no-script":
+        monkeypatch.setattr("portprotonqt.config.portproton.get_portproton_start_command", lambda: None)
+    else:
+        editable_game["script"].write_text("exit 4\n" if mode == "failed" else "exit 0\n")
+    expected = RuntimeError if mode in {"failed", "not-saved"} else ValueError
+    with pytest.raises(expected):
+        edit_game(editable_game["id"], ["PW_MANGOHUD=1"])
+
+
+@pytest.mark.parametrize("flags", [
+    ["--set", "PW_MANGOHUD=1"], ["--edit-game", "gog:123"],
+    ["--edit-game", "gog:123", "--set", "PW_MANGOHUD=1", "--list-games"],
+])
+def test_edit_game_argument_errors(flags: list[str], monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sys, "argv", ["portprotonqt", *flags])
+    with pytest.raises(SystemExit) as error:
+        parse_args()
+    assert error.value.code == 2
+
+
+@pytest.mark.parametrize("failure", [False, True])
+def test_edit_game_cli_output(failure: bool, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture) -> None:
+    import orjson
+    from portprotonqt import app
+
+    monkeypatch.setattr(sys, "argv", [
+        "portprotonqt", "--edit-game", "gog:123", "--set", "PW_MANGOHUD=1", "--raw",
+    ])
+    edit = MagicMock(return_value={"id": "gog:123"})
+    if failure:
+        edit.side_effect = RuntimeError("write failed")
+    monkeypatch.setattr("portprotonqt.cli.edit_game", edit)
+    assert app.main() == (1 if failure else 0)
+    output = capsys.readouterr().out
+    assert output == "" if failure else orjson.loads(output) == {"id": "gog:123"}
+    edit.assert_called_once_with("gog:123", ["PW_MANGOHUD=1"])
+
+
+@pytest.mark.parametrize("single", [False, True])
+@pytest.mark.parametrize("pretty", [False, True])
+def test_library_selected_fields(single: bool, pretty: bool, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture) -> None:
+    import orjson
+    from portprotonqt import app
+
+    command = ["--game-info", "gog:123"] if single else ["--list-games"]
+    monkeypatch.setattr(sys, "argv", [
+        "portprotonqt", *command, "--fields", "executable, icon,name,source",
+        "--pretty" if pretty else "--raw",
+    ])
+    monkeypatch.setattr("portprotonqt.cli.list_games", lambda: [
+        {"id": "gog:123", "name": "Game", "icon": "icon.png", "source": "gog",
+         "executable": "/games/game.exe", "description": "Not selected", "installed": True},
+        {"id": "steam:456", "name": "Steam Game", "source": "steam", "installed": True},
+    ])
+    assert app.main() == 0
+    output = capsys.readouterr().out
+    expected = {"executable": "/games/game.exe", "icon": "icon.png", "name": "Game", "source": "gog"}
+    assert orjson.loads(output) == (expected if single else [
+        expected, {"executable": None, "icon": None, "name": "Steam Game", "source": "steam"},
+    ])
+    assert (len(output.splitlines()) > 1) is pretty
+
+
+def test_library_selected_fields_empty(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture) -> None:
+    from portprotonqt import app
+
+    monkeypatch.setattr(sys, "argv", ["portprotonqt", "--list-games", "--fields", "name"])
+    monkeypatch.setattr("portprotonqt.cli.list_games", lambda: [])
+    assert app.main() == 0
+    assert capsys.readouterr().out == "[]\n"
+
+
+@pytest.mark.parametrize("flags", [
+    ["--fields", "name"], ["--list-games", "--fields", ""],
+    ["--list-games", "--fields", "name,,icon"], ["--list-games", "--fields", "name,"],
+    ["--list-games", "--fields", "name;icon"],
+    ["--edit-game", "gog:123", "--set", "PW_MANGOHUD=1", "--fields", "name"],
+])
+def test_library_selected_fields_argument_errors(flags: list[str], monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sys, "argv", ["portprotonqt", *flags])
+    with pytest.raises(SystemExit) as error:
+        parse_args()
+    assert error.value.code == 2
+
+
+@pytest.mark.parametrize("include_all", [False, True])
+def test_list_games_installed_filter(include_all: bool, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture) -> None:
+    import orjson
+    from portprotonqt import app
+
+    arguments = ["portprotonqt", "--list-games", "--fields", "id", "--raw"]
+    if include_all:
+        arguments.append("--all")
+    monkeypatch.setattr(sys, "argv", arguments)
+    games = [
+        {"id": "portproton:missing.desktop", "installed": False},
+        {"id": "steam:123", "installed": True},
+        {"id": "gog:456", "installed": False},
+        {"id": "egs:789", "installed": True},
+    ]
+    monkeypatch.setattr("portprotonqt.cli.list_games", lambda: games)
+    assert app.main() == 0
+    expected = [game for game in games if include_all or game["installed"]]
+    assert orjson.loads(capsys.readouterr().out) == [{"id": game["id"]} for game in expected]
+
+
+@pytest.mark.parametrize("flags", [["--all"], ["--game-info", "gog:123", "--all"]])
+def test_all_requires_list_games(flags: list[str], monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sys, "argv", ["portprotonqt", *flags])
+    with pytest.raises(SystemExit) as error:
+        parse_args()
+    assert error.value.code == 2

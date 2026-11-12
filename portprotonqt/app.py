@@ -140,6 +140,38 @@ def is_restore_prefix_request(args: argparse.Namespace) -> bool:
 
 def main():
     parsed_args = parse_args()
+    if parsed_args.list_games or parsed_args.game_info or parsed_args.edit_game:
+        import orjson
+
+        from portprotonqt.cli import edit_game, list_games
+
+        try:
+            if parsed_args.edit_game:
+                result = edit_game(parsed_args.edit_game, parsed_args.settings)
+            elif parsed_args.game_info:
+                games = list_games()
+                result = next((game for game in games if game["id"] == parsed_args.game_info), None)
+                if result is None:
+                    get_logger(__name__).error("Game not found: %s", parsed_args.game_info)
+                    return 1
+            else:
+                result = [game for game in list_games() if parsed_args.all_games or game.get("installed", False)]
+            if parsed_args.fields:
+                entries = result if isinstance(result, list) else [result]
+                selected = [{field: game.get(field) for field in parsed_args.fields} for game in entries]
+                result = selected if isinstance(result, list) else selected[0]
+            option = orjson.OPT_INDENT_2 if parsed_args.pretty else 0
+            sys.stdout.write(orjson.dumps(result, option=option).decode("utf-8") + "\n")
+        except OSError as error:
+            get_logger(__name__).error("Library command failed: %s", error)
+            return 1
+        except ValueError as error:
+            get_logger(__name__).error("Invalid library command: %s", error)
+            return 1
+        except RuntimeError as error:
+            get_logger(__name__).error("Failed to edit game settings: %s", error)
+            return 1
+        return 0
     os.environ["PORTPROTONQT_PYTHON"] = sys.executable
 
     if os.environ.get("PORTPROTONQT_INTEGRATE_APPIMAGE") == "1":

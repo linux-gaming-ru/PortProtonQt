@@ -18,8 +18,8 @@ _portprotonqt_completions() {
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     # All available options
-    opts="--fullscreen --resolution --debug-level --add-steam-compat-tool --reinstall-steam-compat-tool --remove-steam-compat-tool --clear-cache --reset-settings --ppqtos --silent --log --restore-prefix --create-backup --help -h"
-    long_opts="--fullscreen --resolution --debug-level --add-steam-compat-tool --reinstall-steam-compat-tool --remove-steam-compat-tool --clear-cache --reset-settings --ppqtos --silent --log --restore-prefix --create-backup --help"
+    opts="--fullscreen --resolution --debug-level --add-steam-compat-tool --reinstall-steam-compat-tool --remove-steam-compat-tool --list-games --all --game-info --edit-game --set --fields --pretty --raw --clear-cache --reset-settings --ppqtos --silent --log --restore-prefix --create-backup --help -h"
+    long_opts="--fullscreen --resolution --debug-level --add-steam-compat-tool --reinstall-steam-compat-tool --remove-steam-compat-tool --list-games --all --game-info --edit-game --set --fields --pretty --raw --clear-cache --reset-settings --ppqtos --silent --log --restore-prefix --create-backup --help"
     
     # Values for options with arguments
     local debug_levels="ALL DEBUG INFO WARNING ERROR CRITICAL"
@@ -73,6 +73,14 @@ _portprotonqt() {
         '--add-steam-compat-tool[Add as Steam compatibility tool]'
         '--reinstall-steam-compat-tool[Reinstall Steam compatibility tool]'
         '--remove-steam-compat-tool[Remove Steam compatibility tool]'
+        '--list-games[Print local game libraries as JSON]'
+        '--game-info[Print one game as JSON]:ID:'
+        '--edit-game[Edit game settings]:ID:'
+        '*--set[Set a game setting]:KEY=VALUE:'
+        '--all[Include uninstalled games in the library list]'
+        '--fields[Select JSON fields]:FIELD,...:'
+        '--pretty[Format JSON with indentation]'
+        '--raw[Print compact JSON]'
         '--clear-cache[Clear PortProtonQt cache and exit]'
         '--reset-settings[Reset PortProtonQt settings and exit]'
         '--ppqtos[Show the system tab]'
@@ -94,13 +102,21 @@ cat > "$OUTPUT_DIR/portprotonqt.fish" << 'EOF'
 # Fish completion for portprotonqt
 
 complete -c portprotonqt -f
-complete -c portprotonqt -n "test -z (commandline -ct)" -a "--fullscreen --resolution --debug-level --add-steam-compat-tool --reinstall-steam-compat-tool --remove-steam-compat-tool --clear-cache --reset-settings --ppqtos --silent --log --restore-prefix --create-backup --help"
+complete -c portprotonqt -n "test -z (commandline -ct)" -a "--fullscreen --resolution --debug-level --add-steam-compat-tool --reinstall-steam-compat-tool --remove-steam-compat-tool --list-games --all --game-info --edit-game --set --fields --pretty --raw --clear-cache --reset-settings --ppqtos --silent --log --restore-prefix --create-backup --help"
 complete -c portprotonqt -l fullscreen -d "Launch in fullscreen mode"
 complete -c portprotonqt -l resolution -d "Launch with specific resolution" -r -f -a "1920x1080 1280x720 2560x1440 3840x2160"
 complete -c portprotonqt -l debug-level -d "Set logging level" -r -f -a "ALL DEBUG INFO WARNING ERROR CRITICAL"
 complete -c portprotonqt -l add-steam-compat-tool -d "Add as Steam compatibility tool"
 complete -c portprotonqt -l reinstall-steam-compat-tool -d "Reinstall Steam compatibility tool"
 complete -c portprotonqt -l remove-steam-compat-tool -d "Remove Steam compatibility tool"
+complete -c portprotonqt -l list-games -d "Print local game libraries as JSON"
+complete -c portprotonqt -l game-info -d "Print one game as JSON" -r -f
+complete -c portprotonqt -l edit-game -d "Edit game settings" -r -f
+complete -c portprotonqt -l set -d "Set a game setting (KEY=VALUE)" -r -f
+complete -c portprotonqt -l all -d "Include uninstalled games in the library list"
+complete -c portprotonqt -l fields -d "Select JSON fields (comma-separated)" -r -f
+complete -c portprotonqt -l pretty -d "Format JSON with indentation"
+complete -c portprotonqt -l raw -d "Print compact JSON"
 complete -c portprotonqt -l clear-cache -d "Clear PortProtonQt cache and exit"
 complete -c portprotonqt -l reset-settings -d "Reset PortProtonQt settings and exit"
 complete -c portprotonqt -l ppqtos -d "Show the system tab"
