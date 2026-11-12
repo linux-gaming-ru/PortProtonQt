@@ -8,7 +8,7 @@ from typing import Any, cast
 from unittest.mock import patch
 
 from PIL import Image
-from pytest import MonkeyPatch, raises
+from pytest import MonkeyPatch, raises, mark
 
 import portprotonqt.game_card as game_card_module
 import portprotonqt.image_utils as image_utils
@@ -608,9 +608,16 @@ def test_game_card_uses_exe_fallback_without_valid_cover(
     ]
 
 
+@mark.parametrize("url, filename", [
+    ("https://example.org/game.jpg", "game.jpg"),
+    ("https://cdn2.steamgriddb.com/grid/unique-cover.png", "unique-cover.png"),
+    ("https://deckyloader.ru/sgdb-cdn/grid/unique-cover.png", "unique-cover.png"),
+])
 def test_remote_cover_replaces_immediate_exe_fallback_only_on_success(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
+    url: str,
+    filename: str,
 ) -> None:
     exe_path = tmp_path / "game.exe"
     exe_path.write_bytes(b"MZ")
@@ -626,6 +633,8 @@ def test_remote_cover_replaces_immediate_exe_fallback_only_on_success(
         timeout: int,
         callback: Callable[[str | None], None],
     ) -> None:
+        assert _url == url
+        assert Path(_path).name == filename
         callbacks.append(callback)
 
     monkeypatch.setattr("portprotonqt.icon_extractor.CACHE_DIR", tmp_path / "cache" / "PortProtonQt")
@@ -642,13 +651,13 @@ def test_remote_cover_replaces_immediate_exe_fallback_only_on_success(
     )
 
     image_utils.load_pixmap_async(
-        "https://example.org/game.jpg", 100, 150,
+        url, 100, 150,
         lambda pixmap: loaded_paths.append(cast(FakePixmap, pixmap).path),
         app_name="game", fallback_exe=str(exe_path),
         fallback_icon_path=str(fallback_path),
     )
     callbacks[0](None)
-    downloaded_path = tmp_path / "cache" / "PortProtonQt" / "images" / "game.jpg"
+    downloaded_path = tmp_path / "cache" / "PortProtonQt" / "images" / filename
     downloaded_path.write_bytes(b"cover")
     callbacks[0](str(downloaded_path))
 

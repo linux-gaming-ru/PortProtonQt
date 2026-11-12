@@ -498,7 +498,7 @@ def load_pixmap_async(
                 logger.error(f"URL processing error {cover}: {e}")
 
         # SteamGridDB (SGDB)
-        if cover and cover.startswith("https://cdn2.steamgriddb.com"):
+        if cover and cover.startswith(("https://cdn2.steamgriddb.com/", "https://deckyloader.ru/sgdb-cdn/")):
             try:
                 parts = cover.split("/")
                 filename = parts[-1] if parts else "sgdb_cover.png"
