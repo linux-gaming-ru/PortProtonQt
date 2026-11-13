@@ -36,6 +36,7 @@
 - Обновлён перевод на Португальский (Бразилия) `https://translate.codeberg.org/projects/portprotonqt/portprotonqt/pt_BR/`
 - Обновлён перевод на Русский `https://translate.codeberg.org/projects/portprotonqt/portprotonqt/ru/`
 - Обновлён перевод на Немецкий `https://translate.codeberg.org/projects/portprotonqt/portprotonqt/de/`
+- Обновлён перевод на Китайский (упрощённый) `https://translate.codeberg.org/projects/portprotonqt/portprotonqt/zh_Hans/`
 
 ### Fixed
 

@@ -7,9 +7,9 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PortProtonQt 0.1.1\n"
-"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"Report-Msgid-Bugs-To: support@linux-gaming.ru\n"
 "POT-Creation-Date: 2026-06-18 23:41+0500\n"
-"PO-Revision-Date: 2026-07-22 12:06+0000\n"
+"PO-Revision-Date: 2026-11-01 00:08+0000\n"
 "Last-Translator: rogerio-mattos <rogerio-mattos@noreply.codeberg.org>\n"
 "Language-Team: Chinese (Simplified Han script) <https://"
 "translate.codeberg.org/projects/portprotonqt/portprotonqt/zh_Hans/>\n"
@@ -18,7 +18,7 @@ msgstr ""
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 2026.6.1\n"
+"X-Generator: Weblate 2026.10.1\n"
 "Generated-By: Babel 2.18.0\n"
 
 msgid ""
@@ -29,7 +29,7 @@ msgstr "PortProton 数据文件夹不可读写。请为 PortProton 数据选择�
 msgid ""
 "PortProtonQt is already running. Stop it and all games, then restart for "
 "the new launch?"
-msgstr ""
+msgstr "PortProtonQt 已 stacked运行。请关闭它及所有游戏，然后重新启动以应用新设置？"
 
 msgid "Yes"
 msgstr "是"
@@ -143,9 +143,8 @@ msgstr "文件已存在：{file_name}"
 msgid "Failed to rename file: {error}"
 msgstr "重命名文件失败：{error}"
 
-#, fuzzy
 msgid "Select multiple"
-msgstr "全选"
+msgstr "多选"
 
 msgid "Delete from PortProton"
 msgstr "从 PortProton 中删除"
@@ -156,9 +155,8 @@ msgstr "停止游戏"
 msgid "Launch Game"
 msgstr "启动游戏"
 
-#, fuzzy
 msgid "Repair"
-msgstr "已配对"
+msgstr "修复"
 
 msgid "Remove from Desktop"
 msgstr "从桌面移除"
@@ -176,7 +174,7 @@ msgid "Delete"
 msgstr "删除"
 
 msgid "Import"
-msgstr ""
+msgstr "导入"
 
 msgid "Edit Shortcut"
 msgstr "编辑快捷方式"
@@ -260,9 +258,9 @@ msgstr "桌面"
 msgid "Failed to save custom data: {error}"
 msgstr "保存自定义数据失败：{error}"
 
-#, fuzzy, python-brace-format
+#, python-brace-format
 msgid "Executable not found"
-msgstr "找不到可执行文件：{0}"
+msgstr "未找到可执行文件"
 
 #, python-brace-format
 msgid "Executable not found: {0}"
@@ -456,14 +454,14 @@ msgstr "缺少 32 位依赖项。现在安装吗?"
 
 #, python-brace-format
 msgid "Delete '{0}' and all files in its installation folder?"
-msgstr ""
+msgstr "导入('{0}'及其安装文件夹中的所有文件)？"
 
 #, fuzzy
 msgid "Select Epic game folder"
 msgstr "删除文件夹"
 
 msgid "Another Epic operation is running"
-msgstr ""
+msgstr "另一个 Epic 操作正在运行中"
 
 #, fuzzy
 msgid "Wine prefix not found"
@@ -475,9 +473,12 @@ msgid ""
 "characters:\n"
 "\n"
 msgstr ""
+"在以下路径中找到了西里尔字母字符。Wine 可能会运行不稳定。请将游戏或 "
+"PortProton 移动到不包含西里尔字母字符的路径：\n"
+"\n"
 
 msgid "Don't remind again"
-msgstr ""
+msgstr "不再提示"
 
 msgid "Game not found."
 msgstr "未找到游戏。"
@@ -930,19 +931,19 @@ msgstr "正在启动 {0}"
 
 #, python-brace-format
 msgid "Scanning: {folder}"
-msgstr ""
+msgstr "正在扫描：{folder}"
 
 #, python-brace-format
 msgid "Checking existing shortcuts: {path}"
-msgstr ""
+msgstr "正在检查现有快捷方式：{path}"
 
 #, python-brace-format
 msgid "Adding: {name}"
-msgstr ""
+msgstr "正在添加：{name}"
 
-#, fuzzy, python-brace-format
+#, python-brace-format
 msgid "Failed to create shortcut: {name}"
-msgstr "创建文件夹失败：{error}"
+msgstr "创建快捷方式失败：{name}"
 
 msgid "Name:"
 msgstr "名称："
@@ -979,21 +980,22 @@ msgstr "图像无效"
 msgid "Select folder"
 msgstr "删除文件夹"
 
-#, fuzzy
 msgid "Processing games…"
-msgstr "最近游戏"
+msgstr "正在处理游戏…"
 
 #, python-brace-format
 msgid ""
 "Processed {completed}/{total}\n"
 "{current}"
 msgstr ""
+"已处理：{completed}/{total}\n"
+"{current}"
 
 msgid "Information"
 msgstr "信息"
 
 msgid "No games found in the selected folder."
-msgstr ""
+msgstr "在所选文件夹中未找到任何游戏。"
 
 #, fuzzy
 msgid "Select games"
@@ -1013,10 +1015,10 @@ msgid "No cover selected"
 msgstr "未选择封面"
 
 msgid "Compatibility report"
-msgstr ""
+msgstr "兼容性报告"
 
 msgid "The program stopped. Compatibility details were collected automatically."
-msgstr ""
+msgstr "程序已停止。已自动收集兼容性详细信息。"
 
 msgid "Downloading…"
 msgstr "正在下载…"
@@ -1242,7 +1244,7 @@ msgid "Exe Settings"
 msgstr "可执行文件设置"
 
 msgid "Edit user.conf"
-msgstr ""
+msgstr "编辑 user.conf"
 
 msgid "Search settings…"
 msgstr "搜索设置…"
@@ -1268,9 +1270,8 @@ msgstr "编辑 PPDB"
 msgid "Clear PPDB"
 msgstr "清除 PPDB"
 
-#, fuzzy
 msgid "Failed to load global game settings."
-msgstr "加载主题失败"
+msgstr "加载全局游戏设置失败"
 
 msgid "Executable path is not available."
 msgstr "可执行文件路径不可用。"
@@ -1281,9 +1282,8 @@ msgstr "PPDB 文件不存在于： "
 msgid "Failed to open PPDB file:\n"
 msgstr "打开 PPDB 文件失败：\n"
 
-#, fuzzy
 msgid "Failed to open file:\n"
-msgstr "打开 PPDB 文件失败：\n"
+msgstr "打开文件失败：\n"
 
 msgid "Confirm PPDB Clear"
 msgstr "确认清除 PPDB"
@@ -1303,9 +1303,8 @@ msgstr "默认"
 msgid "disabled"
 msgstr "已禁用"
 
-#, fuzzy
 msgid "Download Wine/Proton..."
-msgstr "将 WINE/Proton 下载到 Steam"
+msgstr "下载 Wine/Proton…"
 
 msgid "Enter prefix name"
 msgstr "输入前缀名称"
@@ -2104,13 +2103,11 @@ msgstr "全部清除"
 msgid "Now Downloading"
 msgstr "正在下载"
 
-#, fuzzy
 msgid "Waiting…"
-msgstr "警告"
+msgstr "请稍候…"
 
-#, fuzzy
 msgid "Disk: "
-msgstr "链接："
+msgstr "磁盘： "
 
 #, fuzzy
 msgid "Started at"
@@ -2124,10 +2121,10 @@ msgid "Store"
 msgstr "存储"
 
 msgid "Copy the link to clipboard"
-msgstr ""
+msgstr "将链接复制到剪贴板"
 
 msgid "Failed to log out of GOG account"
-msgstr ""
+msgstr "退出 GOG 账号失败"
 
 msgid "Refreshing…"
 msgstr "正在刷新…"
@@ -2149,27 +2146,27 @@ msgid "Log out"
 msgstr "注销"
 
 msgid "Open login page"
-msgstr ""
+msgstr "打开登录页面"
 
 msgid "GOG account not connected"
-msgstr ""
+msgstr "未连接 GOG 账号"
 
 #, python-brace-format
 msgid "Refreshing GOG library… {0}/{1}"
-msgstr ""
+msgstr "正在刷新 GOG 藏品库… {0}/{1}"
 
 #, fuzzy, python-brace-format
 msgid "Failed to refresh GOG library: {0}"
 msgstr "启动游戏失败：{0}"
 
 msgid "Failed to log out of Epic account"
-msgstr ""
+msgstr "退出 Epic 账号失败"
 
 msgid "Copy the authorization code to clipboard"
-msgstr ""
+msgstr "将授权码复制到剪贴板"
 
 msgid "Epic authorization…"
-msgstr ""
+msgstr "Epic 授权中…"
 
 #, fuzzy, python-brace-format
 msgid "Epic login failed: {0}"
@@ -2183,33 +2180,33 @@ msgstr "已连接"
 msgid "Epic account not connected"
 msgstr "已连接"
 
-#, fuzzy, python-brace-format
+#, python-brace-format
 msgid "Refreshing Epic library… {0}/{1}"
-msgstr "启动游戏失败：{0}"
+msgstr "正在刷新 Epic 游戏库… {0}/{1}"
 
 #, fuzzy, python-brace-format
 msgid "Failed to refresh Epic library: {0}"
 msgstr "启动游戏失败：{0}"
 
 msgid "Select installation folder"
-msgstr ""
+msgstr "选择安装文件夹"
 
 #, fuzzy
 msgid "Another download is running"
 msgstr "正在下载"
 
 msgid "Another GOG operation is already running"
-msgstr ""
+msgstr "另一个 GOG 操作正在运行中"
 
 msgid "GOG installation not found"
-msgstr ""
+msgstr "未找到 GOG 安装"
 
 #, fuzzy
 msgid "Select GOG game folder"
 msgstr "删除文件夹"
 
 msgid "Selected folder is not this GOG game"
-msgstr ""
+msgstr "所选文件夹不是此 GOG 游戏"
 
 #, fuzzy
 msgid "Starting"
@@ -2221,11 +2218,11 @@ msgstr "正在下载… {0}%"
 
 #, python-brace-format
 msgid "Disk: {0} MiB/s"
-msgstr ""
+msgstr "磁盘：{0} MiB/s"
 
 #, fuzzy, python-brace-format
 msgid "ETA: {0}"
-msgstr "，预计剩余时间：{}秒"
+msgstr "ETA: {0}"
 
 #, fuzzy
 msgid "Failed"
@@ -2279,7 +2276,7 @@ msgid "Theme"
 msgstr "主题"
 
 msgid "Grid"
-msgstr ""
+msgstr "网格"
 
 #, fuzzy
 msgid "List"
@@ -2289,21 +2286,17 @@ msgstr "浅色"
 msgid "Vertical"
 msgstr "部分"
 
-#, fuzzy
 msgid "Horizontal Blocks"
-msgstr "水平 HUD 布局"
+msgstr "水平块"
 
-#, fuzzy
 msgid "Horizontal Cards"
-msgstr "水平 HUD 布局"
+msgstr "水平卡片"
 
-#, fuzzy
 msgid "Horizontal endless Blocks"
-msgstr "水平 HUD 布局"
+msgstr "水平无限块"
 
-#, fuzzy
 msgid "Horizontal endless Cards"
-msgstr "水平 HUD 布局"
+msgstr "水平无限卡片"
 
 #, fuzzy
 msgid "Layout"
@@ -2331,7 +2324,7 @@ msgid "Auto"
 msgstr "自动"
 
 msgid "Account"
-msgstr ""
+msgstr "账号"
 
 msgid "Brief"
 msgstr "简要"
@@ -2359,7 +2352,7 @@ msgid "Auto Fullscreen on Gamepad connected"
 msgstr "连接手柄时自动全屏"
 
 msgid "Disable Boot Animation"
-msgstr ""
+msgstr "禁用开机动画"
 
 msgid "Minimize to tray on close"
 msgstr "关闭时最小化到系统托盘"
@@ -2374,22 +2367,22 @@ msgid "Hide Auto-Install Tab"
 msgstr "隐藏自动安装标签页"
 
 msgid "Hide Control Hints"
-msgstr ""
+msgstr "隐藏操作提示"
 
 msgid "Force English language"
-msgstr ""
+msgstr "强制使用英语"
 
 msgid "Enable UI Sounds"
 msgstr "启用界面音效"
 
 msgid "Show compatibility report after game crash"
-msgstr ""
+msgstr "游戏崩溃后显示兼容性报告"
 
 msgid "Disable Cyrillic path warning"
-msgstr ""
+msgstr "禁用西里尔字母路径警告"
 
 msgid "Disable ALT Linux i586 dependency check"
-msgstr ""
+msgstr "禁用 ALT Linux i586 依赖项检查"
 
 msgid "Disable runtime download"
 msgstr "禁用运行时下载"
@@ -2398,7 +2391,7 @@ msgid "Add to Steam compatibility tools"
 msgstr "添加到 Steam 兼容工具"
 
 msgid "Disable Steam Proton scanning"
-msgstr ""
+msgstr "禁用 Steam Proton 扫描"
 
 msgid "Download WINE/Proton to Steam"
 msgstr "将 WINE/Proton 下载到 Steam"
@@ -2487,7 +2480,7 @@ msgstr "确定要清除缓存吗？此操作无法撤销。"
 
 #, python-brace-format
 msgid "AppImage integrated at: {path}"
-msgstr ""
+msgstr "AppImage 已集成于：{path}"
 
 #, fuzzy, python-brace-format
 msgid "Failed to integrate AppImage: {error}"
@@ -2635,13 +2628,12 @@ msgstr "作者："
 msgid "Link:"
 msgstr "链接："
 
-#, fuzzy, python-brace-format
+#, python-brace-format
 msgid "Delete theme '{0}'?"
-msgstr "选择主题："
+msgstr "删除主题“{0}”？"
 
-#, fuzzy
 msgid "Failed to delete theme."
-msgstr "加载主题失败"
+msgstr "删除主题失败。"
 
 msgid "Prefix:"
 msgstr "前缀："
