@@ -24,9 +24,24 @@ jobs:
     container:
       image: archlinux:base-devel@sha256:3cbf69d2d5958d6a294f3722c5668e6187c4df8e00fa27f72352f0bf83e495e1
     steps:
-      - name: Configure Arch mirror
+      - name: Configure Arch mirrors
         run: |
-          echo 'Server = https://cdn.lenuma.ru/archlinux-mirror/$repo/os/$arch' > /etc/pacman.d/mirrorlist
+          if curl -fL --connect-timeout 10 --max-time 20 \
+            https://cdn.lenuma.ru/archlinux-mirror/core/os/x86_64/core.db -o /dev/null; then
+            echo 'Server = https://cdn.lenuma.ru/archlinux-mirror/$repo/os/$arch' > /etc/pacman.d/mirrorlist
+          elif curl -fL --retry 2 --connect-timeout 10 --max-time 60 \
+            https://github.com/westandskif/rate-mirrors/releases/download/v0.33.0/rate-mirrors-v0.33.0-x86_64-unknown-linux-musl.tar.gz \
+            -o /tmp/rate-mirrors.tar.gz &&
+            echo 'e0ffb221649b7e1ce6b67ffaabe7cfd2b619c8bf8d6971e07ff9507d4e19a4b3  /tmp/rate-mirrors.tar.gz' | sha256sum -c - &&
+            tar -xzf /tmp/rate-mirrors.tar.gz -C /tmp --strip-components=1 \
+              rate-mirrors-v0.33.0-x86_64-unknown-linux-musl/rate_mirrors &&
+            timeout --kill-after=5s 120s /tmp/rate_mirrors --allow-root --protocol=https --disable-untested-fallback \
+              --save=/tmp/arch-mirrorlist arch --max-delay=21600 &&
+            grep -q '^Server = https://' /tmp/arch-mirrorlist; then
+            install -m 644 /tmp/arch-mirrorlist /etc/pacman.d/mirrorlist
+          else
+            echo '::warning::Mirror ranking failed; keeping the original Arch mirrorlist'
+          fi
           sed -i -E 's/^#?[[:space:]]*ParallelDownloads[[:space:]]*=.*/ParallelDownloads = 5/' /etc/pacman.conf
 
       - name: Install CI dependencies
