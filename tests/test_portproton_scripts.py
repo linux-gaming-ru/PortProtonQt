@@ -42,6 +42,29 @@ gui_config () {
     assert ppdb.read_text() == expected
 
 
+@mark.parametrize("enabled", ["0", "1", ""])
+@mark.parametrize("inherited", [None, "0", "1"])
+def test_video_fix_controls_dxgi_device_manager(
+    tmp_path: Path, enabled: str, inherited: str | None,
+) -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text()
+    block = '    if [[ "${PW_FIX_VIDEO_IN_GAME}" == 1 ]]' + helper.split(
+        '    if [[ "${PW_FIX_VIDEO_IN_GAME}" == 1 ]]', 1,
+    )[1].split("    fi", 1)[0] + "    fi\n"
+    env = {"PATH": os.defpath, "PW_FIX_VIDEO_IN_GAME": enabled}
+    if inherited is not None:
+        env["WINE_DO_NOT_CREATE_DXGI_DEVICE_MANAGER"] = inherited
+
+    result = subprocess.run(
+        ["bash", "-c", block
+         + 'printf "%s" "${WINE_DO_NOT_CREATE_DXGI_DEVICE_MANAGER-unset}"'],
+        cwd=tmp_path, env=env, capture_output=True, text=True, check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == ("1" if enabled == "1" else "unset")
+
+
 @mark.parametrize("second_name", ["Game.exe", "Trainer.exe"])
 @mark.parametrize("copies", [1, 3])
 def test_run_after_accepts_same_exe(tmp_path: Path, second_name: str, copies: int) -> None:
