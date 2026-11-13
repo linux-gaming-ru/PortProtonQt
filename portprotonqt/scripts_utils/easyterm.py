@@ -1869,11 +1869,11 @@ def build_command(args: argparse.Namespace) -> list[str]:
     """Build the command list to execute in the PTY."""
     if args.e:
         if len(args.e) == 1:
-            return [
-                default_shell(),
-                "-lc",
-                _with_portproton_functions(args.e[0]),
-            ]
+            command = args.e[0]
+            # functions_helper is bash-only, user shell may be zsh or fish
+            if _needs_portproton_functions(command):
+                return [CONF_FALLBACK_SHELL, "-lc", _with_portproton_functions(command)]
+            return [default_shell(), "-lc", command]
         return args.e
     return [default_shell()]
 

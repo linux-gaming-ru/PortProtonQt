@@ -1,3 +1,4 @@
+import argparse
 import time
 from types import SimpleNamespace
 
@@ -6,9 +7,53 @@ from PySide6.QtCore import QEvent, Qt
 from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import QApplication
 
-from portprotonqt.scripts_utils.easyterm import TerminalWidget
+from portprotonqt.scripts_utils.easyterm import (
+    CONF_FALLBACK_SHELL,
+    TerminalWidget,
+    build_command,
+)
 
 PROCESS_TIMEOUT_SECONDS = 30
+HELPER_PATH = "/usr/share/portproton/scripts/functions_helper"
+USER_SHELL = "/usr/bin/zsh"
+
+
+@pytest.fixture
+def user_shell(monkeypatch: pytest.MonkeyPatch) -> str:
+    monkeypatch.setattr(
+        "portprotonqt.scripts_utils.easyterm.default_shell", lambda: USER_SHELL
+    )
+    monkeypatch.setattr(
+        "portprotonqt.scripts_utils.easyterm._portproton_functions_helper_path",
+        lambda: HELPER_PATH,
+    )
+    return USER_SHELL
+
+
+def test_build_command_uses_bash_for_portproton_functions(user_shell: str) -> None:
+    command = build_command(argparse.Namespace(e=["pw_run Game"]))
+
+    assert command == [
+        CONF_FALLBACK_SHELL,
+        "-lc",
+        f"source {HELPER_PATH}; pw_run Game",
+    ]
+
+
+def test_build_command_uses_bash_for_exported_functions(
+    user_shell: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("BASH_FUNC_launch_game%%", "() { :; }")
+
+    command = build_command(argparse.Namespace(e=["launch_game"]))
+
+    assert command[0] == CONF_FALLBACK_SHELL
+
+
+def test_build_command_keeps_user_shell_for_plain_commands(user_shell: str) -> None:
+    command = build_command(argparse.Namespace(e=["ls -l"]))
+
+    assert command == [user_shell, "-lc", "ls -l"]
 
 
 def test_terminal_keeps_failed_command_output(

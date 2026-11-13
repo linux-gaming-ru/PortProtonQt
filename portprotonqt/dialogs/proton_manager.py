@@ -352,14 +352,9 @@ class ProtonManager(DraggableDialog):
         logger.error(f"Wine data loading failed: {error_msg}")
         if hasattr(self, 'content_stack'):
             self.content_stack.setCurrentIndex(1)
-        error_label = QLabel(_("Error loading WINE/Proton: {error}").format(error=error_msg))
-        error_label.setStyleSheet(self.theme.GETWINE_WINDOW_STYLE)
-        error_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         if hasattr(self, 'tab_widget'):
-            error_tab = QWidget()
-            error_layout = QVBoxLayout(error_tab)
-            error_layout.addWidget(error_label)
-            self.tab_widget.addTab(error_tab, _("Error"))
+            self.tab_widget.clear()
+            self.create_installed_tab()
 
     def process_metadata(self, metadata):
         self.cpu_level = get_cpu_level()
@@ -679,7 +674,7 @@ class ProtonManager(DraggableDialog):
         version_item = QTableWidgetItem(version_name)
         version_item.setFlags(version_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
         table.setItem(row_index, 1, version_item)
-        size_item = QTableWidgetItem(_("Unknown"))
+        size_item = QTableWidgetItem(_("Loading…"))
         size_item.setFlags(size_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
         table.setItem(row_index, 2, size_item)
         for col in range(table.columnCount()):

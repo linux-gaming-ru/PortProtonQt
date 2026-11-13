@@ -177,6 +177,9 @@ def test_app_restarts_installed_appimage_after_integration(
         lambda: SimpleNamespace(
             debug_level="NOTSET",
             reinstall_steam_compat_tool=True,
+            list_games=False,
+            game_info=None,
+            edit_game=None,
         ),
     )
     monkeypatch.setattr(

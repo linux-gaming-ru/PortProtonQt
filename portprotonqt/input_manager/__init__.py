@@ -86,9 +86,8 @@ class MouseEmulationThread(QThread):
                 ecodes.EV_REL: [ecodes.REL_X, ecodes.REL_Y, ecodes.REL_WHEEL],
             }, name="Virtual DPad Mouse")
 
-            self.finished.emit(True)
-            # Store device in thread result
             self._device = ui
+            self.finished.emit(True)
 
         except PermissionError as e:
             logger.error("EMUL: Permission denied for /dev/uinput: %s", e)
@@ -214,10 +213,6 @@ class InputManager(
 
         logger.info("EMUL: Mouse emulation initialized (enabled=%s)", self.mouse_emulation_enabled)
 
-        if self.mouse_emulation_enabled:
-            # Initialize mouse emulation asynchronously to avoid blocking startup
-            QTimer.singleShot(0, self._async_enable_mouse_emulation)
-
         # FileExplorer specific attributes
         self.file_explorer = None
         self.nav_timer = QTimer(self)
@@ -265,6 +260,8 @@ class InputManager(
 
     def _on_mouse_emulation_finished(self, success: bool):
         """Handle mouse emulation thread completion."""
+        if not self.mouse_emulation_enabled:
+            return
         if success and self.mouse_emulation_thread:
             device = self.mouse_emulation_thread.get_device()
             if device:
@@ -281,6 +278,22 @@ class InputManager(
         self.emulation_active = self.mouse_emulation_enabled
         if not self.emulation_active:
             self.emulation_triggered = False
+        thread = self.mouse_emulation_thread
+        if thread and thread.isRunning():
+            return
+        if self.emulation_triggered:
+            if self.ui is None:
+                self._async_enable_mouse_emulation()
+        elif self.ui is not None:
+            try:
+                self.ui.close()
+            except Exception as e:
+                logger.error("EMUL: Error closing virtual mouse: %s", e)
+            self.ui = None
+            self.mouse_emulation_thread = None
+            self.stick_x_raw = 0
+            self.stick_y_raw = 0
+            self.scroll_accumulator = 0.0
 
     def _navigate_game_cards(self, container, tab_index: int, code: int, value: int) -> None:
         """Common navigation logic for game cards in a container."""
@@ -414,8 +427,10 @@ class InputManager(
 
         # Stop the thread if still running
         thread = self.mouse_emulation_thread
-        if thread and thread.isRunning():
+        if thread:
             thread.wait()
+            if self.ui is None:
+                self.ui = thread.get_device()
             self.mouse_emulation_thread = None
 
         if self.ui:
