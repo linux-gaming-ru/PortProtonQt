@@ -1657,3 +1657,50 @@ def test_run_after_dpad_reaches_delete_from_entry(direction: int, column: int) -
     assert QApplication.focusWidget() == entry
     table.close()
     table.deleteLater()
+
+
+def test_mouse_device_follows_emulation_toggle(monkeypatch: MonkeyPatch) -> None:
+    manager = InputManager.__new__(InputManager)
+    QObject.__init__(manager)
+    manager.mouse_emulation_enabled = True
+    manager.emulation_triggered = False
+    manager.mouse_emulation_thread = None
+    manager.ui = None
+    create = MagicMock()
+    monkeypatch.setattr(manager, "_async_enable_mouse_emulation", create)
+
+    manager._update_emulation_flag()
+    create.assert_not_called()
+    manager.emulation_triggered = True
+    manager._update_emulation_flag()
+    create.assert_called_once_with()
+
+    device = MagicMock()
+    manager.ui = device
+    manager.emulation_triggered = False
+    manager._update_emulation_flag()
+    device.close.assert_called_once_with()
+    assert manager.ui is None
+    assert manager.mouse_emulation_enabled
+    manager.emulation_triggered = True
+    manager._update_emulation_flag()
+    assert create.call_count == 2
+
+
+def test_mouse_shutdown_collects_pending_device() -> None:
+    manager = InputManager.__new__(InputManager)
+    QObject.__init__(manager)
+    device = MagicMock()
+    thread = MagicMock()
+    thread.get_device.return_value = device
+    manager.mouse_emulation_thread = thread
+    manager.mouse_emulation_enabled = True
+    manager.ui = None
+
+    manager.disable_mouse_emulation()
+    manager._on_mouse_emulation_finished(True)
+
+    thread.wait.assert_called_once_with()
+    device.close.assert_called_once_with()
+    assert manager.ui is None
+    assert manager.mouse_emulation_thread is None
