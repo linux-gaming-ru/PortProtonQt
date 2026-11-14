@@ -761,6 +761,8 @@ class DetailPageManager:
         play_button = self._make_action_button(text, icon)
         play_button.setProperty("sound_event", False)
         play_button.clicked.connect(lambda: self.main_window.toggleGame(exec_line, play_button))
+        if exec_line.startswith("steam://"):
+            self.main_window._toggle_steam_game(exec_line, play_button, launch=False)
         return play_button
 
     def _add_portproton_buttons(self, buttons_layout: FlowLayout, exec_line: str) -> None:

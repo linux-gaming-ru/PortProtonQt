@@ -3386,3 +3386,188 @@ def test_custom_combo_opens_readonly_field_on_mouse_release(readonly: bool) -> N
     assert combo.view().isVisible() is readonly
     combo.hidePopup()
     combo.close()
+
+
+def _steam_snapshot(text: str | bytes, created: float = 1.0) -> list[dict[str, Any]]:
+    if isinstance(text, bytes):
+        text = text.decode()
+    snapshot = []
+    for line in text.splitlines():
+        pid, parent, name, args = line.split(maxsplit=3)
+        snapshot.append({
+            "pid": int(pid), "ppid": int(parent), "name": name,
+            "cmdline": args.split(), "create_time": created,
+        })
+    return snapshot
+
+
+@mark.parametrize(
+    ("command", "running"),
+    [
+        ("123 789 reaper /steam/reaper SteamLaunch AppId=620 -- /game", True),
+        ("123 789 reaper /steam/reaper SteamLaunch AppId=6200 -- /game", False),
+        ("123 1 steam steam SteamLaunch AppId=620", False),
+        ("123 789 reaper /steam/reaper SteamLaunch AppId=1 -- AppId=620", False),
+    ],
+)
+def test_steam_watch_matches_exact_game(command: str, running: bool) -> None:
+    process = MagicMock()
+    process.error = None
+    process.result = MainWindow._collect_steam_processes("620", _steam_snapshot(command.encode()), {})
+    button = MagicMock()
+    watch = {
+        "process": process, "button": button, "running": False,
+        "stop": False,
+    }
+    window = SimpleNamespace(
+        _steam_watches={"620": watch}, theme_manager=MagicMock(),
+        _finish_steam_watch=MagicMock(),
+    )
+    MainWindow._steam_scan_finished(cast(Any, window), "620")
+    assert watch["running"] is running
+    button.setEnabled.assert_called_once_with(running)
+    window._finish_steam_watch.assert_not_called()
+
+
+def test_steam_stop_signals_only_selected_reaper(monkeypatch: MonkeyPatch) -> None:
+    snapshot = _steam_snapshot(
+        "123 789 reaper /steam/reaper SteamLaunch AppId=620 -- /game\n"
+        "456 789 reaper /steam/reaper SteamLaunch AppId=730 -- /other\n"
+        "789 1 steam steam\n"
+    )
+    process = MagicMock()
+    process.create_time.return_value = 1.0
+    factory = MagicMock(return_value=process)
+    monkeypatch.setattr(main_window_module.psutil, "Process", factory)
+    monkeypatch.setattr(main_window_module.psutil, "process_iter", lambda _attrs: [
+        SimpleNamespace(info=info) for info in snapshot
+    ])
+    parent = QObject()
+    worker = main_window_module.SteamGameScanWorker("620", parent)
+    worker.stop_started = main_window_module.time.monotonic()
+    worker.run()
+    factory.assert_called_once_with(123)
+    process.send_signal.assert_called_once_with(signal.SIGTERM)
+
+
+@mark.parametrize("was_running", [False, True])
+def test_steam_watch_waits_until_game_has_run(was_running: bool) -> None:
+    process = MagicMock()
+    process.error = None
+    process.result = MainWindow._collect_steam_processes("620", _steam_snapshot(b""), {})
+    window = SimpleNamespace(
+        _steam_watches={"620": {
+            "process": process, "button": None, "running": was_running,
+            "stop": False,
+        }},
+        _finish_steam_watch=MagicMock(),
+    )
+    MainWindow._steam_scan_finished(cast(Any, window), "620")
+    window._finish_steam_watch.assert_not_called()
+    assert window._steam_watches["620"]["running"] is False
+    if was_running:
+        assert window._steam_watches["620"]["launch_requested"] is False
+
+
+def test_steam_watch_cleanup_waits_for_scan_and_restores_button() -> None:
+    process, timer, button = MagicMock(), MagicMock(), MagicMock()
+    window = SimpleNamespace(
+        _steam_watches={"620": {"process": process, "timer": timer, "button": button}},
+        theme_manager=MagicMock(),
+    )
+    MainWindow._finish_steam_watch(cast(Any, window), "620")
+    assert window._steam_watches == {}
+    timer.stop.assert_called_once()
+    process.blockSignals.assert_called_once_with(True)
+    process.requestInterruption.assert_called_once()
+    process.wait.assert_called_once()
+    process.deleteLater.assert_called_once()
+    button.setEnabled.assert_called_once_with(True)
+
+
+def test_steam_watch_rebinds_detail_button_without_stopping() -> None:
+    button = MagicMock()
+    watch = {"running": True, "launch_requested": True, "stop": False, "button": None}
+    window = SimpleNamespace(
+        _steam_watches={"620": watch}, _scan_steam_game=MagicMock(),
+        _launch_steam_game=MagicMock(),
+    )
+    MainWindow._toggle_steam_game(cast(Any, window), "steam://rungameid/620", button, False)
+    assert watch["button"] is button
+    assert watch["stop"] is False
+    window._launch_steam_game.assert_not_called()
+    window._scan_steam_game.assert_called_once_with("620")
+    MainWindow._toggle_steam_game(cast(Any, window), "steam://rungameid/620", button)
+    assert watch["stop"] is True
+
+
+def test_steam_watch_launches_previously_observed_idle_game() -> None:
+    button = MagicMock()
+    watch = {"running": False, "launch_requested": False, "stop": False}
+    window = SimpleNamespace(
+        _steam_watches={"620": watch}, _scan_steam_game=MagicMock(),
+        _launch_steam_game=MagicMock(),
+    )
+    MainWindow._toggle_steam_game(cast(Any, window), "steam://rungameid/620", button)
+    window._launch_steam_game.assert_called_once_with("steam://rungameid/620")
+    assert watch["launch_requested"] is True
+    button.setEnabled.assert_called_once_with(False)
+
+
+def test_steam_watch_retains_orphaned_game_but_not_reused_pid() -> None:
+    output = (
+        "100 1 steam steam\n"
+        "123 100 reaper /steam/reaper SteamLaunch AppId=620 -- /game\n"
+        "124 123 wine wine /game.exe\n"
+        "125 124 game.exe /game.exe\n"
+        "200 100 reaper /steam/reaper SteamLaunch AppId=730 -- /other\n"
+    )
+    known = MainWindow._collect_steam_processes("620", _steam_snapshot(output), {})
+    assert set(known) == {123, 124, 125}
+    orphaned = "124 1 wine wine /game.exe\n125 1 game.exe /game.exe\n"
+    known = MainWindow._collect_steam_processes("620", _steam_snapshot(orphaned), known)
+    assert set(known) == {124, 125}
+    assert MainWindow._collect_steam_processes("620", _steam_snapshot("124 1 other /other\n", created=2.0), known) == {}
+
+
+def test_steam_stop_signals_descendants_and_escalates(monkeypatch: MonkeyPatch) -> None:
+    processes = {123: MagicMock(), 124: MagicMock()}
+    for process in processes.values():
+        process.create_time.return_value = 1.0
+    monkeypatch.setattr(main_window_module.psutil, "Process", lambda pid: processes[pid])
+    monkeypatch.setattr(main_window_module.time, "monotonic", lambda: 10.0)
+    watch = {"known": {123: {"create_time": 1.0}, 124: {"create_time": 1.0}}}
+    MainWindow._stop_steam_processes("620", watch)
+    for process in processes.values():
+        process.send_signal.assert_called_once_with(signal.SIGTERM)
+        process.send_signal.reset_mock()
+    monkeypatch.setattr(main_window_module.time, "monotonic", lambda: 14.0)
+    MainWindow._stop_steam_processes("620", watch)
+    for process in processes.values():
+        process.send_signal.assert_called_once_with(signal.SIGKILL)
+
+
+def test_steam_watch_keeps_stop_during_preparation_gap(monkeypatch: MonkeyPatch) -> None:
+    process = MagicMock()
+    process.error = None
+    process.result = MainWindow._collect_steam_processes("620", _steam_snapshot(b"123 1 reaper /steam/reaper SteamLaunch AppId=620 Install=1 -- /setup\n"), {})
+    watch = {"process": process, "button": None, "running": False, "stop": False}
+    window = SimpleNamespace(_steam_watches={"620": watch})
+    monkeypatch.setattr(main_window_module.time, "monotonic", lambda: 10.0)
+    MainWindow._steam_scan_finished(cast(Any, window), "620")
+    process.error = None
+    process.result = MainWindow._collect_steam_processes("620", _steam_snapshot(b""), {})
+    monkeypatch.setattr(main_window_module.time, "monotonic", lambda: 1000.0)
+    MainWindow._steam_scan_finished(cast(Any, window), "620")
+    assert watch["running"] is True
+    process.error = None
+    process.result = MainWindow._collect_steam_processes("620", _steam_snapshot(b"456 1 reaper /steam/reaper SteamLaunch AppId=620 -- /game\n"), {})
+    MainWindow._steam_scan_finished(cast(Any, window), "620")
+    assert watch["preparing"] is False
+    process.error = None
+    process.result = MainWindow._collect_steam_processes("620", _steam_snapshot(b""), {})
+    MainWindow._steam_scan_finished(cast(Any, window), "620")
+    assert watch["running"] is True
+    monkeypatch.setattr(main_window_module.time, "monotonic", lambda: 1004.0)
+    MainWindow._steam_scan_finished(cast(Any, window), "620")
+    assert watch["running"] is False
