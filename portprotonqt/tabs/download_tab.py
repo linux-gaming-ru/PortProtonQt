@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 import subprocess
+import zlib
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -48,7 +49,8 @@ GOG_LOGIN_TIMEOUT_MS = 300000
 EGS_LOGIN_TIMEOUT_MS = 300000
 MIB_PER_GIB = 1024.0
 STORE_INFO_TIMEOUT_SECONDS = 120
-STORE_DLC_ART_TIMEOUT_SECONDS = 15
+STORE_DLC_METADATA_TIMEOUT_SECONDS = 15
+GOG_CONTENT_GENERATION = 2
 STORE_DLC_CACHE_TTL_SECONDS = 300
 
 
@@ -257,11 +259,13 @@ class StoreDLCWorker(QThread):
             cache_name = f"store-dlc-{'egs' if epic else 'gog'}-{self.app_id}"
             data = self._load_epic_dlc_info() if epic else cache.load_json(cache_name) if cache.is_fresh(cache_name, STORE_DLC_CACHE_TTL_SECONDS) else None
             if data is None:
-                result = subprocess.run(
-                    self.api.build_command(arguments), env=environment, capture_output=True,
-                    timeout=STORE_INFO_TIMEOUT_SECONDS, check=True,
-                )
-                data = orjson.loads(result.stdout)
+                data = None if epic else self._load_gog_dlc_info()
+                if data is None:
+                    result = subprocess.run(
+                        self.api.build_command(arguments), env=environment, capture_output=True,
+                        timeout=STORE_INFO_TIMEOUT_SECONDS, check=True,
+                    )
+                    data = orjson.loads(result.stdout)
                 cache.save_json(cache_name, data)
             entries = data.get("game", {}).get("owned_dlc", []) if epic else data.get("dlcs", [])
             installed = set(self.api.load_installed()) if epic else set()
@@ -292,6 +296,43 @@ class StoreDLCWorker(QThread):
             logger.exception("Failed to load store DLC for %s", self.app_id)
             if not self.isInterruptionRequested():
                 self.failed.emit(str(error))
+
+    def _load_gog_dlc_info(self) -> dict | None:
+        assert isinstance(self.api, GOGAPI)
+        try:
+            response = requests.get(
+                f"https://content-system.gog.com/products/{self.app_id}/os/windows/builds",
+                params={"generation": GOG_CONTENT_GENERATION},
+                timeout=STORE_DLC_METADATA_TIMEOUT_SECONDS,
+            )
+            response.raise_for_status()
+            builds = response.json().get("items", [])
+            build = next((item for item in builds if item.get("branch") is None), None)
+            if build is None or build.get("generation") != GOG_CONTENT_GENERATION:
+                return None
+            response = requests.get(build["link"], timeout=STORE_DLC_METADATA_TIMEOUT_SECONDS)
+            response.raise_for_status()
+            manifest = orjson.loads(zlib.decompress(response.content))
+            products = [product for product in manifest["products"]
+                        if str(product["productId"]) != self.app_id]
+            if not products:
+                return {"dlcs": []}
+            credentials = self.api.get_credentials()
+            token = credentials.get("access_token")
+            if not token:
+                return None
+            response = requests.get(
+                "https://embed.gog.com/user/data/games",
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=STORE_DLC_METADATA_TIMEOUT_SECONDS,
+            )
+            response.raise_for_status()
+            owned = {str(app_id) for app_id in response.json()["owned"]}
+            return {"dlcs": [{"id": str(product["productId"]), "title": product["name"]}
+                             for product in products if str(product["productId"]) in owned]}
+        except Exception as error:
+            logger.warning("Failed to load GOG DLC metadata, falling back to gogdl: %s", error)
+            return None
 
     def _load_epic_dlc_info(self) -> dict | None:
         assets = self.api._load_json(self.api.config_dir / "assets.json", None)
@@ -328,7 +369,7 @@ class StoreDLCWorker(QThread):
             try:
                 response = requests.get(
                     f"https://api.gog.com/products/{self.app_id}?expand=expanded_dlcs",
-                    timeout=STORE_DLC_ART_TIMEOUT_SECONDS,
+                    timeout=STORE_DLC_METADATA_TIMEOUT_SECONDS,
                 )
                 response.raise_for_status()
                 data = response.json()
@@ -791,24 +832,27 @@ class MainWindowDownloadTabMixin(_MainWindowTypingBase):
         if getattr(self, "gog_repair_worker", None) is not None:
             return
         app_id = str(game["app_id"])
+        if "_install_path" not in game:
+            install_path = self.gog_api.get_install_path(app_id, str(game["title"]))
+            install_path.mkdir(parents=True, exist_ok=True)
+            selected_paths: list[str] = []
+            file_explorer = FileExplorer(
+                self,
+                theme=self.theme,
+                initial_path=str(install_path),
+                directory_only=True,
+            )
+            file_explorer.setWindowTitle(_("Select installation folder"))
+            file_explorer.file_signal.file_selected.connect(selected_paths.append)
+            file_explorer.exec()
+            if not selected_paths:
+                return
+            game = {**game, "_install_path": selected_paths[0]}
         if self.gog_process is not None or self.egs_process is not None:
             self._queue_store_download("gog", game)
             return
-        install_path = self.gog_api.get_install_path(app_id, str(game["title"]))
-        install_path.mkdir(parents=True, exist_ok=True)
-        selected_paths: list[str] = []
-        file_explorer = FileExplorer(
-            self,
-            theme=self.theme,
-            initial_path=str(install_path),
-            directory_only=True,
-        )
-        file_explorer.setWindowTitle(_("Select installation folder"))
-        file_explorer.file_signal.file_selected.connect(selected_paths.append)
-        file_explorer.exec()
-        if not selected_paths:
-            return
-        install_path = Path(selected_paths[0])
+        game = game.copy()
+        install_path = Path(game.pop("_install_path"))
         game_path = self.gog_api.find_install_path(app_id, install_path)
         if game_path is not None:
             self.gog_api.save_installed_game(
@@ -845,7 +889,15 @@ class MainWindowDownloadTabMixin(_MainWindowTypingBase):
 
     def _select_store_dlcs(self, source: str, game: dict) -> None:
         if getattr(self, "store_dlc_worker", None) is not None:
-            QMessageBox.warning(self, _("Error"), _("Another download is running"))
+            pending = getattr(self, "store_dlc_pending", [])
+            request = (source, game)
+            active_source, active_game, _results, _errors = self.store_dlc_request
+            if (source, str(game["app_id"])) == (active_source, str(active_game["app_id"])):
+                return
+            if not any(item_source == source and str(item_game["app_id"]) == str(game["app_id"])
+                       for item_source, item_game in pending):
+                pending.append(request)
+            self.store_dlc_pending = pending
             return
         api = self.egs_api if source == "egs" else self.gog_api
         worker = StoreDLCWorker(api, str(game["app_id"]))
@@ -854,20 +906,26 @@ class MainWindowDownloadTabMixin(_MainWindowTypingBase):
         worker.loaded.connect(results.append)
         worker.failed.connect(errors.append)
         worker.finished.connect(self._on_store_dlc_worker_finished)
-        worker.finished.connect(
-            lambda: self._on_store_dlcs_loaded(source, game, results[0]) if results else None
-        )
-        worker.finished.connect(
-            lambda: QMessageBox.warning(self, _("Error"), errors[0]) if errors else None
-        )
+        self.store_dlc_request = (source, game, results, errors)
         self.store_dlc_worker = worker
         worker.start()
 
     def _on_store_dlc_worker_finished(self) -> None:
         worker = self.store_dlc_worker
         self.store_dlc_worker = None
-        if worker is not None:
-            worker.deleteLater()
+        if worker is None:
+            self.store_dlc_pending = []
+            return
+        worker.deleteLater()
+        source, game, results, errors = self.store_dlc_request
+        if results:
+            self._on_store_dlcs_loaded(source, game, results[0])
+        elif errors:
+            QMessageBox.warning(self, _("Error"), errors[0])
+        pending = getattr(self, "store_dlc_pending", [])
+        if pending and self.store_dlc_worker is None:
+            source, game = pending.pop(0)
+            self._select_store_dlcs(source, game)
 
     def _on_store_dlcs_loaded(self, source: str, game: dict, dlcs: list[dict]) -> None:
         selected = []
@@ -969,20 +1027,23 @@ class MainWindowDownloadTabMixin(_MainWindowTypingBase):
         if selected_game is not None and str(selected_game["app_id"]) == app_id:
             game = selected_game
             self.egs_selected_dlc_game = None
+        if "_install_path" not in game:
+            selected_paths: list[str] = []
+            explorer = FileExplorer(
+                self, theme=self.theme, initial_path=str(self.egs_api.games_dir),
+                directory_only=True,
+            )
+            explorer.setWindowTitle(_("Select installation folder"))
+            explorer.file_signal.file_selected.connect(selected_paths.append)
+            explorer.exec()
+            if not selected_paths:
+                return
+            game = {**game, "_install_path": selected_paths[0]}
         if self.gog_process is not None or self.egs_process is not None:
             self._queue_store_download("egs", game)
             return
-        selected_paths: list[str] = []
-        explorer = FileExplorer(
-            self, theme=self.theme, initial_path=str(self.egs_api.games_dir),
-            directory_only=True,
-        )
-        explorer.setWindowTitle(_("Select installation folder"))
-        explorer.file_signal.file_selected.connect(selected_paths.append)
-        explorer.exec()
-        if not selected_paths:
-            return
-        install_path = Path(selected_paths[0])
+        game = game.copy()
+        install_path = Path(game.pop("_install_path"))
         folder_name = Path(str(game.get("folder_name") or app_id)).name
         try:
             game_path = install_path
