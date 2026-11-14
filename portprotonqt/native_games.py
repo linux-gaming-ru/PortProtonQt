@@ -371,6 +371,9 @@ def read_native_game(path: Path) -> tuple | None:
         original = parser[NATIVE_SETTINGS_SECTION].get("Exec", command) if parser.has_section(NATIVE_SETTINGS_SECTION) else command
         executable = extract_exec_target_path(shlex.split(original.replace("\\\\", "\\"))) or ""
         data_home = Path(os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local/share")))
+        if path.is_relative_to(data_home / "applications"):
+            if not os.path.isfile(parts[0]) or (len(parts) > 1 and os.path.isfile(parts[1])):
+                return None
         root = str(data_home / "PortProtonQt/custom_data")
         custom = Path(resolve_custom_data_dir(root, str(path)))
         if not custom.is_dir() and executable:

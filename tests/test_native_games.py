@@ -65,6 +65,33 @@ def test_discovery_does_not_depend_on_launcher_names(tmp_path: Path, command: st
     assert game[5] == "native://" + str(path)
 
 
+@pytest.mark.parametrize("case", [
+    ("start", "", True),
+    ("start", " --fullscreen", True),
+    ("start", " %U", True),
+    ("missing", "", False),
+    ("directory", "", False),
+    ("faugus", ' "{game}"', False),
+    ("lutris", ' "{game}"', False),
+    ("bottles", ' "{game}"', False),
+])
+def test_user_application_requires_direct_file_command(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: tuple[str, str, bool],
+) -> None:
+    launcher, argument, accepted = case
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    applications = tmp_path / "applications"
+    applications.mkdir()
+    for name in ("start", "faugus", "lutris", "bottles", "game file"):
+        (tmp_path / name).touch()
+    (tmp_path / "directory").mkdir()
+    executable = tmp_path / launcher
+    command = f'"{executable}"' + argument.format(game=tmp_path / "game file")
+    path = applications / "game.desktop"
+    path.write_text(f"[Desktop Entry]\nType=Application\nName=Game\nCategories=Game;\nExec={command}\n")
+    assert (read_native_game(path) is not None) is accepted
+
+
 def test_scan_respects_xdg_overrides_and_flatpak_exports(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -74,7 +101,9 @@ def test_scan_respects_xdg_overrides_and_flatpak_exports(
     desktop = tmp_path / "Desktop"
     desktop.mkdir()
     monkeypatch.setattr(QStandardPaths, "writableLocation", lambda _location: str(desktop))
-    entry = "[Desktop Entry]\nType=Application\nName=Native Game\nExec=true %U\nCategories=Game;\n"
+    executable = tmp_path / "start"
+    executable.touch()
+    entry = f'[Desktop Entry]\nType=Application\nName=Native Game\nExec="{executable}" %U\nCategories=Game;\n'
     for root in (home, system, home / "flatpak/exports/share"):
         (root / "applications").mkdir(parents=True)
     (system / "applications/hidden.desktop").write_text(entry)
