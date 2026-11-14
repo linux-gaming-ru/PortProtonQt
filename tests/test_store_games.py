@@ -56,6 +56,7 @@ def test_store_dlc_worker_filters_and_preserves_installed(
     cache.is_fresh.return_value = False
     monkeypatch.setattr(download_tab_module, "CacheManager", lambda: cache)
     worker = download_tab_module.StoreDLCWorker(api, "111")
+    monkeypatch.setattr(worker, "_load_gog_dlc_info", lambda: None)
     monkeypatch.setattr(worker, "_load_dlc_covers", lambda: {})
     results = []
     worker.loaded.connect(results.append)
@@ -76,6 +77,7 @@ def test_store_dlc_worker_failure_does_not_continue_install(
     api = GOGAPI()
     monkeypatch.setattr(api, "build_command", MagicMock(side_effect=FileNotFoundError("gogdl")))
     worker = download_tab_module.StoreDLCWorker(api, "111")
+    monkeypatch.setattr(worker, "_load_gog_dlc_info", lambda: None)
     loaded, errors = [], []
     worker.loaded.connect(loaded.append)
     worker.failed.connect(errors.append)
@@ -122,7 +124,6 @@ def test_dlc_worker_released_before_modal_and_retry(
             dialog = download_tab_module.QDialog(self)
             QTimer.singleShot(0, dialog.reject)
             dialog.exec()
-            loop.quit()
 
     window: Any = Window()
     window.gog_api = cast(Any, object())
@@ -136,18 +137,29 @@ def test_dlc_worker_released_before_modal_and_retry(
 
     def warning(*args: Any) -> None:
         observations.append((window.store_dlc_worker, QThread.currentThread()))
-        loop.quit()
 
     monkeypatch.setattr(download_tab_module.StoreDLCWorker, "run", run)
     monkeypatch.setattr(download_tab_module.QMessageBox, "warning", warning)
     timeout = QTimer()
     timeout.setSingleShot(True)
     timeout.timeout.connect(loop.quit)
-    for _attempt in range(2):
+    ready = QTimer()
+    ready.setInterval(10)
+
+    for attempt in range(2):
+        def finish_when_observed(expected: int = attempt + 1) -> None:
+            if len(observations) == expected and window.store_dlc_worker is None:
+                loop.quit()
+
+        ready.timeout.connect(finish_when_observed)
         window._select_store_dlcs(source, {"app_id": "123", "title": "Game"})
+        ready.start()
         timeout.start(3000)
         loop.exec()
+        ready.stop()
+        ready.timeout.disconnect(finish_when_observed)
         timeout.stop()
+        assert len(observations) == attempt + 1
         assert window.store_dlc_worker is None
     assert observations == [(None, application.thread())] * 2
     window.deleteLater()
@@ -174,6 +186,7 @@ def test_dlc_worker_shutdown_suppresses_picker(monkeypatch: MonkeyPatch) -> None
     monkeypatch.setattr(download_tab_module.QMessageBox, "warning", warning)
     window._select_store_dlcs("gog", {"app_id": "123", "title": "Game"})
     worker = window.store_dlc_worker
+    window._select_store_dlcs("gog", {"app_id": "456", "title": "Queued"})
     assert started.wait(3)
     window._stopWorkerThread("store_dlc_worker", None)
     assert not worker.isRunning()
@@ -181,6 +194,7 @@ def test_dlc_worker_shutdown_suppresses_picker(monkeypatch: MonkeyPatch) -> None
     assert window.store_dlc_worker is None
     window._on_store_dlcs_loaded.assert_not_called()
     warning.assert_not_called()
+    assert window.store_dlc_pending == []
     window.deleteLater()
 
 
@@ -201,8 +215,8 @@ def test_store_download_queues_reject_duplicates() -> None:
     )
 
     for game in (queued, queued, active):
-        GOGMixin._install_gog_game(cast(Any, window), game)
-        GOGMixin._install_egs_download(cast(Any, window), str(game["app_id"]))
+        window._queue_store_download("gog", game)
+        window._queue_store_download("egs", game)
 
     assert window.store_download_queue == [
         ("gog", queued), ("egs", queued), ("egs", active),
@@ -1542,3 +1556,145 @@ def test_failed_store_process_completes_callback_path() -> None:
     process.finished.emit.assert_called_once_with(
         download_tab_module.os.EX_UNAVAILABLE, download_tab_module.QProcess.ExitStatus.CrashExit,
     )
+
+
+@mark.parametrize("failed", (False, True))
+def test_store_dlc_requests_queue_while_worker_is_busy(
+    monkeypatch: MonkeyPatch, failed: bool,
+) -> None:
+    workers = []
+
+    def create_worker(*args: Any) -> Any:
+        worker = MagicMock()
+        workers.append(worker)
+        return worker
+
+    monkeypatch.setattr(download_tab_module, "StoreDLCWorker", create_worker)
+    warning = MagicMock()
+    monkeypatch.setattr(download_tab_module.QMessageBox, "warning", warning)
+    window = SimpleNamespace(
+        store_dlc_worker=None, gog_api=object(), egs_api=object(),
+        _on_store_dlcs_loaded=MagicMock(), _on_store_dlc_worker_finished=MagicMock(),
+    )
+    window._select_store_dlcs = lambda source, game: GOGMixin._select_store_dlcs(
+        cast(Any, window), source, game
+    )
+    first = {"app_id": "1", "title": "First"}
+    second = {"app_id": "2", "title": "Second"}
+    third = {"app_id": "3", "title": "Third"}
+    for source, game in (("gog", first), ("gog", first), ("gog", second),
+                         ("gog", second), ("egs", third)):
+        window._select_store_dlcs(source, game)
+    assert len(workers) == 1
+    assert window.store_dlc_pending == [("gog", second), ("egs", third)]
+    warning.assert_not_called()
+    for source, game in (("gog", first), ("gog", second), ("egs", third)):
+        assert window.store_dlc_request[:2] == (source, game)
+        window.store_dlc_request[3 if failed else 2].append("failed" if failed else [])
+        GOGMixin._on_store_dlc_worker_finished(cast(Any, window))
+    assert len(workers) == 3
+    assert window.store_dlc_worker is None
+    assert window.store_dlc_pending == []
+    assert warning.call_count == (3 if failed else 0)
+    assert window._on_store_dlcs_loaded.call_count == (0 if failed else 3)
+
+
+@mark.parametrize("source", ("gog", "egs"))
+@mark.parametrize("cancelled", (False, True))
+def test_store_selects_folder_before_queue_and_reuses_it(
+    tmp_path: Path, monkeypatch: MonkeyPatch, source: str, cancelled: bool,
+) -> None:
+    game = {"app_id": "123", "title": "Game", "_dlcs": []}
+    selected_path = tmp_path / "Chosen"
+    explorer = MagicMock()
+    if not cancelled:
+        explorer.file_signal.file_selected.connect.side_effect = (
+            lambda callback: callback(str(selected_path))
+        )
+    factory = MagicMock(return_value=explorer)
+    monkeypatch.setattr(download_tab_module, "FileExplorer", factory)
+    api = SimpleNamespace(
+        games_dir=tmp_path, config_dir=tmp_path, load_library=lambda: [game],
+        get_install_path=lambda *_args: tmp_path,
+        find_install_path=lambda *_args: None,
+        build_command=lambda args: [source, *args],
+    )
+    window = SimpleNamespace(
+        gog_process=object(), egs_process=None, gog_api=api, egs_api=api,
+        theme=object(), egs_selected_dlc_game=game,
+        _queue_store_download=MagicMock(), _start_gog_download=MagicMock(),
+        _start_egs_download=MagicMock(),
+    )
+    if source == "gog":
+        GOGMixin._install_gog_game(cast(Any, window), game)
+    else:
+        GOGMixin._install_egs_download(cast(Any, window), "123")
+    explorer.exec.assert_called_once_with()
+    if cancelled:
+        window._queue_store_download.assert_not_called()
+        return
+    prepared = {**game, "_install_path": str(selected_path)}
+    window._queue_store_download.assert_called_once_with(source, prepared)
+    window.gog_process = None
+    if source == "gog":
+        GOGMixin._install_gog_game(cast(Any, window), prepared)
+        started = window._start_gog_download
+    else:
+        window.egs_selected_dlc_game = prepared
+        GOGMixin._install_egs_download(cast(Any, window), "123")
+        started = window._start_egs_download
+    factory.assert_called_once()
+    assert started.call_args.args[:2] == (game, selected_path)
+
+
+@mark.parametrize("has_dlcs", (False, True))
+def test_gog_dlc_metadata_does_not_calculate_download_sizes(
+    tmp_path: Path, monkeypatch: MonkeyPatch, has_dlcs: bool,
+) -> None:
+    import zlib
+
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    api = GOGAPI()
+    monkeypatch.setattr(api, "get_credentials", lambda: {"access_token": "test-token"})
+    products = [{"productId": "111", "name": "Base"}]
+    if has_dlcs:
+        products.extend([{"productId": "222", "name": "Owned"},
+                         {"productId": "333", "name": "Not owned"}])
+    builds = MagicMock()
+    builds.json.return_value = {"items": [
+        {"branch": None, "generation": download_tab_module.GOG_CONTENT_GENERATION,
+         "link": "https://example.com/manifest"},
+    ]}
+    manifest = MagicMock(content=zlib.compress(orjson.dumps({"products": products})))
+    owned = MagicMock()
+    owned.json.return_value = {"owned": [111, 222]}
+    request = MagicMock(side_effect=[builds, manifest, owned])
+    monkeypatch.setattr(download_tab_module.requests, "get", request)
+    subprocess = MagicMock(side_effect=AssertionError("Must not calculate sizes"))
+    monkeypatch.setattr(download_tab_module.subprocess, "run", subprocess)
+    worker = download_tab_module.StoreDLCWorker(api, "111")
+
+    assert worker._load_gog_dlc_info() == {
+        "dlcs": [{"id": "222", "title": "Owned"}] if has_dlcs else [],
+    }
+    assert request.call_count == (3 if has_dlcs else 2)
+    subprocess.assert_not_called()
+
+
+@mark.parametrize("failure", ("network", "legacy", "manifest"))
+def test_gog_dlc_metadata_falls_back_safely(
+    tmp_path: Path, monkeypatch: MonkeyPatch, failure: str,
+) -> None:
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    api = GOGAPI()
+    response = MagicMock(content=b"invalid compressed manifest")
+    response.json.return_value = {"items": [
+        {"branch": None, "generation": 1 if failure == "legacy" else
+         download_tab_module.GOG_CONTENT_GENERATION, "link": "https://example.com/manifest"},
+    ]}
+    if failure == "network":
+        response.raise_for_status.side_effect = download_tab_module.requests.ConnectionError("offline")
+    monkeypatch.setattr(download_tab_module.requests, "get", MagicMock(return_value=response))
+    worker = download_tab_module.StoreDLCWorker(api, "111")
+
+    assert worker._load_gog_dlc_info() is None

@@ -147,3 +147,61 @@ def test_list_icon_uses_theme_state_colors(
         QIcon.Mode.Selected: "folder-#222222.svg",
         QIcon.Mode.Disabled: "folder-#333333.svg",
     }
+
+
+def test_appimage_thumbnail_worker_caches_icon_and_finishes(
+    tmp_path: Path, monkeypatch: MonkeyPatch,
+) -> None:
+    from PySide6.QtCore import QThreadPool
+    from PySide6.QtGui import QImage
+
+    source = tmp_path / "game.AppImage"
+    source.touch()
+    cache = tmp_path / "cache" / "icon.png"
+    monkeypatch.setattr(file_explorer_module, "get_exe_icon_cache_path", lambda _path: str(cache))
+    calls = []
+
+    def generate(path: str, output: str) -> bool:
+        calls.append(path)
+        image = QImage(16, 16, QImage.Format.Format_ARGB32)
+        image.fill(QColor("red"))
+        return image.save(output)
+
+    monkeypatch.setattr(file_explorer_module, "generate_thumbnail", generate)
+    pool = QThreadPool()
+    for _attempt in range(2):
+        loader = FileExplorer.ThumbnailLoader(str(source), "application/vnd.appimage")
+        received = []
+        loader.signals.thumbnail_ready.connect(lambda path, image, received=received: received.append((path, image)))
+        pool.start(loader)
+        assert pool.waitForDone(5000)
+        _application.processEvents()
+        assert len(received) == 1
+        assert received[0][0] == str(source)
+        assert not received[0][1].isNull()
+    assert calls == [str(source)]
+    assert pool.activeThreadCount() == 0
+
+
+def test_appimage_thumbnail_failure_completes_without_replacing_icon(
+    tmp_path: Path, monkeypatch: MonkeyPatch,
+) -> None:
+    from PySide6.QtGui import QImage
+
+    source = tmp_path / "game.AppImage"
+    source.touch()
+    cache = tmp_path / "cache" / "icon.png"
+    monkeypatch.setattr(file_explorer_module, "get_exe_icon_cache_path", lambda _path: str(cache))
+    monkeypatch.setattr(file_explorer_module, "generate_thumbnail", lambda *_args: False)
+    loader = FileExplorer.ThumbnailLoader(str(source), "application/vnd.appimage")
+    received = []
+    loader.signals.thumbnail_ready.connect(lambda path, image: received.append((path, image)))
+    loader.run()
+    assert len(received) == 1
+    assert received[0][0] == str(source)
+    assert received[0][1].isNull()
+    item = MagicMock()
+    explorer = SimpleNamespace(thumbnail_cache={}, file_items={str(source): item})
+    FileExplorer._set_thumbnail_icon(cast(FileExplorer, explorer), str(source), QImage())
+    assert str(source) in explorer.thumbnail_cache
+    item.setIcon.assert_not_called()

@@ -678,3 +678,75 @@ def test_custom_icon_overrides_extracted_icon(tmp_path: Path, monkeypatch: Monke
     icon.unlink()
     assert get_custom_icon_path(executable) == ""
     assert get_exe_icon_cache_path(executable) != str(icon)
+
+
+@mark.parametrize("elf_class,endian", [(1, "<"), (2, "<"), (2, ">")])
+@mark.parametrize("svg", [False, True])
+def test_appimage_icon_extraction(tmp_path: Path, elf_class: int, endian: str, svg: bool) -> None:
+    from portprotonqt.icon_extractor import APPIMAGE_EXTRACT_TIMEOUT, ELF_SECTION_LAYOUTS
+
+    header = bytearray(64)
+    header[:4] = b"\x7fELF"
+    header[4:6] = bytes([elf_class, 1 if endian == "<" else 2])
+    header[8:11] = b"AI\x02"
+    offset_position, offset_format, size_position = ELF_SECTION_LAYOUTS[elf_class]
+    struct.pack_into(endian + offset_format, header, offset_position, len(header))
+    struct.pack_into(endian + "HH", header, size_position, 0, 0)
+    source = tmp_path / "game.AppImage"
+    source.write_bytes(header + b"hsqs")
+    output = tmp_path / "icon.png"
+    icon = io.BytesIO()
+    Image.new("RGBA", (16, 16), "red").save(icon, "PNG")
+    payload = (b'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16">'
+               b'<rect width="16" height="16" fill="red"/></svg>') if svg else icon.getvalue()
+    with patch("portprotonqt.icon_extractor.subprocess.run", return_value=SimpleNamespace(stdout=payload)) as run:
+        assert generate_thumbnail(str(source), str(output))
+    run.assert_called_once_with(
+        ["unsquashfs", "-cat", "-o", "64", str(source), ".DirIcon"],
+        capture_output=True, check=True, timeout=APPIMAGE_EXTRACT_TIMEOUT,
+    )
+    with Image.open(output) as image:
+        assert image.size == (128, 128)
+        assert image.convert("RGBA").getpixel((64, 64)) == (255, 0, 0, 255)
+
+
+def test_appimage_icon_missing_tool(tmp_path: Path) -> None:
+    header = bytearray(64)
+    header[:6] = b"\x7fELF\x02\x01"
+    header[8:11] = b"AI\x02"
+    struct.pack_into("<Q", header, 40, len(header))
+    source = tmp_path / "game.AppImage"
+    source.write_bytes(header + b"hsqs")
+    with patch("portprotonqt.icon_extractor.subprocess.run", side_effect=FileNotFoundError):
+        assert not generate_thumbnail(str(source), str(tmp_path / "icon.png"))
+
+
+@mark.parametrize("target", ["icon.png", "../outside", ".DirIcon"])
+def test_dwarfs_icon_symlink(tmp_path: Path, target: str) -> None:
+    import tarfile
+
+    header = bytearray(64)
+    header[:6] = b"\x7fELF\x02\x01"
+    header[8:11] = b"AI\x02"
+    struct.pack_into("<Q", header, 40, len(header))
+    source = tmp_path / "game.AppImage"
+    source.write_bytes(header + b"DWARFS")
+    link_archive = io.BytesIO()
+    with tarfile.open(fileobj=link_archive, mode="w") as archive:
+        member = tarfile.TarInfo(".DirIcon")
+        member.type = tarfile.SYMTYPE
+        member.linkname = target
+        archive.addfile(member)
+    icon = io.BytesIO()
+    Image.new("RGBA", (16, 16), "red").save(icon, "PNG")
+    icon_archive = io.BytesIO()
+    with tarfile.open(fileobj=icon_archive, mode="w") as archive:
+        member = tarfile.TarInfo("icon.png")
+        member.size = len(icon.getvalue())
+        archive.addfile(member, io.BytesIO(icon.getvalue()))
+    results = [SimpleNamespace(stdout=data.getvalue()) for data in (link_archive, icon_archive)]
+    with patch("portprotonqt.icon_extractor.subprocess.run", side_effect=results) as run:
+        assert generate_thumbnail(str(source), str(tmp_path / "icon.png")) is (target == "icon.png")
+    assert run.call_count == (2 if target == "icon.png" else 1)
+    assert run.call_args_list[0].args[0][0] == "dwarfsextract"
+    assert "--skip-specials" in run.call_args_list[0].args[0]

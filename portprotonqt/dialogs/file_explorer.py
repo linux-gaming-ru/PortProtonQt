@@ -25,7 +25,7 @@ from portprotonqt.theme_manager import ThemeManager
 from portprotonqt.custom_widgets import AutoSizeButton
 from portprotonqt.localization import _
 from portprotonqt.dialogs.dialog_utils import create_dialog_hints_widget, update_dialog_hints
-from portprotonqt.icon_extractor import generate_thumbnail
+from portprotonqt.icon_extractor import generate_thumbnail, get_exe_icon_cache_path
 from portprotonqt.dialogs.base import DraggableDialog, FileSelectedSignal
 from portprotonqt.image_utils import COVER_IMAGE_EXTENSIONS
 from portprotonqt.scripts_utils.mount_points import list_mounted_drive_paths
@@ -116,7 +116,7 @@ class FileExplorer(DraggableDialog):
                         self.signals.thumbnail_ready.emit(self.file_path, image)
                     else:
                         logger.warning("Failed to load image: %s", self.file_path)
-                elif self.file_path.lower().endswith((".exe",) + DISC_IMAGE_EXTENSIONS):
+                elif self.file_path.lower().endswith((".exe", ".appimage") + DISC_IMAGE_EXTENSIONS):
                     thumbnail_source = self.file_path
                     if self.file_path.lower().endswith(DISC_IMAGE_EXTENSIONS) and callable(self.resolve_launch_file_path):
                         resolved_path = self.resolve_launch_file_path(self.file_path)
@@ -125,6 +125,14 @@ class FileExplorer(DraggableDialog):
                             return
                         thumbnail_source = resolved_path
 
+                    if thumbnail_source.lower().endswith(".appimage"):
+                        icon_path = get_exe_icon_cache_path(thumbnail_source)
+                        os.makedirs(os.path.dirname(icon_path), exist_ok=True)
+                        image = QImage()
+                        if os.path.isfile(icon_path) or generate_thumbnail(thumbnail_source, icon_path):
+                            image = QImage(icon_path)
+                        self.signals.thumbnail_ready.emit(self.file_path, image)
+                        return
                     if not thumbnail_source.lower().endswith(".exe"):
                         return
 
@@ -142,6 +150,8 @@ class FileExplorer(DraggableDialog):
                             os.unlink(tmp_name)
             except Exception as e:
                 logger.error("Error loading thumbnail for %s: %s", self.file_path, str(e))
+                if self.file_path.lower().endswith(".appimage"):
+                    self.signals.thumbnail_ready.emit(self.file_path, QImage())
 
     def __init__(self, parent=None, theme=None, file_filter=None, initial_path=None, directory_only=False):
         super().__init__(parent)
@@ -214,7 +224,7 @@ class FileExplorer(DraggableDialog):
             if file_path in self.thumbnail_cache or file_path in self.pending_thumbnails:
                 continue
             mime_type = mime_db.mimeTypeForFile(file_path).name()
-            if mime_type.startswith("image/") or file_path.lower().endswith(COVER_IMAGE_EXTENSIONS + (".exe",) + DISC_IMAGE_EXTENSIONS):
+            if mime_type.startswith("image/") or file_path.lower().endswith(COVER_IMAGE_EXTENSIONS + (".exe", ".appimage") + DISC_IMAGE_EXTENSIONS):
                 self.pending_thumbnails.add(file_path)
                 resolver = None
                 main_window = cast("MainWindow | None", self.main_window)
@@ -246,6 +256,8 @@ class FileExplorer(DraggableDialog):
     def _set_thumbnail_icon(self, file_path: str, image: QImage) -> None:
         icon = QIcon(QPixmap.fromImage(image))
         self.thumbnail_cache[file_path] = icon
+        if image.isNull():
+            return
         item = self.file_items.get(file_path)
         if item:
             item.setData(THEMED_ICON_ROLE, None)

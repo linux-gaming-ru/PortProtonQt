@@ -290,7 +290,8 @@ def get_filesystem_info(exe_path: str | None, portproton_path: str) -> str:
         game_dir = os.path.dirname(exe_path)
         lines.append(f"Filesystem {game_dir} - {get_fs_type(game_dir)}")
 
-    lines.append(f"Filesystem {portproton_path} - {get_fs_type(portproton_path)}")
+    if portproton_path:
+        lines.append(f"Filesystem {portproton_path} - {get_fs_type(portproton_path)}")
 
     tmp_dir = f"/tmp/PortProton_{os.environ.get('USER', 'user')}"
     if os.path.exists(tmp_dir):
@@ -313,8 +314,17 @@ def generate_system_info(
         get_d3d_extras_status,
     )
 
-    portproton_path = get_portproton_location()
-    if not portproton_path:
+    from portprotonqt.native_games import load_native_settings, get_native_launch, get_native_ppdb_path
+
+    native = bool(exe_path and exe_path.startswith("native://"))
+    desktop_path = exe_path.removeprefix("native://") if native and exe_path else None
+    if desktop_path:
+        runtime_env = load_native_settings(desktop_path)
+        command, directory = get_native_launch(desktop_path)
+        exe_path = next((part for part in reversed(command)
+                         if os.path.isabs(part) and os.path.isfile(part) and os.access(part, os.X_OK)), directory)
+    portproton_path = get_portproton_location() or ""
+    if not portproton_path and not native:
         return "Error: PortProton location not found"
 
     lines = []
@@ -344,16 +354,17 @@ def generate_system_info(
     lines.append(get_libc_version())
     lines.append("-" * 61)
 
-    lines.append(get_vulkan_use_info(portproton_path, exe_path))
-    lines.append("-" * 61)
+    if not native:
+        lines.append(get_vulkan_use_info(portproton_path, exe_path))
+        lines.append("-" * 61)
 
-    lines.append("Version WINE in use:")
-    lines.append(get_wine_version(portproton_path, exe_path))
-    lines.append("-" * 61)
+        lines.append("Version WINE in use:")
+        lines.append(get_wine_version(portproton_path, exe_path))
+        lines.append("-" * 61)
 
-    lines.append("Program bit depth:")
-    lines.append(get_program_bit_depth(exe_path))
-    lines.append("-" * 61)
+        lines.append("Program bit depth:")
+        lines.append(get_program_bit_depth(exe_path))
+        lines.append("-" * 61)
 
     lines.append("Date and time of start debug for PortProton:")
     lines.append(datetime.now().strftime("%c %z"))
@@ -419,26 +430,28 @@ def generate_system_info(
         lines.append(locale_avail)
         lines.append("-" * 61)
 
-    lines.append(get_d3d_extras_status(portproton_path, exe_path))
-    lines.append("-" * 61)
-
-    prefix_name = get_prefix_name(exe_path)
-    winetricks_content = get_winetricks_log(portproton_path, prefix_name)
-    if winetricks_content:
-        lines.append("winetricks.log:")
-        lines.append(winetricks_content)
+    if not native:
+        lines.append(get_d3d_extras_status(portproton_path, exe_path))
         lines.append("-" * 61)
 
+        prefix_name = get_prefix_name(exe_path)
+        winetricks_content = get_winetricks_log(portproton_path, prefix_name)
+        if winetricks_content:
+            lines.append("winetricks.log:")
+            lines.append(winetricks_content)
+            lines.append("-" * 61)
+
     if exe_path:
-        ppdb_content = get_ppdb_content(exe_path, start_cmd)
+        ppdb_path = str(get_native_ppdb_path(desktop_path, runtime_env)).removesuffix(".ppdb") if desktop_path and runtime_env else exe_path
+        ppdb_content = get_file_content(ppdb_path + ".ppdb") if native else get_ppdb_content(exe_path, start_cmd)
         if ppdb_content:
-            lines.append(f"Use {exe_path}.ppdb db file:")
+            lines.append(f"Use {ppdb_path}.ppdb db file:")
             if ppdb_log_vars:
                 lines.append("\n".join(ppdb_log_vars))
             lines.append(ppdb_content)
             lines.append("-" * 61)
 
-    user_overrides = get_user_overrides(portproton_path)
+    user_overrides = "" if native else get_user_overrides(portproton_path)
     if user_overrides:
         lines.append(user_overrides)
         lines.append("-" * 61)
