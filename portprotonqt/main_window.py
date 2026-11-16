@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from queue import Empty, Queue
 from threading import Thread
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import psutil
 import orjson
@@ -94,6 +94,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 STORE_LAUNCH_GRACE_SECONDS = 10
 GAME_PROCESS_CHECK_INTERVAL_MS = 500
+STEAM_PROCESS_EXIT_GRACE_SECONDS = 3
+STEAM_STOP_GRACE_SECONDS = 3
 
 if TYPE_CHECKING:
     from portprotonqt.appimage_updater import AppImageUpdateWorker
@@ -105,6 +107,36 @@ ALT_BIARCH_REPO = "x86_64-i586"
 ALT_BIARCH_URL = "https://www.altlinux.org/Biarch"
 GAME_LAUNCH_MARKER = "PORTPROTONQT_GAME_LAUNCH_STARTED"
 GAME_EXIT_MARKER = "PORTPROTONQT_GAME_EXIT_CODE"
+
+class SteamGameScanWorker(QThread):
+    def __init__(self, appid: str, parent: QObject) -> None:
+        super().__init__(parent)
+        self.appid = appid
+        self.known: dict[int, dict[str, Any]] = {}
+        self.result: dict[int, dict[str, Any]] = {}
+        self.stop_started: float | None = None
+        self.error: str | None = None
+
+    def run(self) -> None:
+        self.error = None
+        try:
+            processes = []
+            for process in psutil.process_iter(["pid", "ppid", "name", "cmdline", "create_time", "status"]):
+                if self.isInterruptionRequested():
+                    return
+                processes.append(process.info)
+            self.result = MainWindow._collect_steam_processes(self.appid, processes, self.known)
+            if self.stop_started is not None:
+                MainWindow._stop_steam_processes(self.appid, {
+                    "known": self.result, "stop_started": self.stop_started,
+                })
+        except psutil.Error as error:
+            logger.warning("Steam process scan failed for %s: %s", self.appid, error)
+            self.error = str(error)
+        except OSError as error:
+            logger.warning("Steam process scan failed for %s: %s", self.appid, error)
+            self.error = str(error)
+
 
 class MainWindow(
     MainWindowControlHintsMixin,
@@ -2884,6 +2916,157 @@ class MainWindow(
         else:
             logger.warning("Failed to open Steam URI: %s", exec_line)
 
+    def _toggle_steam_game(
+        self, exec_line: str, button: QPushButton | None, launch: bool = True
+    ) -> None:
+        appid = exec_line.rsplit("/", 1)[-1]
+        if not appid.isdigit():
+            logger.warning("Invalid Steam URI: %s", exec_line)
+            return
+        watches = getattr(self, "_steam_watches", None)
+        if watches is None:
+            self._steam_watches: dict[str, dict[str, Any]] = {}
+            watches = self._steam_watches
+        if appid in watches:
+            watch = watches[appid]
+            watch["button"] = button
+            if launch and watch["running"]:
+                if not watch["stop"]:
+                    watch["stop_started"] = time.monotonic()
+                watch["stop"] = True
+            elif launch and not watch["launch_requested"]:
+                watch["launch_requested"] = True
+                self._launch_steam_game(exec_line)
+            if button is not None:
+                button.setEnabled(watch["running"] or not watch["launch_requested"])
+            self._scan_steam_game(appid)
+            return
+        process = SteamGameScanWorker(appid, self)
+        timer = QTimer(self)
+        watch: dict[str, Any] = {
+            "process": process, "timer": timer, "button": button,
+            "running": False, "stop": False, "launch_requested": launch,
+        }
+        watches[appid] = watch
+        if button is not None:
+            button.setEnabled(not launch)
+        process.finished.connect(lambda: self._steam_scan_finished(appid))
+        timer.timeout.connect(lambda: self._scan_steam_game(appid))
+        if launch:
+            self._launch_steam_game(exec_line)
+        timer.start(GAME_PROCESS_CHECK_INTERVAL_MS)
+        self._scan_steam_game(appid)
+
+    def _scan_steam_game(self, appid: str) -> None:
+        watch = self._steam_watches[appid]
+        process = watch["process"]
+        if not process.isRunning():
+            process.known = watch.get("known", {})
+            process.stop_started = watch.get("stop_started") if watch["stop"] else None
+            process.start()
+
+    @staticmethod
+    def _collect_steam_processes(
+        appid: str, snapshot: list[dict[str, Any]], known: dict[int, dict[str, Any]]
+    ) -> dict[int, dict[str, Any]]:
+        processes: dict[int, dict[str, Any]] = {}
+        children: dict[int, list[int]] = {}
+        selected: set[int] = set()
+        for info in snapshot:
+            if info.get("status") == psutil.STATUS_ZOMBIE or info["create_time"] is None:
+                continue
+            pid, parent = info["pid"], info["ppid"]
+            processes[pid] = info
+            children.setdefault(parent, []).append(pid)
+            args = info["cmdline"] or []
+            args = args[:args.index("--")] if "--" in args else args
+            if info["name"] == "reaper" and "SteamLaunch" in args and f"AppId={appid}" in args:
+                selected.add(pid)
+            elif pid in known and info["create_time"] == known[pid]["create_time"]:
+                selected.add(pid)
+        pending = list(selected)
+        while pending:
+            for child in children.get(pending.pop(), []):
+                if child not in selected:
+                    selected.add(child)
+                    pending.append(child)
+        return {pid: processes[pid] for pid in selected}
+
+    def _steam_scan_finished(self, appid: str) -> None:
+        watch = self._steam_watches.get(appid)
+        if watch is None:
+            return
+        if watch["process"].error is not None:
+            return
+        processes = watch["process"].result
+        watch["known"] = processes
+        now = time.monotonic()
+        reapers = [info["cmdline"] or []
+                   for info in processes.values() if info["name"] == "reaper"]
+        if reapers:
+            watch["preparing"] = all("Install=1" in args for args in reapers)
+        if processes:
+            watch["last_seen"] = now
+            watch["running"] = True
+        elif (
+            watch["running"] and (not watch.get("preparing") or watch["stop"])
+            and now - watch.get("last_seen", 0) >= STEAM_PROCESS_EXIT_GRACE_SECONDS
+        ):
+            watch["running"] = False
+            watch["launch_requested"] = False
+            watch["stop"] = False
+        running = watch["running"]
+        button = watch["button"]
+        if button is not None:
+            try:
+                button.setEnabled(running or not watch.get("launch_requested", True))
+                if running:
+                    button.setText(_("Stop"))
+                    button.setIcon(self.theme_manager.get_icon("stop", as_path=True))
+                elif not watch.get("launch_requested", True):
+                    button.setText(_("Start"))
+                    button.setIcon(self.theme_manager.get_icon("play", as_path=True))
+            except RuntimeError:
+                watch["button"] = None
+
+    @staticmethod
+    def _stop_steam_processes(appid: str, watch: dict[str, Any]) -> None:
+        now = time.monotonic()
+        started = watch.setdefault("stop_started", now)
+        stop_signal = (
+            signal.SIGKILL if now - started >= STEAM_STOP_GRACE_SECONDS else signal.SIGTERM
+        )
+        for pid, info in watch["known"].items():
+            try:
+                process = psutil.Process(pid)
+                if process.create_time() != info["create_time"]:
+                    continue
+                process.send_signal(stop_signal)
+            except psutil.NoSuchProcess:
+                logger.debug("Steam game %s process %s already exited", appid, pid)
+            except psutil.AccessDenied as error:
+                logger.warning("Cannot stop Steam game %s process %s: %s", appid, pid, error)
+
+    def _finish_steam_watch(self, appid: str) -> None:
+        watch = self._steam_watches.pop(appid, None)
+        if watch is None:
+            return
+        watch["timer"].stop()
+        watch["timer"].deleteLater()
+        process = watch["process"]
+        process.blockSignals(True)
+        process.requestInterruption()
+        process.wait()
+        process.deleteLater()
+        button = watch["button"]
+        if button is not None:
+            try:
+                button.setEnabled(True)
+                button.setText(_("Start"))
+                button.setIcon(self.theme_manager.get_icon("play", as_path=True))
+            except RuntimeError:
+                logger.debug("Steam game button already deleted")
+
     def _handle_gog_game(self, exec_line: str, button=None) -> None:
         action, app_id = exec_line.removeprefix("gog://").split("/", 1)
         if action == "install" and self.gog_api.is_game_installed(app_id):
@@ -3208,7 +3391,7 @@ class MainWindow(
 
         # Handle Steam games
         if exec_line.startswith("steam://"):
-            self._launch_steam_game(exec_line)
+            self._toggle_steam_game(exec_line, button)
             return
 
         if exec_line.startswith("gog://"):
@@ -3384,6 +3567,8 @@ class MainWindow(
             if not self._run_portproton_stop_command():
                 logger.warning("Failed to stop installation during application shutdown")
 
+        for appid in list(getattr(self, "_steam_watches", {})):
+            self._finish_steam_watch(appid)
         self.disc_image_manager.cleanup_iso_rw_paths()
         self._stopBackgroundWorkers()
 

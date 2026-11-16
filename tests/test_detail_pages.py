@@ -721,3 +721,19 @@ def test_native_detail_folder_button_only_for_managed_games(
     assert "Settings" in buttons
     assert "Create Log" in buttons
     assert ("Open Folder" in buttons) is managed
+
+
+def test_steam_detail_button_attaches_to_existing_game_watch() -> None:
+    button = MagicMock()
+    window = SimpleNamespace(
+        target_exe=None, theme_manager=MagicMock(), toggleGame=MagicMock(),
+        _toggle_steam_game=MagicMock(),
+    )
+    manager = SimpleNamespace(main_window=window, _make_action_button=MagicMock(return_value=button))
+    result = DetailPageManager._create_play_button(
+        cast(Any, manager), "steam://rungameid/3263320", None
+    )
+    assert result is button
+    window._toggle_steam_game.assert_called_once_with(
+        "steam://rungameid/3263320", button, launch=False
+    )
