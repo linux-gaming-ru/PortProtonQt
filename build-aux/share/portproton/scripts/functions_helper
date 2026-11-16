@@ -2008,6 +2008,37 @@ pw_init_db () {
     return 0
 }
 
+pw_select_gpu () {
+    [[ -n "${PW_GPU_USE}" && "${PW_GPU_USE}" != "disabled" ]] || return 0
+    local vk_gpu_info_cmd vk_info_output line current_device_name="" filter_name="${PW_GPU_USE}"
+    vk_gpu_info_cmd="$(dirname "${BASH_SOURCE[0]}")/../../../bin/vk_gpu_info"
+    if [[ ! -x "${vk_gpu_info_cmd}" ]] ; then
+        vk_gpu_info_cmd="$(command -v vk_gpu_info 2>/dev/null || true)"
+    fi
+    if [[ -n "${vk_gpu_info_cmd}" ]] ; then
+        if vk_info_output="$("${vk_gpu_info_cmd}" 2>/dev/null)" ; then
+            while IFS= read -r line ; do
+                case "$line" in
+                    "GPU #"*) current_device_name="" ;;
+                    "device_name: "*) current_device_name="${line#device_name: }" ;;
+                    "wine_device_name: "*)
+                        if [[ "${current_device_name}" == "${PW_GPU_USE}" && -n "${line#wine_device_name: }" ]] ; then
+                            filter_name="${line#wine_device_name: }"
+                            break
+                        fi
+                        ;;
+                esac
+            done <<< "${vk_info_output}"
+        else
+            print_warning "vk_gpu_info failed; using the native GPU name for device filters."
+        fi
+    fi
+    [[ -v DXVK_FILTER_DEVICE_NAME ]] || export DXVK_FILTER_DEVICE_NAME="${filter_name}"
+    [[ -v VKD3D_FILTER_DEVICE_NAME ]] || export VKD3D_FILTER_DEVICE_NAME="${filter_name}"
+    export MESA_VK_DEVICE_SELECT_FORCE_DEFAULT_DEVICE="1"
+    export MESA_VK_DEVICE_SELECT="$PW_vendorID:$PW_deviceID"
+}
+
 pw_check_vulkan_extensions () {
     local ext_name="$1"
     local ext_key
@@ -3012,12 +3043,7 @@ start_portproton () {
 
     [[ "${PW_VKBASALT_USER_CONF}" == 1 ]] && pw_select_vkbasalt_user_conf
 
-    if [[ $PW_GPU_USE != "disabled" ]] ; then
-        export DXVK_FILTER_DEVICE_NAME="$PW_GPU_USE"
-        export VKD3D_FILTER_DEVICE_NAME="$PW_GPU_USE"
-        export MESA_VK_DEVICE_SELECT_FORCE_DEFAULT_DEVICE="1"
-        export MESA_VK_DEVICE_SELECT="$PW_vendorID:$PW_deviceID"
-    fi
+    pw_select_gpu
 
     if [[ -f "$PATH_TO_GAME/dxvk.conf" ]] ; then
         export DXVK_CONFIG_FILE="$PATH_TO_GAME/dxvk.conf"
