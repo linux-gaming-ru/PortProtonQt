@@ -40,6 +40,6 @@ jobs:
         env:
           RENOVATE_CONFIG_FILE: "/tmp/renovate-config/config.js"
           RENOVATE_BINARY_SOURCE: "global"
-          GITHUB_COM_TOKEN: ${{ secrets.GITHUB_COM_TOKEN }}
+          GITHUB_COM_TOKEN: ${{ secrets.GHP_COM_TOKEN }}
           LOG_LEVEL: "debug"
           RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
