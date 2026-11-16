@@ -16,6 +16,7 @@ from portprotonqt.image_utils import COVER_IMAGE_EXTENSIONS
 logger = get_logger(__name__)
 
 STEAM_DATA_DIRS = (
+    "~/Library/Application Support/Steam",
     "~/.steam/steam",
     "~/snap/steam/common/.local/share/Steam",
     "~/.var/app/com.valvesoftware.Steam/data/Steam",

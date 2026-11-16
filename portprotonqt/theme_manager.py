@@ -3,14 +3,13 @@ import asyncio
 import hashlib
 import importlib.util
 import os
+import sys
 import re
 import shutil
 import stat
 import xml.etree.ElementTree as ET
 from typing import Any, cast
 import orjson
-from dbus_fast import BusType
-from dbus_fast.aio import MessageBus
 from portprotonqt.logger import get_logger
 from portprotonqt.theme_security import (
     check_theme_directory_safety,
@@ -23,6 +22,10 @@ from PySide6.QtSvg import QSvgRenderer
 from portprotonqt.config import CACHE_DIR, ui_config, load_theme_metainfo
 from portprotonqt.config.ui import _is_system_light_theme, _unwrap_variant
 from portprotonqt.qt_utils import get_device_pixel_ratio
+
+if sys.platform != "darwin":
+    from dbus_fast import BusType
+    from dbus_fast.aio import MessageBus
 
 # Icon caching for performance optimization
 _icon_cache = {}
@@ -950,6 +953,8 @@ class SystemThemeWatcher(QThread):
         self._poll_system_theme()
 
     async def _watch_portal(self) -> None:
+        if sys.platform == "darwin":
+            raise OSError("Desktop portal is Linux-only")
         bus = await MessageBus(bus_type=BusType.SESSION).connect()
         try:
             introspection = await bus.introspect(

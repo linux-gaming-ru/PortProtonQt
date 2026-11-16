@@ -1,4 +1,5 @@
 import os
+import sys
 from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import QObject, QRect, QSize, Qt, QTimer
@@ -229,6 +230,9 @@ class MainWindowSettingsTabMixin(_MainWindowTypingBase):
         self.egsAccountTitle.setStyleSheet(self.theme.SETTINGS_TITLE_STYLE)
         gogForm.addRow(self.egsAccountTitle, egs_buttons)
         self._update_egs_account_state()
+        if sys.platform == "darwin":
+            self.gogLoginButton.setEnabled(False)
+            self.egsLoginButton.setEnabled(False)
 
         self.timeDetailCombo = CustomComboBox(theme=self.theme)
         self.timeDetailCombo.view().window().setWindowFlags(
@@ -407,6 +411,8 @@ class MainWindowSettingsTabMixin(_MainWindowTypingBase):
         autostart_layout.addWidget(self.autostartTitle)
         autostart_layout.addStretch()
         uiForm.addRow(autostart_layout)
+        if sys.platform == "darwin":
+            uiForm.setRowVisible(autostart_layout, False)
 
         self.startMinimizedCheckBox = QCheckBox()
         self.startMinimizedCheckBox.setStyleSheet(self.theme.CHECKBOX_STYLE)
@@ -565,7 +571,7 @@ class MainWindowSettingsTabMixin(_MainWindowTypingBase):
             uiForm.addRow(disable_alt_dependency_check_layout)
 
         disable_runtime_download_layout = None
-        if not os.getenv("FLATPAK_ID"):
+        if sys.platform != "darwin" and not os.getenv("FLATPAK_ID"):
             self.disableRuntimeDownloadCheckBox = QCheckBox()
             self.disableRuntimeDownloadCheckBox.setStyleSheet(self.theme.CHECKBOX_STYLE)
             self.disableRuntimeDownloadCheckBox.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -596,6 +602,8 @@ class MainWindowSettingsTabMixin(_MainWindowTypingBase):
         steam_compat_layout.addWidget(self.steamCompatTitle)
         steam_compat_layout.addStretch()
         uiForm.addRow(steam_compat_layout)
+        if sys.platform == "darwin":
+            uiForm.setRowVisible(steam_compat_layout, False)
 
         self.disableSteamProtonScanningCheckBox = QCheckBox()
         self.disableSteamProtonScanningCheckBox.setStyleSheet(self.theme.CHECKBOX_STYLE)
@@ -611,8 +619,10 @@ class MainWindowSettingsTabMixin(_MainWindowTypingBase):
         disable_steam_proton_scanning_layout.addWidget(self.disableSteamProtonScanningTitle)
         disable_steam_proton_scanning_layout.addStretch()
         uiForm.addRow(disable_steam_proton_scanning_layout)
+        if sys.platform == "darwin":
+            uiForm.setRowVisible(disable_steam_proton_scanning_layout, False)
 
-        if get_steam_compatibilitytools_dir() is not None:
+        if sys.platform != "darwin" and get_steam_compatibilitytools_dir() is not None:
             self.downloadWineToSteamCheckBox = QCheckBox()
             self.downloadWineToSteamCheckBox.setStyleSheet(self.theme.CHECKBOX_STYLE)
             self.downloadWineToSteamCheckBox.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -769,7 +779,7 @@ class MainWindowSettingsTabMixin(_MainWindowTypingBase):
         hwForm.setRowWrapPolicy(QFormLayout.RowWrapPolicy.DontWrapRows)
         scrollLayout.addWidget(hwFrame)
 
-        filtered_gpu_list = get_selectable_gpu_list()
+        filtered_gpu_list = [] if sys.platform == "darwin" else get_selectable_gpu_list()
         hwFrame.setVisible(len(filtered_gpu_list) > 1)
         if len(filtered_gpu_list) > 1:
             self.gpuCombo = CustomComboBox(theme=self.theme)
@@ -1106,7 +1116,7 @@ class MainWindowSettingsTabMixin(_MainWindowTypingBase):
 
         autostart_enabled = self.autostartCheckBox.isChecked()
         display_config.set_autostart_enabled(autostart_enabled)
-        if not apply_xdg_autostart(autostart_enabled):
+        if sys.platform != "darwin" and not apply_xdg_autostart(autostart_enabled):
             QMessageBox.warning(self, _("Error"), _("Failed to update xdg-autostart entry."))
 
         start_minimized = self.startMinimizedCheckBox.isChecked()
@@ -1116,12 +1126,13 @@ class MainWindowSettingsTabMixin(_MainWindowTypingBase):
         tray_menu_mode = self.tray_menu_mode_keys[tray_menu_mode_idx]
         display_config.set_tray_menu_mode(tray_menu_mode)
 
-        steam_compat = self.steamCompatCheckBox.isChecked()
-        currently_installed = is_steam_compat_tool_installed()
-        if steam_compat and not currently_installed:
-            add_steam_compat_tool()
-        elif not steam_compat and currently_installed:
-            remove_steam_compat_tool()
+        if sys.platform != "darwin":
+            steam_compat = self.steamCompatCheckBox.isChecked()
+            currently_installed = is_steam_compat_tool_installed()
+            if steam_compat and not currently_installed:
+                add_steam_compat_tool()
+            elif not steam_compat and currently_installed:
+                remove_steam_compat_tool()
 
         ui_config.set_disable_steam_proton_scanning(self.disableSteamProtonScanningCheckBox.isChecked())
 

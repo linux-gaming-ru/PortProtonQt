@@ -816,13 +816,14 @@ def main():
             except (OSError, RequestException):
                 logger.exception("Failed to update gogdl")
 
-    gogdl_update_worker = GOGDLUpdateWorker(window.gog_api)
-    window.gogdlUpdateWorker = gogdl_update_worker
-    gogdl_update_worker.finished.connect(
-        lambda: setattr(window, "gogdlUpdateWorker", None)
-    )
-    gogdl_update_worker.finished.connect(gogdl_update_worker.deleteLater)
-    gogdl_update_worker.start()
+    if sys.platform != "darwin":
+        gogdl_update_worker = GOGDLUpdateWorker(window.gog_api)
+        window.gogdlUpdateWorker = gogdl_update_worker
+        gogdl_update_worker.finished.connect(
+            lambda: setattr(window, "gogdlUpdateWorker", None)
+        )
+        gogdl_update_worker.finished.connect(gogdl_update_worker.deleteLater)
+        gogdl_update_worker.start()
 
     # Execute the initial PortProton command after the UI is set up
     class InitialCommandWorker(QThread):
@@ -889,7 +890,7 @@ def main():
                 self.finished.emit()
 
     # Initial setup can stop Wine and must not race a silent game launch.
-    if start_sh and not silent_game_request:
+    if start_sh and not silent_game_request and sys.platform != "darwin":
         worker = InitialCommandWorker(start_sh)
         window.initialCommandWorker = worker
         worker.finished.connect(

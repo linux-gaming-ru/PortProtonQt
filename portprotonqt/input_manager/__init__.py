@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import time
 import os
+import sys
 import math
-from typing import Protocol, cast, Any
-from evdev import UInput, ecodes
+from typing import TYPE_CHECKING, Protocol, cast, Any
 from PySide6.QtWidgets import QWidget, QStackedWidget, QApplication, QScrollArea, QMenu, QMessageBox, QTableWidget, QSlider
 from PySide6.QtCore import Qt, QObject, Signal, Slot, QTimer, QThread
 from portprotonqt.logger import get_logger
@@ -26,6 +28,9 @@ from portprotonqt.input_manager.keyboard import KeyboardInputMixin
 from portprotonqt.input_manager.runtime import GamepadRuntimeMixin
 from portprotonqt.input_manager.settings import SettingsInputMixin
 from portprotonqt.input_manager.settings_visual import SettingsVisualNavigationMixin
+
+if sys.platform != "darwin" or TYPE_CHECKING:
+    from evdev import UInput, ecodes
 
 logger = get_logger(__name__)
 
@@ -253,6 +258,10 @@ class InputManager(
 
     def _async_enable_mouse_emulation(self):
         """Asynchronously enable mouse emulation to avoid blocking startup."""
+        if sys.platform == "darwin":
+            self.mouse_emulation_enabled = False
+            logger.info("Virtual mouse emulation is Linux-only")
+            return
         logger.info("EMUL: Attempting to create UInput virtual mouse...")
         self.mouse_emulation_thread = MouseEmulationThread()
         self.mouse_emulation_thread.finished.connect(self._on_mouse_emulation_finished)

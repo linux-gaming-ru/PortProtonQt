@@ -1,8 +1,9 @@
 import ctypes
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-GAMEPAD_LIBRARY_NAME = "libportprotonqt_gamepad.so"
+GAMEPAD_LIBRARY_NAME = "libportprotonqt_gamepad.dylib" if sys.platform == "darwin" else "libportprotonqt_gamepad.so"
 SYSTEM_GAMEPAD_LIBRARY = Path(__file__).parent / GAMEPAD_LIBRARY_NAME
 DEV_GAMEPAD_LIBRARY = (
     Path(__file__).parent.parent / "build-aux" / "lib" / GAMEPAD_LIBRARY_NAME

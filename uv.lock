@@ -444,7 +444,7 @@ source = { editable = "." }
 dependencies = [
     { name = "babel" },
     { name = "dbus-fast" },
-    { name = "evdev" },
+    { name = "evdev", marker = "sys_platform == 'linux'" },
     { name = "libarchive-c" },
     { name = "orjson" },
     { name = "pefile" },
@@ -471,7 +471,7 @@ dev = [
 requires-dist = [
     { name = "babel", specifier = ">=2.18.0" },
     { name = "dbus-fast", specifier = ">=5.2.0" },
-    { name = "evdev", specifier = ">=2.0.0" },
+    { name = "evdev", marker = "sys_platform == 'linux'", specifier = ">=2.0.0" },
     { name = "libarchive-c", specifier = ">=5.3" },
     { name = "orjson", specifier = ">=3.12.0" },
     { name = "pefile", specifier = ">=2024.8.26" },

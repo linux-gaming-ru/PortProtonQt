@@ -1,17 +1,20 @@
 """UI configuration settings."""
 import asyncio
 import os
+import sys
 import subprocess
 from typing import Any, cast
 
-from dbus_fast import BusType
-from dbus_fast.aio import MessageBus
 
 from portprotonqt.config.base import BaseConfig, configparser, THEMES_DIRS
 from portprotonqt.config.validators import validate_string, validate_int, validate_bool
 from portprotonqt.localization import get_theme_translations
 from portprotonqt.logger import get_logger
 
+
+if sys.platform != "darwin":
+    from dbus_fast import BusType
+    from dbus_fast.aio import MessageBus
 
 logger = get_logger(__name__)
 THEME_VARIANTS = ("dark", "light", "auto")
@@ -204,6 +207,8 @@ def _is_qt_light_theme() -> bool:
 
 
 def _is_system_light_theme() -> bool:
+    if sys.platform == "darwin":
+        return _is_qt_light_theme()
     is_dark = _is_portal_dark_theme()
     if is_dark is None:
         is_dark = _is_gsettings_dark_theme()

@@ -59,6 +59,7 @@ install_data(configured_portprotonqt,
   rename: 'portprotonqt',
 )
 
+if host_machine.system() != 'darwin'
 # Build and install vk_gpu_info executable
 vk_gpu_info_sources = files('build-aux/src/vk_gpu_info.c')
 vk_gpu_info_deps = [dependency('vulkan', required: true)]
@@ -70,6 +71,8 @@ executable('vk_gpu_info',
   install_dir: bindir,
   c_args: ['-std=c99'],
 )
+
+endif
 
 # Install desktop file
 install_data(

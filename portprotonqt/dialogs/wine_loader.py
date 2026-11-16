@@ -1,6 +1,7 @@
 """Wine metadata loader for PortProtonQt."""
 
 import os
+import sys
 import tempfile
 
 import orjson
@@ -104,6 +105,10 @@ class WineLoadingThread(QThread):
                 else github_url
             )
 
+            if sys.platform == "darwin":
+                from portprotonqt.macos import MACOS_WINE_METADATA_URL
+                json_url = MACOS_WINE_METADATA_URL
+
             with tempfile.NamedTemporaryFile(delete=False, suffix='.json') as tmp:
                 temp_path = tmp.name
 
@@ -120,6 +125,9 @@ class WineLoadingThread(QThread):
                 with open(temp_path, 'rb') as f:
                     metadata = orjson.loads(f.read())
 
+                if sys.platform == "darwin":
+                    from portprotonqt.macos import validate_catalog
+                    validate_catalog(metadata)
                 logger.info(f"Successfully loaded JSON metadata with {len(metadata)} entries")
                 self.loading_complete.emit(metadata)
             finally:

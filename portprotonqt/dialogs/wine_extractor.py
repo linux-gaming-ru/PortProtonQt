@@ -1,6 +1,9 @@
 """Wine archive extractor for PortProtonQt."""
 
 import os
+import sys
+import shutil
+import tempfile
 import time
 import libarchive
 from PySide6.QtCore import QThread, Signal, QMutex
@@ -46,7 +49,13 @@ class ExtractionThread(QThread):
         return target_path
 
     def run(self):
+        destination = self.extract_dir
+        staging = None
         try:
+            if sys.platform == "darwin":
+                os.makedirs(os.path.dirname(destination), exist_ok=True)
+                staging = tempfile.mkdtemp(prefix=".wine-install-", dir=os.path.dirname(destination))
+                self.extract_dir = staging
             self.progress.emit(0)
             self.speed.emit(0.0)
             self.eta.emit(0)
@@ -157,6 +166,14 @@ class ExtractionThread(QThread):
                     except (OSError, PermissionError):
                         pass
 
+                if self._should_stop():
+                    return
+                if staging is not None:
+                    from pathlib import Path
+                    from portprotonqt.macos import find_wine
+                    if find_wine(Path(staging)) is None:
+                        raise ValueError("Archive does not contain a macOS Wine executable")
+                    os.rename(staging, destination)
                 self.progress.emit(100)
                 self.speed.emit(0.0)
                 self.eta.emit(0)
@@ -168,6 +185,10 @@ class ExtractionThread(QThread):
         except Exception as e:
             if not self._should_stop():
                 self.error.emit(str(e))
+        finally:
+            self.extract_dir = destination
+            if staging is not None:
+                shutil.rmtree(staging, ignore_errors=True)
 
     def stop(self):
         self._mutex.lock()

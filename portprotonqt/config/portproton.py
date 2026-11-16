@@ -114,6 +114,11 @@ def read_portdata_path_from_config() -> str | None:
 
 def get_portproton_location() -> str | None:
     """Return PortProton directory path."""
+    if sys.platform == "darwin":
+        from portprotonqt.macos import data_root
+        root = data_root()
+        root.mkdir(parents=True, exist_ok=True)
+        return str(root)
     if os.getenv("FLATPAK_ID"):
         portdata_path = os.getenv("XDG_DATA_HOME", "").strip()
         if portdata_path:
@@ -153,6 +158,8 @@ def save_portdata_path_to_config(portdata_path: str) -> bool:
 
 def get_portproton_scripts_path() -> str | None:
     """Return PortProton scripts directory path."""
+    if sys.platform == "darwin":
+        return None
     appdir_prefix = os.getenv("APPDIR")
     sharun_prefix = os.getenv("SHARUN_DIR")
     appimage_path = os.getenv("APPIMAGE", "").strip()
@@ -191,6 +198,8 @@ def get_portproton_scripts_path() -> str | None:
 
 def get_portproton_start_command() -> list[str] | None:
     """Return command list for PortProton launch."""
+    if sys.platform == "darwin":
+        return [sys.executable, "-m", "portprotonqt.macos"]
     global _portproton_start_command
     if _portproton_start_command is not None:
         return _portproton_start_command

@@ -1,4 +1,5 @@
 import os
+import sys
 import re
 import shutil
 from typing import TYPE_CHECKING, Any
@@ -152,6 +153,9 @@ class MainWindowWineTabMixin(_MainWindowTypingBase):
         self.defaultVulkanTitleLabel.setStyleSheet(self.theme.PARAMS_TITLE_STYLE)
         self.defaultVulkanTitleLabel.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         formLayout.addRow(self.defaultVulkanTitleLabel, self.defaultVulkanCombo)
+        if sys.platform == "darwin":
+            self.defaultVulkanTitleLabel.hide()
+            self.defaultVulkanCombo.hide()
 
         layout.addLayout(formLayout)
 
@@ -195,6 +199,9 @@ class MainWindowWineTabMixin(_MainWindowTypingBase):
             (_("Manage WINE versions"), self.show_proton_manager),
         ]
 
+        if sys.platform == "darwin":
+            additional_buttons = [item for item in additional_buttons
+                                  if item[1] == self.show_proton_manager]
         for i, (text, callback) in enumerate(additional_buttons):
             row = i // 2
             col = i % 2
@@ -243,6 +250,12 @@ class MainWindowWineTabMixin(_MainWindowTypingBase):
         self.wine_progress_bar.setVisible(True)
 
         proc = QProcess(self)
+        if sys.platform == "darwin":
+            proc.setUnixProcessParameters(QProcess.UnixProcessFlag.CreateNewSession)
+        if not hasattr(self, "wine_tool_processes"):
+            self.wine_tool_processes = []
+        self.wine_tool_processes.append(proc)
+        proc.finished.connect(lambda: self.wine_tool_processes.remove(proc))
         process_env = QProcessEnvironment.systemEnvironment()
         if env_vars.get("DISABLE_CP_DEFPFX") == "1":
             process_env.insert("DISABLE_CP_DEFPFX", "1")

@@ -1,6 +1,7 @@
 """Detail pages for PortProtonQt."""
 
 import os
+import sys
 import weakref
 from collections.abc import Callable, Sequence
 
@@ -616,6 +617,8 @@ class DetailPageManager:
             play_button.setIcon(
                 self.main_window.theme_manager.get_icon("update", as_path=True)
             )
+        if sys.platform == "darwin" and source in {"gog", "egs"}:
+            play_button.setEnabled(False)
         buttons_layout.addWidget(play_button)
 
         if source in {"steam", "gog", "egs"} and appid:

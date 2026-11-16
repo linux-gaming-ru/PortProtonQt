@@ -1,6 +1,8 @@
 """Proton Manager dialog for PortProtonQt."""
 
 import os
+import sys
+from pathlib import Path
 import platform
 import shutil
 import tempfile
@@ -374,6 +376,8 @@ class ProtonManager(DraggableDialog):
         return True
 
     def filter_entries_by_cpu_level(self, entries, source_name):
+        if sys.platform == "darwin":
+            return entries
         is_arm = platform.machine().lower().startswith(('arm', 'aarch64'))
         filtered_entries = []
         for entry in entries:
@@ -471,7 +475,7 @@ class ProtonManager(DraggableDialog):
         url = entry.get('url', '')
         filename = entry.get('name', '')
         size_human = entry.get('size_human', _('Unknown'))
-        if url:
+        if url and sys.platform != "darwin":
             parsed_url = urllib.parse.urlparse(url)
             url_filename = os.path.basename(parsed_url.path)
             if url_filename:
@@ -539,6 +543,9 @@ class ProtonManager(DraggableDialog):
     def is_asset_installed(self, asset_filename, source_name):
         if not self.portproton_location:
             return False
+        if sys.platform == "darwin":
+            from portprotonqt.macos import find_wine, version_directory
+            return find_wine(version_directory(Path(self.portproton_location), asset_filename)) is not None
         name_without_ext = asset_filename
         for ext in ['.tar.gz', '.tar.xz']:
             if name_without_ext.lower().endswith(ext):
@@ -562,6 +569,9 @@ class ProtonManager(DraggableDialog):
         return source == "proton_lg" and (asset.startswith("wine"))
 
     def get_download_extract_dir(self, asset_data: dict) -> str:
+        if sys.platform == "darwin":
+            from portprotonqt.macos import version_directory
+            return str(version_directory(Path(self.portproton_location), asset_data["asset_name"]))
         install_to_dist = self.should_install_to_dist(
             asset_data['source_name'], asset_data['asset_name']
         )
@@ -629,7 +639,7 @@ class ProtonManager(DraggableDialog):
         installed_versions = []
         seen_paths = set()
         version_dirs = [dist_path]
-        if not ui_config.get_disable_steam_proton_scanning():
+        if sys.platform != "darwin" and not ui_config.get_disable_steam_proton_scanning():
             steam_dir = get_steam_compatibilitytools_dir()
             if steam_dir is not None:
                 version_dirs.append(str(steam_dir))
@@ -653,6 +663,9 @@ class ProtonManager(DraggableDialog):
         return installed_versions
 
     def is_installed_version_dir(self, version_path: str) -> bool:
+        if sys.platform == "darwin":
+            from portprotonqt.macos import find_wine
+            return not Path(version_path).name.startswith(".") and find_wine(Path(version_path)) is not None
         if not os.path.isdir(version_path):
             return False
         if os.path.isfile(os.path.join(version_path, "bin", "wine")):
@@ -1023,7 +1036,7 @@ class ProtonManager(DraggableDialog):
             import subprocess
             try:
                 start_cmd = get_portproton_start_command()
-                if start_cmd and not self.initial_command_executed:
+                if start_cmd and not self.initial_command_executed and sys.platform != "darwin":
                     result = subprocess.run(start_cmd + ["cli", "--initial"], timeout=10)
                     if result.returncode != 0:
                         logger.warning(f"Initial PortProton command returned non-zero exit code: {result.returncode}")

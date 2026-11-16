@@ -343,7 +343,7 @@ class MainWindow(
         self.setWindowTitle(f"{app_name} {version}")
         self.setMinimumSize(890, 600)
         self._pending_resolution = resolution  # Store resolution for later application
-        self._show_system_tab = show_system_tab
+        self._show_system_tab = show_system_tab and sys.platform != "darwin"
         self.system_tab_index = -1  # Default, set when system tab is created
         self._animated_covers_suspended = False
 
@@ -2490,7 +2490,7 @@ class MainWindow(
         return extract_exec_target_path(exec_line) or ""
 
     def _has_running_game_process(self) -> bool:
-        if getattr(self, "native_game_running", False):
+        if sys.platform == "darwin" or getattr(self, "native_game_running", False):
             if any(process.poll() is None for process in self.game_processes):
                 return True
             groups = {process.pid for process in self.game_processes}
@@ -2697,6 +2697,17 @@ class MainWindow(
 
     def _terminate_game_processes(self) -> None:
         for proc in self.game_processes:
+            if sys.platform == "darwin":
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                    proc.wait(timeout=0)
+                except ProcessLookupError:
+                    proc.poll()
+                except subprocess.TimeoutExpired:
+                    logger.debug("macOS Wine process %s is still exiting", proc.pid)
+                except OSError as error:
+                    logger.warning("Failed to stop macOS Wine process group %s: %s", proc.pid, error)
+                continue
             if proc.poll() is not None and not getattr(self, "native_game_running", False):
                 continue
             try:
@@ -2710,6 +2721,8 @@ class MainWindow(
 
     def _run_portproton_stop_command(self) -> bool:
         """Run PortProton CLI stop command."""
+        if sys.platform == "darwin":
+            return True
         if not self.start_sh:
             logger.warning("PortProton start command is unavailable for stop")
             return False
@@ -2729,13 +2742,16 @@ class MainWindow(
         if getattr(self, "native_game_running", False):
             self._terminate_game_processes()
             return True
-        if getattr(self, "launcher_process_only", False):
+        if sys.platform != "darwin" and getattr(self, "launcher_process_only", False):
             if self._run_portproton_stop_command():
                 return True
 
-        self._analyze_short_launch()
+        if sys.platform != "darwin":
+            self._analyze_short_launch()
 
         self._terminate_game_processes()
+        if sys.platform == "darwin":
+            return not any(proc.poll() is None for proc in self.game_processes)
         self.game_processes = []
         stopped = self._run_portproton_stop_command()
         if hasattr(self, 'checkProcessTimer') and self.checkProcessTimer is not None:
@@ -2747,6 +2763,8 @@ class MainWindow(
 
     def _check_missing_prefix_by_name_before_launch(self, prefix_name: str, env_vars: dict[str, str]) -> None:
         """Check prefix presence and optionally disable default recommended libs."""
+        if sys.platform == "darwin":
+            return
         if not prefix_name or not self.portproton_location:
             return
 
@@ -2768,6 +2786,8 @@ class MainWindow(
 
     def _check_missing_prefix_before_launch(self, game_exe_path: str, env_vars: dict[str, str]) -> None:
         """Check game prefix and optionally disable default recommended libs."""
+        if sys.platform == "darwin":
+            return
         if not game_exe_path:
             return
 
@@ -3253,6 +3273,10 @@ class MainWindow(
         return True
 
     def _launch_egs_game(self, app_id: str, button=None) -> None:
+        if sys.platform == "darwin":
+            self._finish_silent_launch()
+            QMessageBox.warning(self, _("Error"), "Epic store launch wrappers are not supported on macOS. Open the installed Windows executable directly.")
+            return
         target = self.egs_api.get_launch_target(app_id)
         if not target:
             self._finish_silent_launch()
@@ -3320,6 +3344,10 @@ class MainWindow(
     def _launch_gog_game(
         self, app_id: str, button=None, play_sound: bool = True
     ) -> None:
+        if sys.platform == "darwin":
+            self._finish_silent_launch()
+            QMessageBox.warning(self, _("Error"), "GOG store launch wrappers are not supported on macOS. Open the installed Windows executable directly.")
+            return
         self.gog_api.ensure_launch_parameters(app_id)
         discovered_path = self.gog_api.get_installed_path(app_id)
         install_path = str(discovered_path) if discovered_path else ""

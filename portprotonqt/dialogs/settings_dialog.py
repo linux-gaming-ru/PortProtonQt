@@ -1,6 +1,7 @@
 """Settings dialog for PortProtonQt."""
 
 import os
+import sys
 import re
 import subprocess
 from html import escape
@@ -418,10 +419,11 @@ class ExeSettingsDialog(
 
         self.tab_widget.addTab(self.main_tab, _("Main"))
         self.tab_widget.addTab(self.advanced_tab, _("Advanced"))
-        self.tab_widget.addTab(self.mangohud_tab, "MangoHud")
-        self.tab_widget.addTab(self.vkbasalt_tab, "vkBasalt")
-        if self.gamescope_available:
-            self.tab_widget.addTab(self.gamescope_tab, "Gamescope")
+        if sys.platform != "darwin":
+            self.tab_widget.addTab(self.mangohud_tab, "MangoHud")
+            self.tab_widget.addTab(self.vkbasalt_tab, "vkBasalt")
+            if self.gamescope_available:
+                self.tab_widget.addTab(self.gamescope_tab, "Gamescope")
 
         self.settings_table = QTableWidget()
         self.settings_table.setAlternatingRowColors(True)

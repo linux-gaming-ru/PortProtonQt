@@ -18,6 +18,11 @@ MOUNT_ESCAPE_PATTERN = re.compile(r"\\([0-7]{3})")
 
 def list_mounted_drive_paths(mounts_path: str = "/proc/mounts") -> list[str]:
     """Return local mounted drive paths available to the user."""
+    if sys.platform == "darwin":
+        from pathlib import Path
+        volumes = Path("/Volumes")
+        return sorted(str(path) for path in volumes.iterdir()
+                      if path.is_dir() and os.access(path, os.R_OK)) if volumes.is_dir() else []
     try:
         mounts = _read_mounts(mounts_path)
         mounted_drives = set()

@@ -1,6 +1,7 @@
 # Install Python source files
 install_data(
   ['__init__.py',
+   'macos.py',
    'appimage_integration.py',
    'appimage_updater.py',
    'cli.py',

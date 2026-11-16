@@ -1,4 +1,5 @@
 import os
+import sys
 import shutil
 import subprocess
 from pathlib import Path
@@ -57,6 +58,13 @@ def get_available_wine_options(
             [f for f in os.listdir(dist_dir) if os.path.isdir(os.path.join(dist_dir, f))],
             key=version_sort_key
         )
+
+    if sys.platform == "darwin":
+        from portprotonqt.macos import find_wine
+        options = [name for name in options if find_wine(Path(dist_dir, name)) is not None]
+        if system_wine_label and shutil.which("wine"):
+            options.append(system_wine_label)
+        return options
 
     from portprotonqt.config import get_portproton_scripts_path
     scripts_path = get_portproton_scripts_path()
@@ -143,6 +151,8 @@ def get_toggle_settings():
     """Get predefined toggle settings with descriptions."""
     from portprotonqt.localization import _
 
+    if sys.platform == "darwin":
+        return {}
     return {
         # Graphics enhancements
         'PW_DGVOODOO2': _("Enable dgVoodoo2. Forced use all dgVoodoo2 libs (Glide 2.11-3.1, DirectDraw 1-7, Direct3D 2-9) on all 3D API."),
@@ -394,6 +404,9 @@ def get_advanced_settings(disabled_text, logical_core_options=None, locale_optio
         'default': disabled_text
     })
 
+    if sys.platform == "darwin":
+        return [setting for setting in advanced_settings
+                if setting["key"] in ("PW_WINE_USE", "PW_PREFIX_NAME")]
     return advanced_settings
 
 # Keys that should be recognized as advanced settings

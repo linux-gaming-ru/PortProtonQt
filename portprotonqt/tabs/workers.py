@@ -1,3 +1,7 @@
+import os
+import signal
+import sys
+
 from portprotonqt.logger import get_logger
 
 logger = get_logger(__name__)
@@ -16,6 +20,19 @@ class MainWindowWorkersMixin:
                 if not process.waitForFinished():
                     process.kill()
                     process.waitForFinished()
+        for process in list(getattr(self, "wine_tool_processes", [])):
+            if sys.platform == "darwin" and process.processId():
+                try:
+                    os.killpg(process.processId(), signal.SIGKILL)
+                except ProcessLookupError:
+                    logger.debug("Wine tool process group already exited")
+                except OSError as error:
+                    logger.warning("Failed to stop Wine tool process group: %s", error)
+            process.terminate()
+            if not process.waitForFinished():
+                process.kill()
+                process.waitForFinished()
+        self.wine_tool_processes = []
         worker_timeouts = {
             "networkWorker": 3000,
             "bluetoothWorker": 12000,

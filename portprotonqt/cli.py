@@ -410,6 +410,8 @@ def add_steam_compat_tool(force_install: bool = False) -> bool:
     Returns:
         True if successful, False otherwise
     """
+    if sys.platform == "darwin":
+        return False
     steam_home = get_steam_home()
     if not steam_home:
         print("Steam directory not found")
@@ -591,6 +593,8 @@ def reinstall_steam_compat_tool() -> bool:
 
 def remove_steam_compat_tool() -> bool:
     """Remove PortProtonQt Steam compatibility tool from user Steam directory."""
+    if sys.platform == "darwin":
+        return False
     steam_home = get_steam_home()
     if not steam_home:
         print("Steam directory not found")
@@ -647,6 +651,8 @@ def reset_settings() -> bool:
 
 def is_steam_compat_tool_installed() -> bool:
     """Check if PortProtonQt is installed as Steam compatibility tool."""
+    if sys.platform == "darwin":
+        return False
     steam_home = get_steam_home()
     if not steam_home:
         return False

@@ -1,4 +1,5 @@
 import os
+import sys
 import shlex
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, cast
@@ -36,12 +37,13 @@ from portprotonqt.localization import _
 from portprotonqt.logger import get_logger
 from portprotonqt.sound_manager import SoundManager
 from portprotonqt.preloader import Preloader
-from portprotonqt.system_manager import (
-    AudioManagerWorker,
-    BluetoothManagerWorker,
-    NetworkManagerWorker,
-    StorageManagerWorker,
-)
+if sys.platform != "darwin":
+    from portprotonqt.system_manager import (
+        AudioManagerWorker,
+        BluetoothManagerWorker,
+        NetworkManagerWorker,
+        StorageManagerWorker,
+    )
 
 logger = get_logger(__name__)
 
