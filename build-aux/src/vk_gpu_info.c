@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <vulkan/vulkan.h>
+#include "wine_gpu_names.h"
 
 typedef struct {
     uint32_t vendor_id;
@@ -275,6 +276,7 @@ int main() {
         printf("vendor_id: 0x%04x\n", props.vendorID);
         printf("device_id: 0x%04x\n", props.deviceID);
         printf("device_name: %s\n", device_name);
+        printf("wine_device_name: %s\n", wine_device_name(props.vendorID, props.deviceID, device_name));
         printf("driver_name: %s\n", driver_name);
         printf("driver_info: %s\n", driver_info);
         printf("api_version: %u.%u.%u\n",

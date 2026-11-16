@@ -1,9 +1,10 @@
 """Tests for the bundled PortProton shell scripts."""
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
-from pytest import mark
+from pytest import mark, skip
 
 
 @mark.parametrize("case", [
@@ -326,3 +327,107 @@ def test_run_after_wrapper_preserves_command_with_comma(tmp_path: Path) -> None:
         capture_output=True, text=True, check=True,
     )
     assert result.stdout.splitlines() == ["first,second", "game"]
+
+
+def test_wine_gpu_name_lookup(tmp_path: Path) -> None:
+    compiler = shutil.which("cc")
+    if compiler is None:
+        skip("C compiler is unavailable")
+    source = tmp_path / "wine_names.c"
+    source.write_text(
+        '#include <stdio.h>\n#include "wine_gpu_names.h"\n'
+        'int main(void) {\n'
+        'puts(wine_device_name(0x1002, 0x163f, "AMD Custom GPU 0405 (RADV VANGOGH)"));\n'
+        'puts(wine_device_name(0x10de, 0x249d, "NVIDIA GeForce RTX 3070 Laptop GPU"));\n'
+        'puts(wine_device_name(0x8086, 0x5912, "Intel native name"));\n'
+        'puts(wine_device_name(0xffff, 0x163f, "Unknown vendor"));\n'
+        'puts(wine_device_name(0x1002, 0xffff, "Unknown device"));\n'
+        'puts(wine_device_name(0x11002, 0x163f, "Non-PCI vendor"));\n'
+        'return 0;\n}\n',
+    )
+    binary = tmp_path / "wine_names"
+    subprocess.run(
+        [compiler, "-std=c99", "-Wall", "-Wextra", "-Werror", "-I",
+         str(Path("build-aux/src").resolve()), str(source), "-o", str(binary)],
+        capture_output=True, text=True, check=True,
+    )
+    result = subprocess.run([str(binary)], capture_output=True, text=True, check=True)
+    assert result.stdout.splitlines() == [
+        "AMD VANGOGH", "NVIDIA GeForce RTX 3070 (mobile)", "Intel(R) HD Graphics 630",
+        "Unknown vendor", "Unknown device", "Non-PCI vendor",
+    ]
+
+
+@mark.parametrize("names", [
+    ("AMD Custom GPU 0405 (RADV VANGOGH)", "AMD VANGOGH"),
+    ("NVIDIA GeForce RTX 3070 Laptop GPU", "NVIDIA GeForce RTX 3070 (mobile)"),
+    ("Unknown GPU", "Unknown GPU"),
+])
+@mark.parametrize("override", [
+    {}, {"DXVK_FILTER_DEVICE_NAME": "custom-dxvk"},
+    {"VKD3D_FILTER_DEVICE_NAME": "custom-vkd3d"},
+    {"DXVK_FILTER_DEVICE_NAME": "", "VKD3D_FILTER_DEVICE_NAME": ""},
+])
+def test_gpu_selection_uses_wine_name_for_both_filters(
+    tmp_path: Path, names: tuple[str, str], override: dict[str, str],
+) -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text()
+    function = "pw_select_gpu () {" + helper.split("pw_select_gpu () {", 1)[1].split(
+        "\npw_check_vulkan_extensions () {", 1,
+    )[0]
+    binary = tmp_path / "vk_gpu_info"
+    binary.write_text('#!/bin/bash\nprintf "%s" "$GPU_OUTPUT"\n')
+    binary.chmod(0o755)
+    native, wine = names
+    output = (
+        "GPU #0\ndevice_name: Other GPU\nwine_device_name: Other Wine GPU\n\n"
+        f"GPU #1\ndevice_name: {native}\nwine_device_name: {wine}\n\n"
+        "GPU #2\ndevice_name: Last GPU\nwine_device_name: Last Wine GPU\n"
+    )
+    result = subprocess.run(
+        ["bash", "-c", function + '\npw_select_gpu\n'
+         'printf "%s\\n" "$DXVK_FILTER_DEVICE_NAME" "$VKD3D_FILTER_DEVICE_NAME" '
+         '"$PW_GPU_USE" "$MESA_VK_DEVICE_SELECT" "$MESA_VK_DEVICE_SELECT_FORCE_DEFAULT_DEVICE"'],
+        cwd=tmp_path, capture_output=True, text=True, check=True,
+        env={"PATH": f"{tmp_path}:{os.defpath}", "GPU_OUTPUT": output, "PW_GPU_USE": native,
+             "PW_vendorID": "0x1002", "PW_deviceID": "0x163f", **override},
+    )
+    assert result.stdout.splitlines() == [
+        override.get("DXVK_FILTER_DEVICE_NAME", wine),
+        override.get("VKD3D_FILTER_DEVICE_NAME", wine), native, "0x1002:0x163f", "1",
+    ]
+
+
+@mark.parametrize("case", [
+    ("GPU #0\ndevice_name: Selected GPU\n", 0),
+    ("GPU #0\ndevice_name: Selected GPU\nwine_device_name: \n", 0),
+    ("GPU #0\ndevice_name: Other GPU\nwine_device_name: Other Wine GPU\n", 0),
+    ("GPU #0\ndevice_name: Selected GPU\nwine_device_name: Wine GPU\n", 1),
+])
+@mark.parametrize("selected", ["Selected GPU", "disabled", ""])
+def test_gpu_selection_falls_back_to_native_name(
+    tmp_path: Path, case: tuple[str, int], selected: str,
+) -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text()
+    function = "pw_select_gpu () {" + helper.split("pw_select_gpu () {", 1)[1].split(
+        "\npw_check_vulkan_extensions () {", 1,
+    )[0]
+    output, status = case
+    binary = tmp_path / "vk_gpu_info"
+    binary.write_text(
+        '#!/bin/bash\ntouch probe-ran\nprintf "%s" "$GPU_OUTPUT"\n'
+        f'exit {status}\n',
+    )
+    binary.chmod(0o755)
+    result = subprocess.run(
+        ["bash", "-c", function + '\nprint_warning () { echo "$*" >&2; }\npw_select_gpu\n'
+         'printf "%s\\n" "${DXVK_FILTER_DEVICE_NAME-unset}" '
+         '"${VKD3D_FILTER_DEVICE_NAME-unset}"'],
+        cwd=tmp_path, capture_output=True, text=True, check=True,
+        env={"PATH": f"{tmp_path}:{os.defpath}", "GPU_OUTPUT": output,
+             "PW_GPU_USE": selected, "PW_vendorID": "0x1002", "PW_deviceID": "0x163f"},
+    )
+    expected = selected if selected == "Selected GPU" else "unset"
+    assert result.stdout.splitlines() == [expected, expected]
+    assert (tmp_path / "probe-ran").exists() == (selected == "Selected GPU")
+    assert ("vk_gpu_info failed" in result.stderr) == (status != 0 and selected == "Selected GPU")
