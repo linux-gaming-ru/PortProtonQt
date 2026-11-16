@@ -8,6 +8,7 @@ on:
       - scripts
     paths:
       - 'build-aux/src/vk_gpu_info.c'
+      - 'build-aux/src/wine_gpu_names.h'
       - '.gitea/workflows/build-vk-gpu-info-debian.yml'
 
 jobs:

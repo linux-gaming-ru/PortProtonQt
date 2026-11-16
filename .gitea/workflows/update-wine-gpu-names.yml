@@ -1,0 +1,49 @@
+name: Update Wine GPU names
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 4 * * 1'
+
+concurrency:
+  group: update-wine-gpu-names
+  cancel-in-progress: false
+
+jobs:
+  update:
+    if: gitea.repository == 'Linux-Gaming/PortProtonQt'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: https://git.linux-gaming.ru/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: main
+          token: ${{ secrets.GITEA_TOKEN }}
+
+      - name: Set up Python
+        uses: https://git.linux-gaming.ru/actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version-file: pyproject.toml
+
+      - name: Update Wine GPU names
+        id: update
+        run: |
+          python dev-scripts/update_wine_gpu_names.py
+          if git diff --quiet -- build-aux/src/wine_gpu_names.h; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit and push table changes
+        if: steps.update.outputs.changed == 'true'
+        run: |
+          git add -- build-aux/src/wine_gpu_names.h
+          if git diff --cached --quiet; then
+            echo "Wine GPU names are unchanged."
+            exit 0
+          fi
+          git config --local user.name 'Gitea Actions'
+          git config --local user.email 'gitea-actions@users.noreply.gitea.com'
+          git commit -m 'chore: sync Wine GPU names'
+          git push origin HEAD:main
