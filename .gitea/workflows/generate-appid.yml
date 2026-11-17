@@ -30,8 +30,6 @@ jobs:
         run: python dev-scripts/get_id.py
         env:
           STEAM_KEY: ${{ secrets.STEAM_KEY }}
-          LINUX_GAMING_API_KEY: ${{ secrets.LINUX_GAMING_API_KEY }}
-          LINUX_GAMING_API_USERNAME: ${{ secrets.LINUX_GAMING_API_USERNAME }}
 
       - name: Commit and push changes
         env:

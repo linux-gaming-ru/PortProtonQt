@@ -22,7 +22,7 @@
  */
 
 // Source: wine-mirror/wine, dlls/win32u/sysparams.c
-// Revision: f322877cdd88ee77125042070e88d77eae9c9dfe
+// Revision: 9f8c4ae4d35c7ff4153267aba9618c026f5f5583
 #ifndef WINE_GPU_NAMES_H
 #define WINE_GPU_NAMES_H
 
