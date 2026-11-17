@@ -431,3 +431,28 @@ def test_gpu_selection_falls_back_to_native_name(
     assert result.stdout.splitlines() == [expected, expected]
     assert (tmp_path / "probe-ran").exists() == (selected == "Selected GPU")
     assert ("vk_gpu_info failed" in result.stderr) == (status != 0 and selected == "Selected GPU")
+
+
+@mark.parametrize("exit_code", [0, 37])
+def test_run_after_command_placeholder_preserves_arguments_and_status(
+    tmp_path: Path, exit_code: int,
+) -> None:
+    helper = Path("build-aux/share/portproton/scripts/functions_helper").read_text()
+    wrapper = helper.split("pw_launch_wrapper () {", 1)[1].split(
+        "export -f pw_launch_wrapper", 1,
+    )[0]
+    launcher = tmp_path / "Обёртка с пробелами"
+    launcher.write_text(
+        '#!/bin/bash\nexport WRAPPER_ACTIVE=yes\nexec "$@"\n',
+    )
+    launcher.chmod(0o755)
+    result = subprocess.run(
+        ["bash", "-c", "pw_launch_wrapper () {" + wrapper
+         + '\npw_launch_wrapper bash -c \'printf "%s\\n" "$WRAPPER_ACTIVE" "$@"; '
+         + 'exit "$EXIT_CODE"\' game "аргумент с пробелами" \'$(false)\' ""'],
+        env={"PATH": os.defpath, "PW_RUN_AFTER_EXE": f'"{launcher}" %command%',
+             "EXIT_CODE": str(exit_code)},
+        capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == exit_code, result.stderr
+    assert result.stdout == "yes\nаргумент с пробелами\n$(false)\n\n"

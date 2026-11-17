@@ -4064,6 +4064,22 @@ pw_launch_wrapper () {
         return
     fi
 
+    local wrapper_arg
+    local -a launch_cmd=()
+    local wrapper_command_seen=0
+    for wrapper_arg in "${wrapper_cmd[@]}" ; do
+        if [[ "$wrapper_arg" == '%command%' ]] ; then
+            launch_cmd+=("$@")
+            wrapper_command_seen=1
+        else
+            launch_cmd+=("$wrapper_arg")
+        fi
+    done
+    if [[ "$wrapper_command_seen" == 1 ]] ; then
+        "${launch_cmd[@]}"
+        return
+    fi
+
     if [[ "${wrapper_cmd[0]##*/}" == "systemd-run" ]] ; then
         "${wrapper_cmd[@]}" -- "$@"
         return
