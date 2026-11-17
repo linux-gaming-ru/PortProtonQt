@@ -1771,12 +1771,12 @@ QPushButton:pressed {{
     border: {border_none} {color_transparent};
     color: {color_text};
 }}
-QPushButton[checked="true"] {{
+QPushButton:checked {{
     background-color: {color_accent};
     color: {color_text_accent_hover};
     border: {border_none} {color_transparent};
 }}
-QPushButton[checked="true"]:focus {{
+QPushButton:checked:focus {{
     border: {border_thin} {color_text};
 }}
 """

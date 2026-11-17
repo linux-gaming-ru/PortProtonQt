@@ -44,6 +44,21 @@ CONTEXT_MENU_STYLE = f"""
     }}
 """
 
+SYSTEM_KEYBOARD_BACKGROUND_STYLE = f"""
+QFrame#systemKeyboard {{
+    background: {color_bg};
+    border-radius: {border_radius_small};
+}}
+QWidget#systemKeyboardContainer {{
+    background: {color_transparent};
+}}
+QFrame#systemKeyboard QPushButton {{
+    min-width: 0;
+    min-height: 0;
+    padding: 0;
+}}
+"""
+
 VIRTUAL_KEYBOARD_STYLE = f"""
 QWidget {{
     background: {color_overlay};
@@ -77,12 +92,12 @@ QPushButton:pressed {{
     background-color: {color_surface};
     border: {border_none} {color_transparent};
 }}
-QPushButton[checked="true"] {{
+QPushButton:checked {{
     background-color: {color_accent};
     color: {color_text_accent_hover};
     border: {border_none} {color_transparent};
 }}
-QPushButton[checked="true"]:focus {{
+QPushButton:checked:focus {{
     border: {border_thin} {color_text};
 }}
 """

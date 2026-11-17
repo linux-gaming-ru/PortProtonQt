@@ -57,8 +57,6 @@ class GamepadRuntimeMixin(InputMixin):
 
     def _on_gamepad_hotplug(self, action: str) -> None:
         try:
-            if self._gamepad_polling_suspended:
-                return
             if action == 'add':
                 self.check_gamepad()
             elif action == 'remove':
@@ -80,8 +78,6 @@ class GamepadRuntimeMixin(InputMixin):
 
     def check_gamepad(self) -> None:
         try:
-            if self._gamepad_polling_suspended:
-                return
             new_gamepad = self.find_gamepad()
 
             if new_gamepad:
@@ -128,6 +124,7 @@ class GamepadRuntimeMixin(InputMixin):
         self.lt_pressed = False
         self.rt_pressed = False
         self.start_held = False
+        self._start_consumed = False
         self.select_held = False
         self.pending_menu_fullscreen_time = 0.0
         self.guide_held = False
@@ -173,6 +170,9 @@ class GamepadRuntimeMixin(InputMixin):
         keyboard = getattr(self._parent, "keyboard", None)
         if keyboard and hasattr(keyboard, "update_keyboard"):
             keyboard.update_keyboard()
+        system_keyboard = getattr(self._parent, 'system_keyboard', None)
+        if system_keyboard is not None:
+            system_keyboard.send('gamepad', self.gamepad_type.value if self.gamepad is not None else None)
 
     def find_gamepad(self) -> SDLGamepad | None:
         """Open the SDL3 handle that combines all connected gamepads."""
@@ -206,6 +206,9 @@ class GamepadRuntimeMixin(InputMixin):
         logger.info("Gamepad axes configured for SDL backend: %s", device.name)
 
     def _handle_pending_menu_fullscreen(self, current_time: float) -> None:
+        if getattr(self, '_gamepad_polling_suspended', False):
+            self.pending_menu_fullscreen_time = 0.0
+            return
         if not self.pending_menu_fullscreen_time:
             return
         if current_time < self.pending_menu_fullscreen_time:
@@ -217,10 +220,10 @@ class GamepadRuntimeMixin(InputMixin):
 
     def _poll_button_events(self, gamepad: SDLGamepad, current_time: float) -> None:
         """Emit button changes using SDL's standardized controller mapping."""
-        # Deliver Guide before Select when both change in the same SDL snapshot.
+        # Deliver modifier buttons before their combinations in the same snapshot.
         buttons = sorted(
             SDL_CONTROLLER_BUTTON_TO_PAD.items(),
-            key=lambda item: item[1] not in BUTTONS['guide'],
+            key=lambda item: (item[1] not in BUTTONS['guide'], item[1] != PAD_BUTTON_START),
         )
         for button_index, button_code in buttons:
             value = gamepad.get_button(button_index)
@@ -242,6 +245,8 @@ class GamepadRuntimeMixin(InputMixin):
         if button_code == PAD_BUTTON_START:
             self.start_held = value == 1
         emulation_combo = self._handle_emulation_combo(button_code, value)
+        if self._handle_system_keyboard_input(button_code, value, emulation_combo):
+            return
         if self._is_mouse_emulation_active() and value == 1:
             if button_code in BUTTONS['confirm']:
                 self.click_left()
@@ -264,6 +269,41 @@ class GamepadRuntimeMixin(InputMixin):
             self.emulation_triggered = not self.emulation_triggered
             self.pending_menu_fullscreen_time = 0.0
         return emulation_combo
+
+    def _handle_system_keyboard_input(self, button_code: int, value: int, combo: bool) -> bool:
+        keyboard = getattr(getattr(self, '_parent', None), 'system_keyboard', None)
+        if keyboard is None:
+            return False
+        if combo:
+            self._start_consumed = True
+            return True
+        if button_code == PAD_BUTTON_START:
+            if value:
+                self._start_consumed = False
+                return True
+            if getattr(self, '_start_consumed', False):
+                return True
+        if value and button_code in BUTTONS['prev_dir'] and self.start_held:
+            self._start_consumed = True
+            keyboard.toggle()
+            return True
+        if keyboard.isVisible():
+            actions = {'confirm': 'confirm', 'back': 'back', 'menu': 'back',
+                       'prev_tab': 'language', 'next_tab': 'shift', 'add_game': 'backspace'}
+            if button_code == PAD_BUTTON_START and not value:
+                keyboard.send('button', 'confirm')
+            else:
+                for name, action in actions.items():
+                    if button_code in BUTTONS[name]:
+                        if value:
+                            keyboard.send('button', action)
+                        elif name == 'add_game':
+                            keyboard.send('button', 'backspace_release')
+                        break
+            return True
+        if button_code == PAD_BUTTON_START and not value:
+            self.button_event.emit(PAD_BUTTON_START, 1)
+        return False
 
     def _should_schedule_menu_fullscreen(self, button_code: int, value: int, emulation_combo: bool) -> bool:
         return (
@@ -347,14 +387,22 @@ class GamepadRuntimeMixin(InputMixin):
 
     def _is_mouse_emulation_active(self) -> bool:
         """Return True when the gamepad currently drives mouse emulation."""
+        keyboard = getattr(getattr(self, '_parent', None), 'system_keyboard', None)
+        if keyboard is not None and keyboard.isVisible():
+            return False
         return self.mouse_emulation_enabled and self.emulation_active and self.emulation_triggered
 
     def _should_skip_regular_events(self) -> bool:
         """Skip regular UI events while mouse emulation owns the controller."""
+        keyboard = getattr(getattr(self, '_parent', None), 'system_keyboard', None)
+        if keyboard is not None and keyboard.isVisible():
+            return False
+        if getattr(self, '_gamepad_polling_suspended', False):
+            return True
         return self._is_mouse_emulation_active() and QApplication.activeWindow() is not None
 
     def _poll_gamepad(self) -> None:
-        if not self.running or self._gamepad_polling_suspended:
+        if not self.running:
             return
         current_time = time.time()
         active_gamepad = self.gamepad
@@ -382,7 +430,7 @@ class GamepadRuntimeMixin(InputMixin):
             self._poll_axis_events(active_gamepad, current_time)
             if (
                 current_time - self.last_update >= self.update_interval and
-                self.mouse_emulation_enabled and self.emulation_active and self.emulation_triggered
+                self._is_mouse_emulation_active()
             ):
                 self.update_mouse_position()
                 self.last_update = current_time

@@ -80,7 +80,7 @@ PortProtonQt uses code and dependencies from the following projects:
 - [heroic-gogdl](https://github.com/Heroic-Games-Launcher/heroic-gogdl) — GOG downloading module, [GPLv3](https://github.com/Heroic-Games-Launcher/heroic-gogdl/blob/main/LICENSE) license.
 - [Legendary](https://github.com/Heroic-Games-Launcher/legendary) — Epic Games launcher alternative, [GPLv3](https://github.com/Heroic-Games-Launcher/legendary/blob/master/LICENSE) license.
 - [pyte](https://github.com/selectel/pyte) — ANSI escape code parser, [LGPLv3](https://github.com/selectel/pyte?tab=LGPL-3.0-1-ov-file) license.
-- [gjs-osk](https://github.com/Vishram1123/gjs-osk) — base for virtual keyboard layout data, GPLv3 license.
+- [gjs-osk](https://github.com/Vishram1123/gjs-osk) — source of the original virtual keyboard layout data and reference for the system keyboard's compact layout and modifier key handling, [GPLv3](https://github.com/Vishram1123/gjs-osk/blob/main/LICENSE) license.
 - [omikuji](https://github.com/omikuji-launcher/omikuji) — inspiration and source material for the procedural detail page backgrounds, [GPLv3](https://github.com/omikuji-launcher/omikuji/blob/master/LICENSE) license.
 - [Bottles](https://github.com/bottlesdevs/Bottles) — source of the compatibility analysis rules, GPL-3.0-only license.
 

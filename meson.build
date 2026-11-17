@@ -40,6 +40,8 @@ pkgdatadir = pythondir / meson.project_name()
 cc = meson.get_compiler('c')
 sdl3_dep = dependency('sdl3', required: true)
 gamepad_sources = files('build-aux/src/gamepad_backend.c')
+keyboard_deps = [dependency('wayland-client'), dependency('x11')]
+keyboard_sources = files('build-aux/src/keyboard_backend.c')
 
 # Install Python package
 subdir('portprotonqt')

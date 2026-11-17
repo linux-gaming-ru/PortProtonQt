@@ -313,6 +313,31 @@ virtual_keyboard_fade_animation_duration = 140
 virtual_keyboard_slide_fade_animation_duration = 180
 virtual_keyboard_slide_bounce_animation_duration = 220
 virtual_keyboard_animation_type = "slide"
+SYSTEM_KEYBOARD = {
+    "width": 1000,
+    "height": 270,
+    "minimum_key_width": 18,
+    "warning_height": 36,
+    "key_height": 40,
+    "spacing": 4,
+    "margin": 5,
+    "row_units": 2,
+    "columns": 30,
+    "rows": (
+        (("Esc", 2), ("F1", 2), ("F2", 2), ("F3", 2), ("F4", 2), ("F5", 2), ("F6", 2),
+         ("F7", 2), ("F8", 2), ("F9", 2), ("F10", 2), ("F11", 2), ("F12", 2), ("PrtSc", 2), ("Del", 2)),
+        (("`", 2), ("1", 2), ("2", 2), ("3", 2), ("4", 2), ("5", 2), ("6", 2), ("7", 2),
+         ("8", 2), ("9", 2), ("0", 2), ("-", 2), ("=", 2), ("⌫", 4)),
+        (("TAB", 3), ("q", 2), ("w", 2), ("e", 2), ("r", 2), ("t", 2), ("y", 2), ("u", 2),
+         ("i", 2), ("o", 2), ("p", 2), ("[", 2), ("]", 2), ("\\", 3)),
+        (("CAPS", 4), ("a", 2), ("s", 2), ("d", 2), ("f", 2), ("g", 2), ("h", 2), ("j", 2),
+         ("k", 2), ("l", 2), (";", 2), ("'", 2), ("Enter", 4)),
+        (("⬆", 4), ("<", 2), ("z", 2), ("x", 2), ("c", 2), ("v", 2), ("b", 2), ("n", 2),
+         ("m", 2), (",", 2), (".", 2), ("/", 2), ("RShift", 4)),
+        (("Ctrl", 2), ("Super", 2), ("Alt", 2), ("Space", 10), ("🌐", 2), ("AltGr", 2),
+         ("RCtrl", 2), ("◄", 2), ("▲▼", 2), ("►", 2), ("Hide", 2)),
+    ),
+}
 DETAIL_PAGE_LAYOUT_MODE = "full"
 
 COMPATIBILITY_REPORT_DIALOG = {
