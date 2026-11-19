@@ -579,6 +579,8 @@ class MainWindow(
         self.restore_state()
 
         self.keyboard = VirtualKeyboard(self, self.theme)
+        from portprotonqt.system_keyboard import SystemKeyboard
+        self.system_keyboard = SystemKeyboard(self)
 
         self.detail_animations = DetailPageAnimations(self, self.theme)
         self._animations = {}
@@ -3529,6 +3531,9 @@ class MainWindow(
 
         # Full application close
         event.accept()
+        system_keyboard = getattr(self, 'system_keyboard', None)
+        if system_keyboard is not None:
+            system_keyboard.shutdown()
 
         watcher = getattr(self, "system_theme_watcher", None)
         if watcher is not None:

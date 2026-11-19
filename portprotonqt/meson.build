@@ -77,14 +77,36 @@ shared_library(
   install_dir: pkgdatadir,
 )
 
+shared_library(
+  'portprotonqt_keyboard',
+  keyboard_sources,
+  dependencies: keyboard_deps,
+  install: true,
+  install_dir: pkgdatadir,
+)
+
 install_data(
   ['compatibility_rules.json',
    'keyboard_layouts.json',
+   'keyboard_symbols.json',
   ],
   install_dir: pythondir / meson.project_name(),
 )
 
 # Install animations package
+install_data(
+  ['system_keyboard/__init__.py',
+   'system_keyboard/__main__.py',
+   'system_keyboard/input.py',
+   'system_keyboard/keys.py',
+   'system_keyboard/layouts.py',
+   'system_keyboard/detection.py',
+   'system_keyboard/native.py',
+   'system_keyboard/window.py',
+  ],
+  install_dir: pythondir / meson.project_name() / 'system_keyboard',
+)
+
 install_data(
   ['animations/__init__.py',
    'animations/detail_background.py',

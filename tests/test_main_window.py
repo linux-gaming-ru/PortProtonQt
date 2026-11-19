@@ -3571,3 +3571,11 @@ def test_steam_watch_keeps_stop_during_preparation_gap(monkeypatch: MonkeyPatch)
     monkeypatch.setattr(main_window_module.time, "monotonic", lambda: 1004.0)
     MainWindow._steam_scan_finished(cast(Any, window), "620")
     assert watch["running"] is False
+
+
+def test_system_keyboard_control_hint_opens_keyboard() -> None:
+    window = SimpleNamespace(system_keyboard=SimpleNamespace(toggle=MagicMock()))
+
+    MainWindowControlHintsMixin._triggerControlHintAction(cast(Any, window), "system_keyboard")
+
+    window.system_keyboard.toggle.assert_called_once_with()

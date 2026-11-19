@@ -316,7 +316,7 @@ def get_advanced_settings(disabled_text, logical_core_options=None, locale_optio
     advanced_settings.append({
         'key': 'PW_RUN_AFTER_EXE',
         'name': _("Run After / Wrapper"),
-        'description': _("Path to a second .exe, script, or wrapper command. Use %command% for the game command: /home/user/.local/bin/mako-launch %command%. Example: systemd-run --user --scope --slice=app.slice"),
+        'description': _("Path to a second .exe, script, or wrapper command. Use %command% for the game command"),
         'type': 'text',
         'default': ''
     })

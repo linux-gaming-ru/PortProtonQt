@@ -136,6 +136,7 @@ def test_theme_tab_focusables_include_delete_button(monkeypatch: MonkeyPatch) ->
 
 
 def test_native_gamepad_result_preserves_python_interface(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setattr(native_gamepad, "_library", MagicMock())
     controller = 42
     monkeypatch.setattr(native_gamepad._library, "portproton_gamepad_find", lambda: controller)
     monkeypatch.setattr(native_gamepad._library, "portproton_gamepad_close", lambda _handle: None)
@@ -159,6 +160,7 @@ def test_native_gamepad_result_preserves_python_interface(monkeypatch: MonkeyPat
 
 
 def test_native_gamepad_update_passes_collection_handle(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setattr(native_gamepad, "_library", MagicMock())
     updated_handles: list[int] = []
     gamepad = SDLGamepad(42, "Gamepads", "sdl3-gamepad:7", 7, 1)
     monkeypatch.setattr(native_gamepad._library, "portproton_gamepad_close", lambda _handle: None)
@@ -189,6 +191,7 @@ def test_native_gamepad_update_passes_collection_handle(monkeypatch: MonkeyPatch
 
 
 def test_native_gamepad_reports_sdl_discovery_error(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setattr(native_gamepad, "_library", MagicMock())
     monkeypatch.setattr(native_gamepad._library, "portproton_gamepad_find", lambda: None)
     monkeypatch.setattr(
         native_gamepad._library,
@@ -201,6 +204,7 @@ def test_native_gamepad_reports_sdl_discovery_error(monkeypatch: MonkeyPatch) ->
 
 
 def test_native_gamepad_absence_is_not_an_error(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setattr(native_gamepad, "_library", MagicMock())
     monkeypatch.setattr(native_gamepad._library, "portproton_gamepad_find", lambda: None)
     monkeypatch.setattr(native_gamepad._library, "portproton_gamepad_get_error", lambda: b"")
 

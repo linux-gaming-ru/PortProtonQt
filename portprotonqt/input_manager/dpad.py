@@ -311,6 +311,17 @@ class DpadInputMixin(InputMixin):
 
     @Slot(int, int, float)
     def handle_dpad_slot(self, code: int, value: int, current_time: float) -> None:
+        keyboard = getattr(self._parent, 'system_keyboard', None)
+        if keyboard is not None and keyboard.isVisible():
+            if value == 0:
+                self._reset_dpad_repeat()
+                return
+            directions = {PAD_DPAD_X: ('left', 'right'), PAD_AXIS_LEFT_X: ('left', 'right'),
+                          PAD_DPAD_Y: ('up', 'down'), PAD_AXIS_LEFT_Y: ('up', 'down')}
+            if code in directions:
+                self._start_dpad_repeat(code, value, current_time)
+                keyboard.send('direction', directions[code][value > 0])
+            return
         if self._route_surface_dpad(code, value, current_time):
             return
         self._handle_default_dpad(code, value, current_time)

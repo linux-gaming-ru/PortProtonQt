@@ -1047,3 +1047,46 @@ def test_native_portdata_shortcut_is_only_loaded_as_native(
     callback = MagicMock()
     MainWindow._process_desktop_file_async(cast(Any, SimpleNamespace()), destination, callback)
     callback.assert_called_once_with(None)
+
+
+@pytest.mark.parametrize("source", ["absolute", "theme", "missing"])
+def test_native_desktop_icon_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, source: str,
+) -> None:
+    from PySide6.QtGui import QImage
+
+    _app = QApplication.instance() or QApplication([])
+    icon = tmp_path / "icons/hicolor/128x128/apps/native-test.png"
+    icon.parent.mkdir(parents=True)
+    image = QImage(128, 128, QImage.Format.Format_ARGB32)
+    image.fill(0)
+    assert image.save(str(icon))
+    monkeypatch.setattr(QStandardPaths, "standardLocations", lambda _location: [str(tmp_path)])
+    monkeypatch.setattr(QIcon, "fromTheme", lambda _name: QIcon())
+    monkeypatch.setattr("portprotonqt.steam_api.api.get_cached_sgdb_cover", lambda _name: "")
+    value = str(icon) if source == "absolute" else "native-test" if source == "theme" else "missing-test-icon"
+    desktop = tmp_path / "game.desktop"
+    desktop.write_text("[Desktop Entry]\nType=Application\nName=Game\nExec=true\nCategories=Game;\nIcon=" + value + "\n")
+    game = read_native_game(desktop)
+    assert game is not None
+    if source == "missing":
+        assert game[2] == ""
+    else:
+        assert not QImage(game[2]).isNull()
+        assert Path(game[2]).is_relative_to(Path(os.environ["XDG_DATA_HOME"]) / "PortProtonQt/cache")
+        monkeypatch.setattr("portprotonqt.steam_api.shortcuts._resolve_desktop_icon", MagicMock(side_effect=AssertionError("Cache not reused")))
+        cached_game = read_native_game(desktop)
+        assert cached_game is not None
+        assert cached_game[2] == game[2]
+
+
+def test_native_cover_takes_priority_over_desktop_icon(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("portprotonqt.steam_api.api.get_cached_sgdb_cover", lambda _name: "cover.png")
+    generate = MagicMock(side_effect=AssertionError("Existing cover replaced"))
+    monkeypatch.setattr("portprotonqt.steam_api.shortcuts._generate_icon", generate)
+    desktop = tmp_path / "game.desktop"
+    desktop.write_text("[Desktop Entry]\nType=Application\nName=Game\nExec=true\nCategories=Game;\nIcon=native-test\n")
+    game = read_native_game(desktop)
+    assert game is not None
+    assert game[2] == "cover.png"
+    generate.assert_not_called()

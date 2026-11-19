@@ -8,7 +8,7 @@ arch=('x86_64')
 url="https://git.linux-gaming.ru/Linux-Gaming/PortProtonQt"
 license=('GPL-3.0')
 depends=('python-requests' 'python-babel' 'python-evdev' 'python-orjson'
-    'python-psutil' 'python-tqdm' 'python-vdf' 'python-libarchive-c' 'pyside6' 'python-rapidfuzz' 'python-pefile' 'python-pillow' 'perl-image-exiftool' 'python-websocket-client' 'cabextract' 'unzip' 'curl' 'file' 'findutils' 'gawk' 'grep' 'tar' 'xz' 'zstd' 'gzip' 'unrar' 'qt6-svg' 'qt6-imageformats' 'qt6-multimedia' 'pciutils' 'mesa-utils' 'vulkan-icd-loader' 'procps-ng' 'psmisc' '7zip' 'python-dbus-fast' 'sdl3' 'desktop-file-utils')
+    'python-psutil' 'python-tqdm' 'python-vdf' 'python-libarchive-c' 'pyside6' 'python-rapidfuzz' 'python-pefile' 'python-pillow' 'perl-image-exiftool' 'python-websocket-client' 'cabextract' 'unzip' 'curl' 'file' 'findutils' 'gawk' 'grep' 'tar' 'xz' 'zstd' 'gzip' 'unrar' 'qt6-svg' 'qt6-imageformats' 'qt6-multimedia' 'pciutils' 'mesa-utils' 'vulkan-icd-loader' 'procps-ng' 'psmisc' '7zip' 'python-dbus-fast' 'sdl3' 'desktop-file-utils' 'wayland' 'libx11' 'xkeyboard-config')
 makedepends=('meson' 'ninja' 'vulkan-headers' 'gettext' 'sdl3')
 conflicts=("portprotonqt-steam-compat")
 provides=('portprotonqt-steam-compat')

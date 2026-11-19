@@ -104,6 +104,10 @@ class TrayManager:
         self.tray_menu.addAction(self.pause_game_action)
         self.tray_menu.addAction(self.stop_game_action)
         self.update_game_actions()
+        system_keyboard = getattr(getattr(self, 'main_window', None), 'system_keyboard', None)
+        if system_keyboard is not None:
+            keyboard_action = self.tray_menu.addAction('System Keyboard')
+            keyboard_action.triggered.connect(system_keyboard.toggle)
         if self.minimal_mode:
             return
         self.tray_menu.addSeparator()

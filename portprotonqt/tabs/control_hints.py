@@ -1,6 +1,9 @@
 """Main window control hints mixin."""
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from portprotonqt.system_keyboard import SystemKeyboard
 
 from PySide6.QtCore import Qt, QRectF, Signal
 from PySide6.QtGui import QMouseEvent, QPainter, QPaintEvent, QPixmap
@@ -16,8 +19,8 @@ from portprotonqt.qt_utils import get_device_pixel_ratio
 
 logger = get_logger(__name__)
 
-GAMEPAD_HINT_ACTIONS = ("confirm", "back", "add_game", "search", "decrease_size", "increase_size", "context_menu", "menu", "guide_select", "mouse_emulation", "prev_section", "next_section")
-COMBINATION_HINT_ACTIONS = ("guide_select", "mouse_emulation")
+GAMEPAD_HINT_ACTIONS = ("confirm", "back", "add_game", "search", "decrease_size", "increase_size", "context_menu", "menu", "guide_select", "system_keyboard", "mouse_emulation", "prev_section", "next_section")
+COMBINATION_HINT_ACTIONS = ("guide_select", "system_keyboard", "mouse_emulation")
 VOLUME_HINT_ACTIONS = ("decrease_size", "increase_size")
 
 def _load_control_hint_pixmap(paths: tuple[str | None, ...], width: int, height: int) -> QPixmap:
@@ -118,6 +121,7 @@ class MainWindowControlHintsMixin:
     theme: Any
     theme_manager: Any
     input_manager: Any
+    system_keyboard: "SystemKeyboard"
     stackedWidget: QStackedWidget
     leftNavButton: QLabel
     rightNavButton: QLabel
@@ -220,6 +224,7 @@ class MainWindowControlHintsMixin:
             ("search", _("Search")),
             ("guide_select", _("Refresh Grid")),
             ("mouse_emulation", _("Mouse Emulation")),
+            ("system_keyboard", _("System Keyboard")),
             ("prev_section", _("Prev Tab")),
             ("next_section", _("Next Tab")),
         ]
@@ -294,7 +299,18 @@ class MainWindowControlHintsMixin:
             layout.setSpacing(6)
 
             guide_icon = _ControlHintIconLabel(26, 26)
-            if action == "mouse_emulation":
+            if action == "system_keyboard":
+                _set_control_hint_icon(
+                    guide_icon,
+                    (
+                        self.theme_manager.get_icon("xbox_start", self.current_theme_name, as_path=True),
+                        self.theme_manager.get_icon("ps_options", self.current_theme_name, as_path=True),
+                        self.theme_manager.get_theme_image("placeholder", self.current_theme_name),
+                    ),
+                    26,
+                    26,
+                )
+            elif action == "mouse_emulation":
                 _set_control_hint_icon(
                     guide_icon,
                     (
@@ -334,7 +350,18 @@ class MainWindowControlHintsMixin:
 
             select_icon = _ControlHintIconLabel(26, 26)
 
-            if action == "mouse_emulation":
+            if action == "system_keyboard":
+                _set_control_hint_icon(
+                    select_icon,
+                    (
+                        self.theme_manager.get_icon("xbox_y", self.current_theme_name, as_path=True),
+                        self.theme_manager.get_icon("ps_triangle", self.current_theme_name, as_path=True),
+                        self.theme_manager.get_theme_image("placeholder", self.current_theme_name),
+                    ),
+                    26,
+                    26,
+                )
+            elif action == "mouse_emulation":
                 _set_control_hint_icon(
                     select_icon,
                     (
@@ -390,6 +417,9 @@ class MainWindowControlHintsMixin:
 
     def _triggerControlHintAction(self, action: str | None) -> None:
         if action is None:
+            return
+        if action == "system_keyboard":
+            self.system_keyboard.toggle()
             return
         if action == "menu":
             self._triggerControlHintFullscreen()
@@ -504,7 +534,9 @@ class MainWindowControlHintsMixin:
                     ):
                         guide_icon, plus_icon, select_icon = icon_element
 
-                        if action == "mouse_emulation":
+                        if action == "system_keyboard":
+                            guide_icon_name = "ps_options" if gtype == GamepadType.PLAYSTATION else "xbox_start"
+                        elif action == "mouse_emulation":
                             if gtype == GamepadType.PLAYSTATION:
                                 guide_icon_name = "ps_share"
                             else:
@@ -537,7 +569,9 @@ class MainWindowControlHintsMixin:
                         )
 
                         select_icon_name = "xbox_view"
-                        if action == "guide_select":
+                        if action == "system_keyboard":
+                            select_icon_name = "ps_triangle" if gtype == GamepadType.PLAYSTATION else "xbox_y"
+                        elif action == "guide_select":
                             if gtype == GamepadType.XBOX:
                                 select_icon_name = "xbox_view"
                             elif gtype == GamepadType.PLAYSTATION:

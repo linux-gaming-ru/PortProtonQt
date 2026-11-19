@@ -20,6 +20,8 @@ BuildRequires:  gettext
 BuildRequires:  systemd-rpm-macros
 BuildRequires:  vulkan-loader-devel
 BuildRequires:  pkgconfig(sdl3)
+BuildRequires:  pkgconfig(wayland-client)
+BuildRequires:  pkgconfig(x11)
 BuildRequires:  gcc
 
 Obsoletes:      python3-%{pypi_name} < %{version}-%{release}
@@ -63,6 +65,7 @@ Requires:       psmisc
 Requires:       7zip
 Requires:       python3-dbus-fast
 Requires:       desktop-file-utils
+Requires:       xkeyboard-config
 
 # System Tab
 Recommends:     NetworkManager

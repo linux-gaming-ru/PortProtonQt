@@ -80,7 +80,7 @@ PortProtonQt использует код и зависимости от след
 - [heroic-gogdl](https://github.com/Heroic-Games-Launcher/heroic-gogdl) — модуль загрузки игр GOG, лицензия [GPLv3](https://github.com/Heroic-Games-Launcher/heroic-gogdl/blob/main/LICENSE).
 - [Legendary](https://github.com/Heroic-Games-Launcher/legendary) — альтернатива Epic Games Launcher, лицензия [GPLv3](https://github.com/Heroic-Games-Launcher/legendary/blob/master/LICENSE).
 - [pyte](https://github.com/selectel/pyte) — разбор ANSI escape-кодов, лицензия [LGPLv3](https://github.com/selectel/pyte?tab=LGPL-3.0-1-ov-file)
-- [gjs-osk](https://github.com/Vishram1123/gjs-osk) — основа данных раскладок виртуальной клавиатуры, лицензия GPLv3.
+- [gjs-osk](https://github.com/Vishram1123/gjs-osk) — источник исходных данных раскладок виртуальной клавиатуры и образец compact-компоновки системной клавиатуры и обработки клавиш-модификаторов, лицензия [GPLv3](https://github.com/Vishram1123/gjs-osk/blob/main/LICENSE).
 - [omikuji](https://github.com/omikuji-launcher/omikuji) — источник вдохновения и материалов для процедурных фонов детальной страницы, лицензия [GPLv3](https://github.com/omikuji-launcher/omikuji/blob/master/LICENSE).
 - [Bottles](https://github.com/bottlesdevs/Bottles) — источник правил анализа совместимости, лицензия GPL-3.0-only.
 
