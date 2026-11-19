@@ -348,7 +348,7 @@ class GSettingsLayout:
         cinnamon = any('cinnamon' in name for name in desktop)
         schema = 'org.cinnamon.desktop.keybindings.wm' if cinnamon else BINDINGS_SCHEMA
         # GNOME's forward shortcut toggles the two most recent sources; reverse MRU cycles all.
-        key = 'switch-input-source' if cinnamon else 'switch-input-source-backward'
+        key = 'switch-input-source' if cinnamon or 'budgie' in desktop else 'switch-input-source-backward'
         text = command(['gsettings', 'get', schema, key]).strip()
         bindings = ast.literal_eval(re.sub(r'^@as\s+', '', text))
         if not isinstance(bindings, list):

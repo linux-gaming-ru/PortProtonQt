@@ -1015,12 +1015,13 @@ def test_kde_dbus_connection_is_retained_and_closed(
 @pytest.mark.parametrize('desktop, schema', [
     ('X-Cinnamon', 'org.cinnamon.desktop.keybindings.wm'),
     ('GNOME', detection.BINDINGS_SCHEMA),
+    ('Budgie:GNOME', detection.BINDINGS_SCHEMA),
 ])
 def test_layout_shortcut_uses_desktop_binding(
     monkeypatch: pytest.MonkeyPatch, desktop: str, schema: str,
 ) -> None:
     monkeypatch.setenv('XDG_CURRENT_DESKTOP', desktop)
-    binding = '<Super>space' if desktop == 'X-Cinnamon' else '<Shift><Super>space'
+    binding = '<Shift><Super>space' if desktop == 'GNOME' else '<Super>space'
     command = MagicMock(return_value=repr([binding]))
     keymap = MagicMock()
     keymap.keycode.return_value = ecodes.KEY_SPACE
@@ -1029,7 +1030,7 @@ def test_layout_shortcut_uses_desktop_binding(
     expected = ((ecodes.KEY_LEFTSHIFT,) if desktop == 'GNOME' else ()) + (
         ecodes.KEY_LEFTMETA, ecodes.KEY_SPACE)
     assert detection.GSettingsLayout.switch_codes() == expected
-    key = 'switch-input-source' if desktop == 'X-Cinnamon' else 'switch-input-source-backward'
+    key = 'switch-input-source-backward' if desktop == 'GNOME' else 'switch-input-source'
     command.assert_called_once_with(['gsettings', 'get', schema, key])
     keymap.close.assert_called_once()
 
