@@ -1075,7 +1075,9 @@ def test_native_desktop_icon_fallback(
         assert not QImage(game[2]).isNull()
         assert Path(game[2]).is_relative_to(Path(os.environ["XDG_DATA_HOME"]) / "PortProtonQt/cache")
         monkeypatch.setattr("portprotonqt.steam_api.shortcuts._resolve_desktop_icon", MagicMock(side_effect=AssertionError("Cache not reused")))
-        assert read_native_game(desktop)[2] == game[2]
+        cached_game = read_native_game(desktop)
+        assert cached_game is not None
+        assert cached_game[2] == game[2]
 
 
 def test_native_cover_takes_priority_over_desktop_icon(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
