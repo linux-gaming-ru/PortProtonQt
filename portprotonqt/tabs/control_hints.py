@@ -1,6 +1,9 @@
 """Main window control hints mixin."""
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from portprotonqt.system_keyboard import SystemKeyboard
 
 from PySide6.QtCore import Qt, QRectF, Signal
 from PySide6.QtGui import QMouseEvent, QPainter, QPaintEvent, QPixmap
@@ -118,6 +121,7 @@ class MainWindowControlHintsMixin:
     theme: Any
     theme_manager: Any
     input_manager: Any
+    system_keyboard: "SystemKeyboard"
     stackedWidget: QStackedWidget
     leftNavButton: QLabel
     rightNavButton: QLabel

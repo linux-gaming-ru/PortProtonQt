@@ -53,7 +53,6 @@ def main() -> int:
         library.portproton_keyboard_has_layer_shell.argtypes = []
         library.portproton_keyboard_has_layer_shell.restype = ctypes.c_int
         layer_shell = bool(library.portproton_keyboard_has_layer_shell())
-    os.environ['QT_QPA_PLATFORM'] = 'offscreen' if layer_shell else 'xcb'
     app = QApplication([sys.argv[0]])
     app.setQuitOnLastWindowClosed(False)
     from portprotonqt.system_keyboard.window import SystemKeyboardWindow, WaylandWindow

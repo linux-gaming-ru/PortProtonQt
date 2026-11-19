@@ -685,15 +685,19 @@ def test_generic_wayland_uses_manual_labels_without_xwayland(
     x11.assert_not_called()
 
 
+@pytest.mark.parametrize('platform', [None, 'wayland', 'xcb', 'offscreen'])
 @pytest.mark.parametrize('wayland, supported', [(False, False), (True, False), (True, True)])
 def test_layer_shell_selection_uses_protocol_not_desktop(
-    monkeypatch: pytest.MonkeyPatch, wayland: bool, supported: bool,
+    monkeypatch: pytest.MonkeyPatch, wayland: bool, supported: bool, platform: str | None,
 ) -> None:
     from portprotonqt.system_keyboard import __main__ as keyboard_main
     from portprotonqt.system_keyboard import native
 
     monkeypatch.setenv('XDG_CURRENT_DESKTOP', 'unknown')
-    monkeypatch.setenv('QT_QPA_PLATFORM', 'offscreen')
+    if platform is None:
+        monkeypatch.delenv('QT_QPA_PLATFORM', raising=False)
+    else:
+        monkeypatch.setenv('QT_QPA_PLATFORM', platform)
     if wayland:
         monkeypatch.setenv('WAYLAND_DISPLAY', 'wayland-test')
     else:
@@ -715,7 +719,7 @@ def test_layer_shell_selection_uses_protocol_not_desktop(
     window.assert_called_once_with(layer_shell=supported)
     assert layer.called == supported
     assert loader.called == wayland
-    assert keyboard_main.os.environ['QT_QPA_PLATFORM'] == ('offscreen' if supported else 'xcb')
+    assert keyboard_main.os.environ.get('QT_QPA_PLATFORM') == platform
 
 
 @pytest.mark.parametrize('name, variable', [('umbriel', 'UMBRIEL_SOCKET'),
@@ -1144,6 +1148,7 @@ def test_x11_labels_follow_keymap_replacement(monkeypatch: pytest.MonkeyPatch, t
 
 
 def test_ibus_switch_cycles_all_configured_layouts(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv('XDG_SESSION_TYPE', 'x11')
     engines = ['xkb:us::eng', 'xkb:ru::rus', 'xkb:de::deu']
     current = [engines[0]]
     switched = []
