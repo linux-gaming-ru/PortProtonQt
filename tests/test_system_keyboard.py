@@ -43,6 +43,31 @@ def keyboard_window(monkeypatch: pytest.MonkeyPatch, application: QApplication) 
     window.hide()
 
 
+@pytest.mark.parametrize('layer_shell', [False, True])
+def test_layer_shell_keeps_qt_window_offscreen(
+    monkeypatch: pytest.MonkeyPatch, application: QApplication, layer_shell: bool,
+) -> None:
+    theme = load_theme('standart')
+    monkeypatch.setattr(system_window.ThemeManager, 'apply_theme', lambda self, name: theme)
+    monkeypatch.setattr(system_window, 'report', MagicMock())
+    window = SystemKeyboardWindow(layer_shell=layer_shell)
+    try:
+        window.ready = True
+        if layer_shell:
+            window.native_layer = MagicMock()
+        window.show_keyboard()
+        application.processEvents()
+        assert window.testAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen) is layer_shell
+        assert window.isVisible()
+        assert window.keyboard.isVisible()
+        if layer_shell:
+            window.native_layer.show_layer.assert_called_once_with()
+            assert not window.windowHandle().isExposed()
+    finally:
+        window.shutdown()
+        window.hide()
+
+
 def test_panel_matches_embedded_layout_without_extra_rows(keyboard_window: SystemKeyboardWindow) -> None:
     keyboard = keyboard_window.keyboard
     assert keyboard.current_layout == 'us'

@@ -264,6 +264,7 @@ class SystemKeyboardWindow(QWidget, MainWindowControlHintsMixin):
         self.setAttribute(Qt.WidgetAttribute.WA_X11NetWmWindowTypeDock)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.layer_shell = layer_shell
+        self.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, layer_shell)
         self.native_layer: Any = None
         self.theme_manager = ThemeManager()
         self.theme = self.theme_manager.apply_theme(ui_config.get_theme())
