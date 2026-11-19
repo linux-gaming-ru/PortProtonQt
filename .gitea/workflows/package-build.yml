@@ -164,7 +164,7 @@ jobs:
               install -y --disablerepo=fedora-cisco-openh264 \
                          git rpmdevtools meson ninja-build python3-devel \
                          systemd-rpm-macros vulkan-loader-devel redhat-rpm-config nodejs npm \
-                         gcc gettext 'pkgconfig(sdl3)'
+                         gcc gettext 'pkgconfig(sdl3)' 'pkgconfig(wayland-client)' 'pkgconfig(x11)'
 
       - name: Setup rpmbuild environment
         run: |
