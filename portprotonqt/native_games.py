@@ -393,6 +393,11 @@ def read_native_game(path: Path) -> tuple | None:
             cached_icon = get_exe_icon_cache_path(executable)
             if os.path.isfile(cached_icon):
                 cover = cached_icon
+        if not cover and entry.get("Icon"):
+            from portprotonqt.steam_api.shortcuts import _generate_icon
+
+            icon_cache = data_home / "PortProtonQt/cache/native_icons" / custom.name
+            cover = _generate_icon(str(path), str(icon_cache))
         return (name, description, cover,
                 "", "", NATIVE_URI_PREFIX + str(path), _("Never"), "", "", "", 0, 0,
                 "native", "", "", "")
