@@ -420,6 +420,13 @@ msgstr ""
 msgid "Refresh Grid"
 msgstr ""
 
+msgid "Cannot launch game while another game is running"
+msgstr ""
+
+#, python-brace-format
+msgid "Failed to launch game: {0}"
+msgstr ""
+
 msgid "Never"
 msgstr ""
 
@@ -479,9 +486,6 @@ msgstr ""
 msgid "PortProton start script not found"
 msgstr ""
 
-msgid "Cannot launch game while another game is running"
-msgstr ""
-
 msgid "Invalid command format (empty exec line)"
 msgstr ""
 
@@ -489,7 +493,7 @@ msgid "Invalid command format (native)"
 msgstr ""
 
 #, python-brace-format
-msgid "Failed to launch game: {0}"
+msgid "Launch \"{name}\" with PortProton"
 msgstr ""
 
 msgid "Choose Folder"
@@ -692,9 +696,10 @@ msgstr ""
 msgid "Run After / Wrapper"
 msgstr ""
 
+#, python-format
 msgid ""
-"Path to a second .exe, script, or wrapper command. Example: systemd-run "
-"--user --scope --slice=app.slice"
+"Path to a second .exe, script, or wrapper command. Use %command% for the "
+"game command"
 msgstr ""
 
 msgid "CPU Cores Limit"
@@ -793,10 +798,6 @@ msgid "No recent games"
 msgstr ""
 
 msgid "No favorites"
-msgstr ""
-
-#, python-brace-format
-msgid "Launch \"{name}\" with PortProton"
 msgstr ""
 
 msgid "Debug log mode was launched"
@@ -1062,10 +1063,6 @@ msgstr ""
 msgid "Download Selected"
 msgstr ""
 
-#, python-brace-format
-msgid "Error loading WINE/Proton: {error}"
-msgstr ""
-
 msgid "Version WINE/Proton"
 msgstr ""
 
@@ -1083,6 +1080,9 @@ msgid "Installed"
 msgstr ""
 
 msgid "Select to remove this WINE/Proton"
+msgstr ""
+
+msgid "Loading…"
 msgstr ""
 
 #, python-brace-format
@@ -1187,6 +1187,9 @@ msgid "Global Game Settings"
 msgstr ""
 
 msgid "Exe Settings"
+msgstr ""
+
+msgid "Native"
 msgstr ""
 
 msgid "Edit user.conf"
@@ -2003,6 +2006,9 @@ msgstr ""
 msgid "Mouse Emulation"
 msgstr ""
 
+msgid "System Keyboard"
+msgstr ""
+
 msgid "Connect"
 msgstr ""
 
@@ -2121,9 +2127,6 @@ msgid "Failed to refresh Epic library: {0}"
 msgstr ""
 
 msgid "Select installation folder"
-msgstr ""
-
-msgid "Another download is running"
 msgstr ""
 
 msgid "Another GOG operation is already running"
@@ -2509,9 +2512,6 @@ msgid "Dark"
 msgstr ""
 
 msgid "Light"
-msgstr ""
-
-msgid "Loading…"
 msgstr ""
 
 msgid "Failed to load themes"
