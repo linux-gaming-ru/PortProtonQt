@@ -140,7 +140,7 @@ def _add_source_corner(
 ) -> None:
     """Add source corner badge to cover frame."""
     source = game_source.lower()
-    if source not in ("steam", "gog", "egs", "portproton") or theme_manager is None:
+    if source not in ("steam", "gog", "egs", "portproton", "native") or theme_manager is None:
         return
 
     icon_name = f"badge_{source}"

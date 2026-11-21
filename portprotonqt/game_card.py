@@ -517,7 +517,7 @@ class GameCard(AnimatedCard):
         self.egsLabel.setVisible(self.egs_visible and not self.vertical_layout)
 
         self.nativeLabel = SourceCorner(
-            icon=self.theme_manager.get_icon("badge_linux", as_path=True),
+            icon=self.theme_manager.get_icon("badge_native", as_path=True),
             config=corner_config,
             parent=self.coverWidget,
         )
@@ -669,7 +669,7 @@ class GameCard(AnimatedCard):
             (self.steamLabel, "badge_steam"),
             (self.gogLabel, "badge_gog"),
             (self.egsLabel, "badge_egs"),
-            (self.nativeLabel, "badge_linux"),
+            (self.nativeLabel, "badge_native"),
             (self.portprotonLabel, "badge_portproton"),
         ):
             icon = self.theme_manager.get_icon(
