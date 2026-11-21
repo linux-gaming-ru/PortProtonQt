@@ -1,5 +1,6 @@
 from PySide6.QtCore import QObject, Signal, QThread, Qt, QCoreApplication
 import threading
+from tempfile import NamedTemporaryFile
 import os
 import time
 import requests
@@ -26,36 +27,57 @@ def get_requests_session():
     session.verify = True
     return session
 
+def is_complete_download(path: str | Path) -> bool:
+    """Check for a cached file, rejecting JPEGs without an end marker."""
+    jpeg_start = b"\xff\xd8"
+    jpeg_end = b"\xff\xd9"
+    try:
+        with open(path, "rb") as stream:
+            if stream.read(len(jpeg_start)) != jpeg_start:
+                return True
+            stream.seek(-len(jpeg_end), os.SEEK_END)
+            return stream.read() == jpeg_end
+    except OSError:
+        return False
+
+
+def _save_download(response: requests.Response, local_path: str, timeout: float) -> None:
+    deadline = time.monotonic() + timeout
+    total_size = int(response.headers.get('Content-Length', 0))
+    destination = Path(local_path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with NamedTemporaryFile(dir=destination.parent, delete=False) as stream:
+        temporary = Path(stream.name)
+        try:
+            with tqdm(total=total_size or None, unit='B', unit_scale=True,
+                      unit_divisor=1024, desc=f"Downloading {destination.name}", ascii=True) as pbar:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if time.monotonic() > deadline:
+                        raise requests.exceptions.ReadTimeout(f"Download exceeded {timeout}s total timeout")
+                    if chunk:
+                        stream.write(chunk)
+                        pbar.update(len(chunk))
+            stream.close()
+            if not is_complete_download(temporary):
+                raise OSError("Incomplete JPEG download")
+            temporary.replace(destination)
+        finally:
+            temporary.unlink(missing_ok=True)
+
+
 def download_with_cache(url, local_path, timeout=5, downloader_instance=None):
-    if os.path.exists(local_path):
+    if is_complete_download(local_path):
         return local_path
     session = get_requests_session()
     try:
         with session.get(url, stream=True, timeout=timeout) as response:
             response.raise_for_status()
-            deadline = time.monotonic() + timeout
-            total_size = int(response.headers.get('Content-Length', 0))
-            os.makedirs(os.path.dirname(local_path), exist_ok=True)
-            desc = Path(local_path).name
-            with tqdm(total=total_size if total_size > 0 else None,
-                      unit='B', unit_scale=True, unit_divisor=1024,
-                      desc=f"Downloading {desc}", ascii=True) as pbar:
-                with open(local_path, 'wb') as f:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        if time.monotonic() > deadline:
-                            raise requests.exceptions.ReadTimeout(
-                                f"Download exceeded {timeout}s total timeout for {url}"
-                            )
-                        if chunk:
-                            f.write(chunk)
-                            pbar.update(len(chunk))
+            _save_download(response, local_path, timeout)
         return local_path
     except Exception as e:
         logger.error(f"Download error {url}: {e}")
         if downloader_instance and hasattr(downloader_instance, '_last_error'):
             downloader_instance._last_error[url] = True
-        if os.path.exists(local_path):
-            os.remove(local_path)
         return None
 
 class Downloader(QObject):
@@ -101,7 +123,7 @@ class Downloader(QObject):
         last_request_time = [0.0]
 
         def _download_one(url, local_path):
-            if os.path.exists(local_path):
+            if is_complete_download(local_path):
                 return local_path
             try:
                 with rate_limit_lock:
@@ -112,22 +134,7 @@ class Downloader(QObject):
 
                 with session.get(url, stream=True, timeout=timeout) as response:
                     response.raise_for_status()
-                    deadline = time.monotonic() + timeout
-                    total_size = int(response.headers.get('Content-Length', 0))
-                    os.makedirs(os.path.dirname(local_path), exist_ok=True)
-                    desc = Path(local_path).name
-                    with tqdm(total=total_size if total_size > 0 else None,
-                              unit='B', unit_scale=True, unit_divisor=1024,
-                              desc=f"Downloading {desc}", ascii=True) as pbar:
-                        with open(local_path, 'wb') as f:
-                            for chunk in response.iter_content(chunk_size=8192):
-                                if time.monotonic() > deadline:
-                                    raise requests.exceptions.ReadTimeout(
-                                        f"Download exceeded {timeout}s total timeout for {url}"
-                                    )
-                                if chunk:
-                                    f.write(chunk)
-                                    pbar.update(len(chunk))
+                    _save_download(response, local_path, timeout)
                 return local_path
             except requests.exceptions.HTTPError as e:
                 if e.response is not None and e.response.status_code == 429:
@@ -136,43 +143,22 @@ class Downloader(QObject):
                     try:
                         with session.get(url, stream=True, timeout=timeout) as response:
                             response.raise_for_status()
-                            deadline = time.monotonic() + timeout
-                            total_size = int(response.headers.get('Content-Length', 0))
-                            os.makedirs(os.path.dirname(local_path), exist_ok=True)
-                            desc = Path(local_path).name
-                            with tqdm(total=total_size if total_size > 0 else None,
-                                      unit='B', unit_scale=True, unit_divisor=1024,
-                                      desc=f"Downloading {desc}", ascii=True) as pbar:
-                                with open(local_path, 'wb') as f:
-                                    for chunk in response.iter_content(chunk_size=8192):
-                                        if time.monotonic() > deadline:
-                                            raise requests.exceptions.ReadTimeout(
-                                                f"Download exceeded {timeout}s total timeout for {url}"
-                                            )
-                                        if chunk:
-                                            f.write(chunk)
-                                            pbar.update(len(chunk))
+                            _save_download(response, local_path, timeout)
                         return local_path
                     except Exception as retry_e:
                         logger.error(f"Retry download error {url}: {retry_e}")
                         with self._global_lock:
                             self._last_error[url] = True
-                        if os.path.exists(local_path):
-                            os.remove(local_path)
                         return None
                 else:
                     logger.error(f"Download error {url}: {e}")
                     with self._global_lock:
                         self._last_error[url] = True
-                    if os.path.exists(local_path):
-                        os.remove(local_path)
                     return None
             except Exception as e:
                 logger.error(f"Download error {url}: {e}")
                 with self._global_lock:
                     self._last_error[url] = True
-                if os.path.exists(local_path):
-                    os.remove(local_path)
                 return None
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -198,7 +184,7 @@ class Downloader(QObject):
                 return None
             if url in self._cache:
                 cached_path = self._cache[url]
-                if os.path.exists(cached_path):
+                if is_complete_download(cached_path):
                     if os.path.abspath(cached_path) == os.path.abspath(local_path):
                         return cached_path
                 else:
@@ -210,7 +196,7 @@ class Downloader(QObject):
                     return None
                 if url in self._cache:
                     cached_path = self._cache[url]
-                    if os.path.exists(cached_path) and os.path.abspath(cached_path) == os.path.abspath(local_path):
+                    if is_complete_download(cached_path) and os.path.abspath(cached_path) == os.path.abspath(local_path):
                         return cached_path
             result = download_with_cache(url, local_path, timeout, self)
             with self._global_lock:
@@ -241,7 +227,7 @@ class Downloader(QObject):
                         emitted_urls.add(url)
                     continue
                 cached_path = self._cache.get(url)
-                if (cached_path and os.path.exists(cached_path)
+                if (cached_path and is_complete_download(cached_path)
                         and os.path.abspath(cached_path) == os.path.abspath(path)):
                     if on_result and url not in emitted_urls:
                         on_result(url, cached_path)
@@ -289,7 +275,7 @@ class Downloader(QObject):
     def download_async(self, url: str, local_path: str, timeout: int = 5, callback: Callable[[str | None], None] | None = None, parallel: bool = False) -> QThread | None:
         with self._global_lock:
             previous_error = url in self._last_error
-            cached = not previous_error and os.path.exists(local_path)
+            cached = not previous_error and is_complete_download(local_path)
             if cached:
                 self._cache[url] = local_path
         if previous_error or cached:
