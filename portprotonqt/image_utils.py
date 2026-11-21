@@ -223,10 +223,12 @@ def set_animated_cover(label: QLabel, path: str, width: int, height: int, radius
     if not QFile.exists(path):
         return False
     if ext in (".png", ".apng") and _is_png_cover(path):
-        _set_cover_mask(label, width, height, radius)
         animation = _PillowAnimatedCover(label, path, width, height, radius)
         if not animation.start():
+            label.removeEventFilter(animation)
+            animation.deleteLater()
             return False
+        _set_cover_mask(label, width, height, radius)
         _animated_cover_movies[label] = animation
         _animated_cover_radii[label] = radius
         return True

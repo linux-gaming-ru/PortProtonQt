@@ -817,9 +817,8 @@ class GameCard(AnimatedCard):
                 radius = int(self.card_layout_cfg.get("cover_radius", 8) * self._scale)
                 aspect_mode = Qt.AspectRatioMode.KeepAspectRatio
             else:
-                target_width = int(self.base_card_width * self._scale)
-                cover_ratio = self.card_layout_cfg.get("cover_aspect_ratio", 1.5)
-                target_height = int(target_width * cover_ratio)
+                target_width = self.coverLabel.minimumWidth()
+                target_height = self.coverLabel.minimumHeight()
                 radius = int(self.card_layout_cfg.get("cover_radius", 15) * self._scale)
                 aspect_mode = Qt.AspectRatioMode.KeepAspectRatioByExpanding
             scaled_pixmap = self.base_pixmap.scaled(
@@ -828,6 +827,12 @@ class GameCard(AnimatedCard):
                 aspect_mode,
                 Qt.TransformationMode.SmoothTransformation,
             )
+            if not self.list_layout:
+                scaled_pixmap = scaled_pixmap.copy(
+                    (scaled_pixmap.width() - target_width) // 2,
+                    (scaled_pixmap.height() - target_height) // 2,
+                    target_width, target_height,
+                )
             rounded_pixmap = round_corners(scaled_pixmap, radius)
             try:
                 self.coverLabel.setPixmap(rounded_pixmap)

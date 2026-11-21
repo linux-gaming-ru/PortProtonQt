@@ -207,6 +207,14 @@ def test_horizontal_cards_fit_viewport_height(
         assert card.nameLabel.height() >= card.nameLabel.sizeHint().height()
         assert card.base_card_width <= manager.card_width
     assert card.base_card_width == manager.card_width
+    cover = QPixmap(180, 300)
+    cover.fill(QColor("red"))
+    card.on_cover_loaded(cover)
+    for scale in (1.0, 1.045, 1.25, 1.0):
+        card.setScale(scale)
+        app.processEvents()
+        assert card.coverLabel.pixmap().size() == card.coverLabel.size()
+        assert card.coverLabel.width() == int(card.base_card_width * scale)
     card.stop_background_activity()
     scroll.close()
     app.processEvents()
@@ -249,3 +257,18 @@ def test_large_resize_keeps_cards_separate_between_batches(
                 assert all(not geometry.intersects(other) for other in geometries[index + 1:])
     finally:
         scroll.close()
+
+
+def test_static_png_does_not_leave_cover_mask(tmp_path: Path) -> None:
+    from PySide6.QtWidgets import QLabel
+    from portprotonqt.image_utils import set_animated_cover
+
+    app = QApplication.instance() or QApplication([])
+    path = tmp_path / "poster.png"
+    pixmap = QPixmap(40, 60)
+    pixmap.fill(QColor("red"))
+    assert pixmap.save(str(path))
+    label = QLabel()
+    assert not set_animated_cover(label, str(path), 40, 60, 5)
+    assert label.mask().isEmpty()
+    app.processEvents()
