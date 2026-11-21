@@ -23,20 +23,22 @@ class GameEntry:
 class SearchConfig:
     """Search configuration."""
     token: str
-    hp_key: str
-    hp_val: str
+    hp_key: str | None = None
+    hp_val: str | None = None
 
 class HTTPClient:
     """HTTP client for HowLongToBeat API."""
     BASE_URL = 'https://howlongtobeat.com/'
-    AUTH_URL = BASE_URL + "api/bleed/init"
-    SEARCH_URL = BASE_URL + "api/bleed"
+    SEARCH_URL = BASE_URL + "api/search/site"
+    AUTH_URL = SEARCH_URL + "/init"
 
     def __init__(self, timeout: int = 60):
         self.timeout = timeout
         self.session = requests.Session()
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'application/json',
+            'Origin': self.BASE_URL.rstrip('/'),
             'referer': self.BASE_URL
         })
         proxy_settings = proxy_config.get_proxy()
@@ -52,15 +54,18 @@ class HTTPClient:
             )
             response.raise_for_status()
             data = response.json()
-        except (requests.RequestException, ValueError):
+        except requests.RequestException as exc:
+            status = exc.response.status_code if exc.response is not None else type(exc).__name__
+            logger.warning("HLTB initialization failed: %s", status)
             return None
-        if not data.get("token") or not data.get("hpKey") or not data.get("hpVal"):
+        token = data.get("token") if isinstance(data, dict) else None
+        if not isinstance(token, str) or not token:
+            logger.warning("HLTB initialization returned no token")
             return None
-        return SearchConfig(
-            token=data["token"],
-            hp_key=data["hpKey"],
-            hp_val=data["hpVal"]
-        )
+        hp_key, hp_val = data.get("hpKey"), data.get("hpVal")
+        if isinstance(hp_key, str) and hp_key and isinstance(hp_val, str) and hp_val:
+            return SearchConfig(token, hp_key, hp_val)
+        return SearchConfig(token)
 
     def search_games(self, game_name: str, page: int = 1, config: SearchConfig | None = None) -> str | None:
         if not config:
@@ -71,11 +76,10 @@ class HTTPClient:
             payload = self._build_search_payload(game_name, page, config)
             headers = {
                 'content-type': 'application/json',
-                'accept': '*/*',
-                'x-auth-token': config.token,
-                'x-hp-key': config.hp_key,
-                'x-hp-val': config.hp_val
+                'x-auth-token': config.token
             }
+            if config.hp_key and config.hp_val:
+                headers.update({'x-hp-key': config.hp_key, 'x-hp-val': config.hp_val})
             try:
                 response = self.session.post(
                     self.SEARCH_URL,
@@ -106,14 +110,15 @@ class HTTPClient:
                     'platform': "",
                     'sortCategory': "popular",
                     'rangeCategory': "main",
-                    'rangeTime': {'min': 0, 'max': 0},
+                    'rangeTime': {'min': None, 'max': None},
                     'gameplay': {
                         'perspective': "",
                         'flow': "",
                         'genre': "",
                         "difficulty": ""
                     },
-                    'rangeYear': {'max': "", 'min': ""}
+                    'year': "",
+                    'modifier': ""
                 },
                 'users': {'sortCategory': "postcount"},
                 'lists': {'sortCategory': "follows"},
@@ -121,10 +126,10 @@ class HTTPClient:
                 'sort': 0,
                 'randomizer': 0
             },
-            'useCache': True,
-            'fields': ["comp_main", "comp_plus", "comp_100"]
+            'useCache': True
         }
-        payload[config.hp_key] = config.hp_val
+        if config.hp_key and config.hp_val:
+            payload[config.hp_key] = config.hp_val
         return payload
 
 class ResultParser:

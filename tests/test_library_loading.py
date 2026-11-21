@@ -65,7 +65,7 @@ def test_native_card_uses_linux_source_corner(
     ))
     assert card.native_visible
     assert isinstance(card.nativeLabel._icon, str)
-    assert Path(card.nativeLabel._icon).name == "badge_linux.svg"
+    assert Path(card.nativeLabel._icon).name == "badge_native.svg"
     assert Path(card.nativeLabel._icon).is_file()
     assert not card.portproton_visible
     card.deleteLater()

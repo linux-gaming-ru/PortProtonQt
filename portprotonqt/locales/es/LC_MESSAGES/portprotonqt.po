@@ -434,6 +434,13 @@ msgstr "Extrayendo"
 msgid "Refresh Grid"
 msgstr "Actualizar cuadrícula"
 
+msgid "Cannot launch game while another game is running"
+msgstr "No se puede iniciar el juego mientras hay otro en ejecución"
+
+#, python-brace-format
+msgid "Failed to launch game: {0}"
+msgstr "Error al iniciar el juego: {0}"
+
 msgid "Never"
 msgstr "Nunca"
 
@@ -497,9 +504,6 @@ msgstr "Juego no encontrado."
 msgid "PortProton start script not found"
 msgstr "No se ha encontrado el script de inicio de PortProton"
 
-msgid "Cannot launch game while another game is running"
-msgstr "No se puede iniciar el juego mientras hay otro en ejecución"
-
 msgid "Invalid command format (empty exec line)"
 msgstr "Formato de comando no válido (línea de ejecución vacía)"
 
@@ -507,8 +511,8 @@ msgid "Invalid command format (native)"
 msgstr "Formato de comando no válido (nativo)"
 
 #, python-brace-format
-msgid "Failed to launch game: {0}"
-msgstr "Error al iniciar el juego: {0}"
+msgid "Launch \"{name}\" with PortProton"
+msgstr "Iniciar «{name}» con PortProton"
 
 msgid "Choose Folder"
 msgstr "Seleccionar carpeta"
@@ -765,9 +769,10 @@ msgstr ""
 msgid "Run After / Wrapper"
 msgstr "Ejecutar después / Envoltorio"
 
+#, fuzzy, python-format
 msgid ""
-"Path to a second .exe, script, or wrapper command. Example: systemd-run "
-"--user --scope --slice=app.slice"
+"Path to a second .exe, script, or wrapper command. Use %command% for the "
+"game command"
 msgstr ""
 "Ruta a un segundo archivo .exe, script o comando de envoltura. Ejemplo: "
 "systemd-run --user --scope --slice=app.slice"
@@ -886,10 +891,6 @@ msgstr "Sin juegos recientes"
 
 msgid "No favorites"
 msgstr "Sin favoritos"
-
-#, python-brace-format
-msgid "Launch \"{name}\" with PortProton"
-msgstr "Iniciar «{name}» con PortProton"
 
 msgid "Debug log mode was launched"
 msgstr "Se ha iniciado el modo de registro de depuración"
@@ -1159,10 +1160,6 @@ msgstr "Descargando: "
 msgid "Download Selected"
 msgstr "Descargar seleccionados"
 
-#, python-brace-format
-msgid "Error loading WINE/Proton: {error}"
-msgstr "Error al cargar WINE/Proton: {error}"
-
 msgid "Version WINE/Proton"
 msgstr "Versión de WINE/Proton"
 
@@ -1181,6 +1178,9 @@ msgstr "Instalado"
 
 msgid "Select to remove this WINE/Proton"
 msgstr "Seleccione para eliminar WINE/Proton"
+
+msgid "Loading…"
+msgstr "Cargando…"
 
 #, python-brace-format
 msgid "Selected {} WINE/Proton:\n"
@@ -1289,6 +1289,9 @@ msgid "Global Game Settings"
 msgstr "Ajustes de Wine"
 
 msgid "Exe Settings"
+msgstr ""
+
+msgid "Native"
 msgstr ""
 
 msgid "Edit user.conf"
@@ -2114,6 +2117,9 @@ msgstr ""
 msgid "Mouse Emulation"
 msgstr ""
 
+msgid "System Keyboard"
+msgstr ""
+
 msgid "Connect"
 msgstr ""
 
@@ -2234,10 +2240,6 @@ msgstr "Error al iniciar el juego: {0}"
 
 msgid "Select installation folder"
 msgstr ""
-
-#, fuzzy
-msgid "Another download is running"
-msgstr "Descargando"
 
 msgid "Another GOG operation is already running"
 msgstr ""
@@ -2632,9 +2634,6 @@ msgstr ""
 
 msgid "Light"
 msgstr ""
-
-msgid "Loading…"
-msgstr "Cargando…"
 
 msgid "Failed to load themes"
 msgstr "Error al cargar los temas"

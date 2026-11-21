@@ -12,7 +12,7 @@ import subprocess
 from datetime import datetime, timedelta
 
 import pytest
-from PySide6.QtCore import QEventLoop, QStandardPaths, QThread, QTimer, Qt
+from PySide6.QtCore import QEventLoop, QMimeData, QRect, QStandardPaths, QThread, QTimer, Qt, QUrl
 from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QPushButton
 from PySide6.QtGui import QIcon
 
@@ -167,6 +167,71 @@ def test_native_launch_preserves_desktop_file_and_bypasses_wine(
     assert window.current_running_button is button
     assert window.native_game_running
     window._set_running_button_stop.assert_called_once()
+
+
+@pytest.mark.parametrize("name", ["Game.AppImage", "Game.bin", "Game with spaces", "Game.exe"])
+def test_quick_launch_file_picker(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str) -> None:
+    path = tmp_path / name
+    path.touch(mode=0o755)
+    text = tmp_path / "README"
+    text.touch(mode=0o644)
+    picker = MagicMock()
+    monkeypatch.setattr("portprotonqt.tabs.library_tab.FileExplorer", picker)
+    window = cast(Any, SimpleNamespace(
+        theme=None, geometry=lambda: QRect(), game_processes=[], input_manager=MagicMock(),
+        handle_launch_exe=MagicMock(), _set_running_button_stop=MagicMock(), checkTargetExe=MagicMock(),
+    ))
+    window._quick_launch_selected = MainWindow._quick_launch_selected.__get__(window)
+    window._launch_native_game = MainWindow._launch_native_game.__get__(window)
+    popen = MagicMock()
+    monkeypatch.setattr("portprotonqt.main_window.subprocess.Popen", popen)
+    monkeypatch.setattr("portprotonqt.main_window.QTimer", MagicMock())
+    monkeypatch.setattr("portprotonqt.main_window.SoundManager", MagicMock())
+
+    MainWindow.quickLaunch(window)
+    file_filter = picker.call_args.kwargs["file_filter"]
+    assert file_filter(str(path))
+    assert not file_filter(str(text))
+    shortcut = tmp_path / "Launcher.Desktop"
+    shortcut.touch(mode=0o755)
+    assert not file_filter(str(shortcut))
+    callback, = picker.return_value.file_signal.file_selected.connect.call_args.args
+    warning = MagicMock()
+    monkeypatch.setattr("portprotonqt.main_window.QMessageBox.warning", warning)
+    callback(str(shortcut))
+    warning.assert_called_once()
+    popen.assert_not_called()
+    shortcut.unlink()
+
+    callback(str(path))
+
+    if path.suffix == ".exe":
+        window.handle_launch_exe.assert_called_once_with(str(path))
+        popen.assert_not_called()
+    else:
+        window.handle_launch_exe.assert_not_called()
+        popen.assert_called_once_with([str(path)], cwd=str(tmp_path), start_new_session=True, text=True)
+        assert window.native_game_running
+        assert not list(tmp_path.rglob("*.desktop"))
+
+
+@pytest.mark.parametrize("name", ["Game.AppImage", "Game.bin", "Game"])
+def test_drop_native_executable_opens_add_dialog(tmp_path: Path, name: str) -> None:
+    path = tmp_path / name
+    path.touch(mode=0o755)
+    mime = QMimeData()
+    mime.setUrls([QUrl.fromLocalFile(str(path))])
+    event = cast(Any, SimpleNamespace(
+        mimeData=lambda: mime, acceptProposedAction=MagicMock(), ignore=MagicMock(),
+    ))
+    window = cast(Any, SimpleNamespace(openAddGameDialog=MagicMock()))
+
+    MainWindow.dragEnterEvent(window, event)
+    MainWindow.dropEvent(window, event)
+
+    assert event.acceptProposedAction.call_count == 2
+    event.ignore.assert_not_called()
+    window.openAddGameDialog.assert_called_once_with(str(path))
 
 
 def test_native_context_launch_does_not_require_portproton() -> None:

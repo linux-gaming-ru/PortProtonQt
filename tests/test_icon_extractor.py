@@ -650,6 +650,8 @@ def test_remote_cover_replaces_immediate_exe_fallback_only_on_success(
         lambda: SimpleNamespace(current_theme_module=theme),
     )
 
+    downloaded_path = fallback_path.parent / filename
+    downloaded_path.write_bytes(b"\xff\xd8truncated JPEG")
     image_utils.load_pixmap_async(
         url, 100, 150,
         lambda pixmap: loaded_paths.append(cast(FakePixmap, pixmap).path),
@@ -657,7 +659,6 @@ def test_remote_cover_replaces_immediate_exe_fallback_only_on_success(
         fallback_icon_path=str(fallback_path),
     )
     callbacks[0](None)
-    downloaded_path = tmp_path / "cache" / "PortProtonQt" / "images" / filename
     downloaded_path.write_bytes(b"cover")
     callbacks[0](str(downloaded_path))
 

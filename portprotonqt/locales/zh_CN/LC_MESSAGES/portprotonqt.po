@@ -422,6 +422,13 @@ msgstr "正在提取"
 msgid "Refresh Grid"
 msgstr "刷新网格"
 
+msgid "Cannot launch game while another game is running"
+msgstr "另一游戏正在运行时无法启动游戏"
+
+#, python-brace-format
+msgid "Failed to launch game: {0}"
+msgstr "启动游戏失败：{0}"
+
 msgid "Never"
 msgstr "从不"
 
@@ -486,9 +493,6 @@ msgstr "未找到游戏。"
 msgid "PortProton start script not found"
 msgstr "未找到 PortProton 启动脚本"
 
-msgid "Cannot launch game while another game is running"
-msgstr "另一游戏正在运行时无法启动游戏"
-
 msgid "Invalid command format (empty exec line)"
 msgstr "命令格式无效（exec 行为空）"
 
@@ -496,8 +500,8 @@ msgid "Invalid command format (native)"
 msgstr "命令格式无效（原生）"
 
 #, python-brace-format
-msgid "Failed to launch game: {0}"
-msgstr "启动游戏失败：{0}"
+msgid "Launch \"{name}\" with PortProton"
+msgstr "使用 PortProton 启动\"{name}\""
 
 msgid "Choose Folder"
 msgstr "选择文件夹"
@@ -723,9 +727,10 @@ msgstr ""
 msgid "Run After / Wrapper"
 msgstr "运行后 / 包装器"
 
+#, fuzzy, python-format
 msgid ""
-"Path to a second .exe, script, or wrapper command. Example: systemd-run "
-"--user --scope --slice=app.slice"
+"Path to a second .exe, script, or wrapper command. Use %command% for the "
+"game command"
 msgstr "指向第二个 .exe、脚本或包装器命令的路径。示例：systemd-run --user --scope --slice=app.slice"
 
 msgid "CPU Cores Limit"
@@ -835,10 +840,6 @@ msgstr "无最近游戏"
 
 msgid "No favorites"
 msgstr "无收藏"
-
-#, python-brace-format
-msgid "Launch \"{name}\" with PortProton"
-msgstr "使用 PortProton 启动\"{name}\""
 
 msgid "Debug log mode was launched"
 msgstr "调试日志模式已启动"
@@ -1110,10 +1111,6 @@ msgstr "正在下载： "
 msgid "Download Selected"
 msgstr "下载选定项"
 
-#, python-brace-format
-msgid "Error loading WINE/Proton: {error}"
-msgstr "加载 WINE/Proton 时出错：{error}"
-
 msgid "Version WINE/Proton"
 msgstr "WINE/Proton 版本"
 
@@ -1132,6 +1129,9 @@ msgstr "已安装"
 
 msgid "Select to remove this WINE/Proton"
 msgstr "选择以移除此 WINE/Proton"
+
+msgid "Loading…"
+msgstr "加载中…"
 
 #, python-brace-format
 msgid "Selected {} WINE/Proton:\n"
@@ -1242,6 +1242,10 @@ msgstr "保存设置"
 
 msgid "Exe Settings"
 msgstr "可执行文件设置"
+
+#, fuzzy
+msgid "Native"
+msgstr "晚"
 
 msgid "Edit user.conf"
 msgstr "编辑 user.conf"
@@ -2060,6 +2064,10 @@ msgstr "全屏"
 msgid "Mouse Emulation"
 msgstr "鼠标模拟"
 
+#, fuzzy
+msgid "System Keyboard"
+msgstr "捕获键盘"
+
 msgid "Connect"
 msgstr "连接"
 
@@ -2190,10 +2198,6 @@ msgstr "启动游戏失败：{0}"
 
 msgid "Select installation folder"
 msgstr "选择安装文件夹"
-
-#, fuzzy
-msgid "Another download is running"
-msgstr "正在下载"
 
 msgid "Another GOG operation is already running"
 msgstr "另一个 GOG 操作正在运行中"
@@ -2593,9 +2597,6 @@ msgstr "深色"
 
 msgid "Light"
 msgstr "浅色"
-
-msgid "Loading…"
-msgstr "加载中…"
 
 msgid "Failed to load themes"
 msgstr "加载主题失败"

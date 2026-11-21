@@ -309,9 +309,84 @@ def test_download_sizes_cache(tmp_path: Path) -> None:
     assert api.get_cached_download_sizes("123") == (100, 200)
 
 
+GOG_SECTIONED_DESCRIPTION = (
+    "<h4>Industrial revolution</h4>\n<p>\n<br>\nMagic meets technology.</p>"
+    "<p>&nbsp;</p><h4>Features<br></h4><ul><li>Character development</li></ul>"
+)
+
+
+def test_load_library_shortens_cached_description(tmp_path: Path) -> None:
+    api = GOGAPI()
+    api.library_path = tmp_path / "library.json"
+    games = [{"app_id": "1207658829", "description": GOG_SECTIONED_DESCRIPTION}]
+    api._save_json(api.library_path, games)
+    original = api.library_path.read_bytes()
+
+    assert api.load_library() == [{"app_id": "1207658829", "description": "Magic meets technology."}]
+    assert api.library_path.read_bytes() == original
+
+
 @pytest.mark.parametrize(
     ("lead", "expected"),
     [
+        (GOG_SECTIONED_DESCRIPTION, "Magic meets technology."),
+        pytest.param(
+            '<div><a href="/game/hellpoint"><img src="banner.jpg"></a>'
+            '<span>The full version of Hellpoint is available on GOG.com. You can buy it '
+            '<a href="/game/hellpoint"><b>here</b></a></span></div><hr>\n<br>\n'
+            'The Thespian Feast — бесплатная глава Hellpoint.',
+            "The Thespian Feast — бесплатная глава Hellpoint.",
+            id="hellpoint-full-version-promo",
+        ),
+        pytest.param(
+            "<b><i>Я пишу это в состоянии значительного душевного напряжения.</i></b>"
+            "<br><br>Dagon — трехмерная история по рассказу <b>Лавкрафта</b>.",
+            "Dagon — трехмерная история по рассказу <b>Лавкрафта</b>.",
+            id="dagon-epigraph-before-synopsis",
+        ),
+        ("<i>Only available description.</i>", "<i>Only available description.</i>"),
+        pytest.param(
+            '<p class="module">Discover <a href="https://example.com">more games</a>.</p>'
+            '<br><hr><b><h4>Game Description</h4></b>\nShortly after landing…\n<br>\n'
+            '<b><h4>About Quake II RTX</h4> </b>Technical details.',
+            "Shortly after landing…",
+            id="quake-rtx-promo",
+        ),
+        pytest.param(
+            '<p><img src="banner.jpg"></p><p class="module">В издание входит дополнение.</p>'
+            '<p>&nbsp;</p><p>Реалистичный психологический триллер.&nbsp;',
+            "Реалистичный психологический триллер.",
+            id="postal-edition-module",
+        ),
+        pytest.param(
+            '<b>Внимание! В этой игре нет русской локализации.</b><br><br>Описание игры.',
+            "Описание игры.",
+            id="sang-froid-localization-notice",
+        ),
+        pytest.param(
+            '<img src="logo.png" />\n<br>\n<b>Martial Law</b> — визуальная новелла.'
+            '<h4>Особенности:</h4><ul><li>Много вариантов исхода.</li></ul><i>GameJam</i>',
+            "<b>Martial Law</b> — визуальная новелла.",
+            id="martial-law-logo-and-features",
+        ),
+        ("<p>&nbsp;</p>", "English description"),
+        ("Intro\n<strong>War Wind</strong> continues.", "Intro<br><b>War Wind</b> continues."),
+        pytest.param(
+            '<div style="overflow: hidden;"> <a href="/game/demo"><img src="cover.jpg"></a>'
+            '<span>Demo</span></div><hr>Game synopsis.',
+            "Game synopsis.",
+            id="linked-cover-cross-sell",
+        ),
+        pytest.param(
+            {
+                "lead": '<div><a href="/game/shores_unknown"><img src="banner.jpg"></a><span>',
+                "full": '<div><span>The full version of Shores Unknown is available on GOG.com. '
+                'You can purchase it <a href="/game/shores_unknown">here</a></span></div><hr>'
+                '<i>Shores Unknown: Arrival</i> is a free demo.<br><br>Game features.',
+            },
+            "<i>Shores Unknown: Arrival</i> is a free demo.",
+            id="shores-unknown-truncated-lead",
+        ),
         (
             "Description française.<br><br>Deuxième paragraphe.",
             "Description française.",
@@ -323,7 +398,7 @@ def test_download_sizes_cache(tmp_path: Path) -> None:
     ],
 )
 def test_get_game_loads_localized_product_description(
-    monkeypatch: pytest.MonkeyPatch, lead: str, expected: str
+    monkeypatch: pytest.MonkeyPatch, lead: str | dict[str, str], expected: str
 ) -> None:
     gamesdb_response = Mock()
     gamesdb_response.json.return_value = {
@@ -337,7 +412,7 @@ def test_get_game_loads_localized_product_description(
     }
     product_response = Mock()
     product_response.json.return_value = {
-        "description": {"lead": lead},
+        "description": {"lead": lead} if isinstance(lead, str) else lead,
     }
     request = Mock(side_effect=[gamesdb_response, product_response])
     monkeypatch.setattr("portprotonqt.gog_api.get_metadata_language", lambda: "fr")

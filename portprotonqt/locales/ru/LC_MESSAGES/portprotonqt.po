@@ -431,6 +431,13 @@ msgstr "Распаковка"
 msgid "Refresh Grid"
 msgstr "Обновить сетку"
 
+msgid "Cannot launch game while another game is running"
+msgstr "Невозможно запустить игру пока запущена другая"
+
+#, python-brace-format
+msgid "Failed to launch game: {0}"
+msgstr "Не удалось запустить игру: {0}"
+
 msgid "Never"
 msgstr "Никогда"
 
@@ -493,9 +500,6 @@ msgstr "Игра не найдена."
 msgid "PortProton start script not found"
 msgstr "Скрипт запуска PortProton не найден"
 
-msgid "Cannot launch game while another game is running"
-msgstr "Невозможно запустить игру пока запущена другая"
-
 msgid "Invalid command format (empty exec line)"
 msgstr "Неправильный формат команды (пустая строка exec)"
 
@@ -503,8 +507,8 @@ msgid "Invalid command format (native)"
 msgstr "Неверный формат команды (нативный)"
 
 #, python-brace-format
-msgid "Failed to launch game: {0}"
-msgstr "Не удалось запустить игру: {0}"
+msgid "Launch \"{name}\" with PortProton"
+msgstr "Запустить «{name}» с помощью PortProton"
 
 msgid "Choose Folder"
 msgstr "Выбрать папку"
@@ -746,9 +750,10 @@ msgstr ""
 msgid "Run After / Wrapper"
 msgstr "Запустить после"
 
+#, fuzzy, python-format
 msgid ""
-"Path to a second .exe, script, or wrapper command. Example: systemd-run "
-"--user --scope --slice=app.slice"
+"Path to a second .exe, script, or wrapper command. Use %command% for the "
+"game command"
 msgstr ""
 "Путь к второму файлу .exe, скрипту или команде-обёртке. Пример: systemd-"
 "run --user --scope --slice=app.slice"
@@ -871,10 +876,6 @@ msgstr "Нет недавних игр"
 
 msgid "No favorites"
 msgstr "Нет избранных"
-
-#, python-brace-format
-msgid "Launch \"{name}\" with PortProton"
-msgstr "Запустить «{name}» с помощью PortProton"
 
 msgid "Debug log mode was launched"
 msgstr "Запущен режим логирования"
@@ -1143,10 +1144,6 @@ msgstr "Скачивание: "
 msgid "Download Selected"
 msgstr "Скачать выбранное"
 
-#, python-brace-format
-msgid "Error loading WINE/Proton: {error}"
-msgstr "Ошибка загрузки WINE/Proton: {error}"
-
 msgid "Version WINE/Proton"
 msgstr "Версия WINE/Proton"
 
@@ -1165,6 +1162,9 @@ msgstr "Установленные"
 
 msgid "Select to remove this WINE/Proton"
 msgstr "Выберите, чтобы удалить WINE/Proton"
+
+msgid "Loading…"
+msgstr "Загрузка…"
 
 #, python-brace-format
 msgid "Selected {} WINE/Proton:\n"
@@ -1274,6 +1274,10 @@ msgstr "Глобальные настройки игры"
 
 msgid "Exe Settings"
 msgstr "Настройки EXE"
+
+#, fuzzy
+msgid "Native"
+msgstr "После отображения кадра"
 
 msgid "Edit user.conf"
 msgstr "Изменить user.conf"
@@ -2103,6 +2107,10 @@ msgstr "Полный экран"
 msgid "Mouse Emulation"
 msgstr "Эмуляция мыши"
 
+#, fuzzy
+msgid "System Keyboard"
+msgstr "Перехват нажатий кнопок клавиатуры"
+
 msgid "Connect"
 msgstr "Подключиться"
 
@@ -2220,9 +2228,6 @@ msgstr "Не удалось обновить библиотеку Epic: {0}"
 
 msgid "Select installation folder"
 msgstr "Выберите папку установки"
-
-msgid "Another download is running"
-msgstr "Другая загрузка уже выполняется"
 
 msgid "Another GOG operation is already running"
 msgstr "Другая операция GOG уже выполняется"
@@ -2608,9 +2613,6 @@ msgstr "Тёмная"
 
 msgid "Light"
 msgstr "Светлая"
-
-msgid "Loading…"
-msgstr "Загрузка…"
 
 msgid "Failed to load themes"
 msgstr "Не удалось загрузить темы"

@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QSpacerItem, QGraphicsPixmapItem, QDialog, QApplic
 from PIL import Image, ImageQt, ImageSequence
 from portprotonqt.config import CACHE_DIR, ui_config
 from portprotonqt.theme_manager import ThemeManager, load_theme
-from portprotonqt.downloader import Downloader
+from portprotonqt.downloader import Downloader, is_complete_download
 from portprotonqt.icon_extractor import generate_thumbnail
 from portprotonqt.logger import get_logger
 from portprotonqt.qt_utils import get_device_pixel_ratio
@@ -469,7 +469,7 @@ def load_pixmap_async(
                         appid = parts[idx + 1]
                 if appid:
                     local_path = os.path.join(image_folder, f"{appid}.jpg")
-                    if os.path.exists(local_path):
+                    if is_complete_download(local_path):
                         pixmap = QPixmap(local_path)
                         # Check if the pixmap loaded successfully
                         if pixmap.isNull():
@@ -506,7 +506,7 @@ def load_pixmap_async(
                 local_path = os.path.join(image_folder, filename)
 
                 logger.debug("SGDB cover check: %s exists=%s", local_path, os.path.exists(local_path))
-                if os.path.exists(local_path):
+                if is_complete_download(local_path):
                     pixmap = QPixmap(local_path)
                     # Check if the pixmap loaded successfully
                     if pixmap.isNull():
@@ -543,7 +543,7 @@ def load_pixmap_async(
                 if not filename:
                     filename = f"{app_name}{_get_cover_url_suffix(cover)}"
                 local_path = os.path.join(image_folder, filename)
-                if os.path.exists(local_path):
+                if is_complete_download(local_path):
                     pixmap = QPixmap(local_path)
                     # Check if the pixmap loaded successfully
                     if pixmap.isNull():

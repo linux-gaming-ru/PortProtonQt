@@ -13,6 +13,7 @@ from shiboken6 import delete
 import portprotonqt.input_manager as input_manager
 import portprotonqt.input_manager.buttons as input_buttons
 import portprotonqt.input_manager.dpad as input_dpad
+import portprotonqt.input_manager.keyboard as input_keyboard
 import portprotonqt.input_manager.runtime as input_runtime
 import portprotonqt.native_gamepad as native_gamepad
 from portprotonqt.input_manager.constants import (
@@ -528,6 +529,32 @@ def test_library_toolbar_navigation_includes_delete_missing_button() -> None:
 
     assert handled is True
     assert QApplication.focusWidget() is widgets[4]
+
+
+def test_dpad_down_from_toolbar_focuses_first_visual_card(monkeypatch: MonkeyPatch) -> None:
+    app = QApplication.instance() or QApplication([])
+    window = QWidget()
+    toolbar_button = QPushButton(window)
+    container = QWidget(window)
+    container.setGeometry(0, 40, 100, 100)
+    lower_card = DummyCard(container, FIRST_CARD_X)
+    lower_card.move(FIRST_CARD_X, 40)
+    right_card = DummyCard(container, NEXT_CARD_X)
+    first_card = DummyCard(container, FIRST_CARD_X)
+    window.show()
+    app.processEvents()
+    monkeypatch.setattr(input_keyboard, "AnimatedCard", DummyCard)
+    manager = InputManager.__new__(InputManager)
+    manager._parent = cast(MainWindowProtocol, SimpleNamespace(
+        quickLaunchButton=toolbar_button,
+        stackedWidget=SimpleNamespace(currentIndex=lambda: 0),
+        gamesListWidget=container,
+    ))
+    assert right_card.isVisible()
+    for _ in range(2):
+        toolbar_button.setFocus()
+        assert manager._handle_library_dpad(PAD_DPAD_Y, 1)
+        assert QApplication.focusWidget() is first_card
 
 
 def test_library_filter_navigation_includes_only_installed_checkbox() -> None:

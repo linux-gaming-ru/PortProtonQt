@@ -10,6 +10,7 @@ import time
 import zlib
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from html import unescape
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
@@ -315,7 +316,12 @@ class GOGAPI:
     def load_library(self) -> list[dict]:
         """Load the cached GOG library."""
         data = self._load_json(self.library_path, [])
-        return data if isinstance(data, list) else []
+        if not isinstance(data, list):
+            return []
+        for game in data:
+            if isinstance(game, dict) and isinstance(game.get("description"), str):
+                game["description"] = self._short_description(game["description"])
+        return data
 
     def clear_library_cache(self) -> None:
         """Remove cached GOG covers and descriptions."""
@@ -690,7 +696,7 @@ class GOGAPI:
             ),
             {},
         )
-        description = self._localized_value(data.get("summary"))
+        description = self._short_description(self._localized_value(data.get("summary")))
         language = get_metadata_language().lower()
         try:
             product_response = requests.get(
@@ -703,18 +709,11 @@ class GOGAPI:
             )
             product_response.raise_for_status()
             product_description = product_response.json().get("description", {})
-            localized_lead = str(product_description.get("lead") or "")
-            if localized_lead:
-                paragraphs = re.split(
-                    r"(?:<br\s*/?>\s*){2,}", localized_lead, flags=re.IGNORECASE
-                )
-                paragraph_count = (
-                    2 if re.match(r"\s*<(?:b|strong)>", paragraphs[0], re.IGNORECASE)
-                    else 1
-                )
-                description = "<br><br>".join(
-                    paragraph.strip() for paragraph in paragraphs[:paragraph_count]
-                )
+            description = (
+                self._short_description(str(product_description.get("lead") or ""))
+                or self._short_description(str(product_description.get("full") or ""))
+                or description
+            )
         except requests.RequestException as error:
             logger.warning(
                 "Failed to load localized GOG description for %s: %s",
@@ -731,6 +730,61 @@ class GOGAPI:
             "cover": self._format_image(game.get("vertical_cover") or game.get("logo") or game.get("background")),
             "steam_appid": str(steam_release.get("external_id", "")),
         }
+
+    @staticmethod
+    def _short_description(description: str) -> str:
+        # GOG uses these modules for storefront callouts, not the synopsis.
+        intro = re.sub(
+            r"<p\b[^>]*\bclass\s*=\s*(['\"])module\1[^>]*>.*?</p\s*>", "",
+            description, flags=re.IGNORECASE | re.DOTALL,
+        )
+        # Store cross-sells start with a linked cover inside an overflow box.
+        intro = re.sub(
+            r"<div\s+style=(['\"])overflow:\s*hidden;?\1\s*>\s*"
+            r"<a\b[^>]*>\s*<img\b[^>]*>\s*</a>.*?</div\s*>",
+            "", intro, flags=re.IGNORECASE | re.DOTALL,
+        )
+        intro = re.sub(r"<img\b[^>]*>", "", intro, flags=re.IGNORECASE)
+        intro = re.split(r"<(?:ul|ol|li)\b", intro, maxsplit=1, flags=re.IGNORECASE)[0]
+        intro = re.sub(
+            r"(?:<b>\s*)?<h[1-6]\b[^>]*>.*?</h[1-6]\s*>(?:\s*</b>)?",
+            "<br><br>", intro,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        paragraphs = re.split(
+            r"(?:<br\s*/?>\s*){2,}|</?(?:p|div|hr)\b[^>]*>|\r?\n[ \t]*\r?\n",
+            intro, flags=re.IGNORECASE,
+        )
+        content = []
+        for paragraph in paragraphs:
+            text = unescape(re.sub(r"<[^>]*>", "", paragraph)).strip()
+            if not text or re.fullmatch(
+                r"(?:Внимание!\s*)?В этой игре нет русской локализации\.?"
+                r"|The full version of .+? is available on GOG\.com\.\s+"
+                r"You can (?:buy|purchase) it here[.!]?",
+                text, re.IGNORECASE,
+            ):
+                continue
+            paragraph = re.sub(
+                r"^(?:\s*<br\s*/?>)+|(?:(?:<br\s*/?>|&nbsp;)\s*)+$", "", paragraph,
+                flags=re.IGNORECASE,
+            ).strip()
+            if re.search(r"</?[a-z][^>]*>", paragraph, re.IGNORECASE):
+                # Qt's AutoText detection stops at the first plain newline.
+                paragraph = re.sub(r"<(/?)strong\s*>", r"<\1b>", paragraph, flags=re.IGNORECASE)
+                paragraph = re.sub(r"(?:\r?\n)+", "<br>", paragraph)
+            content.append(paragraph)
+        paragraphs = content
+        # Prefer the synopsis over a standalone italic epigraph.
+        if len(paragraphs) > 1 and re.fullmatch(
+            r"(?:(?:<b>|<strong>))*<(i|em)>[^<]*</\1>(?:(?:</b>|</strong>))*",
+            paragraphs[0], re.IGNORECASE,
+        ):
+            return paragraphs[1]
+        # Keep a standalone bold notice together with the introduction.
+        if paragraphs and re.fullmatch(r"<(b|strong)>[^<]*</\1>", paragraphs[0], re.IGNORECASE):
+            return "<br><br>".join(paragraphs[:2])
+        return paragraphs[0] if paragraphs else ""
 
     @staticmethod
     def _localized_value(values: dict | None) -> str:

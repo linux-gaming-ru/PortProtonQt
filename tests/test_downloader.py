@@ -1,10 +1,13 @@
 """Download cache completion and worker lifecycle regressions."""
 
+from collections.abc import Iterator
+from io import BytesIO
 from pathlib import Path
 import threading
 from typing import Any, cast
 from unittest.mock import MagicMock
 
+from PIL import Image
 import pytest
 from PySide6.QtCore import QCoreApplication, QThread
 from PySide6.QtWidgets import QApplication
@@ -19,6 +22,44 @@ SYNC_TIMEOUT_SECONDS = 30
 @pytest.fixture(autouse=True)
 def application() -> QCoreApplication:
     return QApplication.instance() or QApplication([])
+
+
+@pytest.mark.parametrize("parallel", [False, True])
+@pytest.mark.parametrize("complete", [False, True])
+def test_truncated_cached_cover_is_redownloaded(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, parallel: bool, complete: bool,
+) -> None:
+    url = "https://example.com/cover.jpg"
+    target = tmp_path / "cover.jpg"
+    buffer = BytesIO()
+    Image.new("RGB", (32, 32)).save(buffer, format="JPEG")
+    jpeg = buffer.getvalue()
+    truncated = jpeg[:-30]
+    target.write_bytes(truncated)
+    response = MagicMock()
+    response.headers = {}
+
+    def chunks(chunk_size: int) -> Iterator[bytes]:
+        yield jpeg[:100]
+        assert target.read_bytes() == truncated
+        yield (jpeg if complete else truncated)[100:]
+
+    response.iter_content.side_effect = chunks
+    session = MagicMock()
+    session.get.return_value.__enter__.return_value = response
+    monkeypatch.setattr("portprotonqt.downloader.get_requests_session", lambda: session)
+    downloader = Downloader()
+    downloader._cache[url] = str(target)
+    results: list[str | None] = []
+
+    worker = downloader.download_async(url, str(target), parallel=parallel, callback=results.append)
+
+    assert worker is not None
+    assert worker.wait(THREAD_TIMEOUT_MS)
+    QApplication.processEvents()
+    assert results == [str(target) if complete else None]
+    assert target.read_bytes() == (jpeg if complete else truncated)
+    assert list(tmp_path.iterdir()) == [target]
 
 
 @pytest.mark.parametrize("parallel", [False, True])

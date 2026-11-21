@@ -737,3 +737,57 @@ def test_steam_detail_button_attaches_to_existing_game_watch() -> None:
     window._toggle_steam_game.assert_called_once_with(
         "steam://rungameid/3263320", button, launch=False
     )
+
+
+@mark.parametrize("hp_fields", [{}, {"hpKey": "field"}, {"hpKey": "field", "hpVal": "value"}])
+def test_hltb_search_accepts_token_without_optional_pair(
+    monkeypatch: MonkeyPatch, hp_fields: dict[str, str]
+) -> None:
+    import orjson
+
+    from portprotonqt.howlongtobeat_api import HTTPClient, ResultParser
+
+    monkeypatch.setattr("portprotonqt.howlongtobeat_api.proxy_config.get_proxy", lambda: {})
+    client = HTTPClient()
+    session = MagicMock()
+    monkeypatch.setattr(client, "session", session)
+    session.get.return_value.json.return_value = {"token": "test-token", **hp_fields}
+    session.post.return_value = SimpleNamespace(status_code=200, text='{"data": [{"comp_main": 12600}]}')
+
+    raw = client.search_games("MARVEL Cosmic Invasion")
+    assert raw is not None
+    assert ResultParser().parse_results(raw)[0].main_story == 3.5
+    assert session.get.call_args.args[0].endswith("/api/search/site/init")
+    assert session.post.call_args.args[0].endswith("/api/search/site")
+    request = session.post.call_args.kwargs
+    assert request["headers"]["x-auth-token"] == "test-token"
+    payload = orjson.loads(request["data"])
+    assert payload["searchTerms"] == ["MARVEL", "Cosmic", "Invasion"]
+    assert payload.get("field") == hp_fields.get("hpVal")
+    assert request["headers"].get("x-hp-key") == ("field" if "hpVal" in hp_fields else None)
+    assert request["headers"].get("x-hp-val") == hp_fields.get("hpVal")
+
+
+def test_native_detail_cover_shows_linux_source_corner() -> None:
+    from PySide6.QtWidgets import QApplication, QFrame
+
+    from portprotonqt.detail_pages.widgets import _add_source_corner
+    from portprotonqt.game_card import SourceCorner
+
+    app = QApplication.instance() or QApplication([])
+    cover = QFrame()
+    cover.resize(300, 450)
+    icon_path = Path(__file__).resolve().parents[1] / (
+        "portprotonqt/themes/standart/images/icons/platforms/badge_native.svg"
+    )
+    theme_manager = MagicMock()
+    theme_manager.get_icon.return_value = str(icon_path)
+    theme = SimpleNamespace(get_source_corner_config=lambda: {})
+
+    _add_source_corner(cover, "native", theme, theme_manager, cover.width(), cover.height())
+    app.processEvents()
+
+    theme_manager.get_icon.assert_called_once_with("badge_native", as_path=True)
+    ribbon = cover.findChild(SourceCorner)
+    assert ribbon is not None and not ribbon.isHidden()
+    assert ribbon.geometry().bottomRight() == cover.rect().bottomRight()
