@@ -32,9 +32,9 @@ NATIVE_ADVANCED_KEYS = frozenset({"LAUNCH_PARAMETERS", "PW_MESA_GL_VERSION_OVERR
 
 
 def is_native_executable(path: str) -> bool:
-    """Recognize native launch files while preserving Windows and disc formats."""
+    """Recognize native executables, not desktop shortcuts or Wine targets."""
     return (
-        Path(path).suffix.lower() not in LAUNCH_FILE_EXTENSIONS
+        not path.lower().endswith(LAUNCH_FILE_EXTENSIONS + (".desktop",))
         and os.path.isfile(path)
         and os.access(path, os.X_OK)
     )

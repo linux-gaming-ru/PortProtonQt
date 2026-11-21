@@ -29,7 +29,7 @@ from portprotonqt.detail_pages import DetailPageManager
 from portprotonqt.portproton_api import PortProtonAPI, remove_empty_custom_data_dirs
 from portprotonqt.gog_api import GOGAPI
 from portprotonqt.egs_api import EGSAPI
-from portprotonqt.native_games import NativeLibraryWorker, NATIVE_URI_PREFIX, get_native_launch, read_native_game
+from portprotonqt.native_games import NativeLibraryWorker, NATIVE_URI_PREFIX, get_native_launch, is_native_executable, read_native_game
 from portprotonqt.debug_utils import get_prefix_name
 from portprotonqt.input_manager import InputManager, MainWindowProtocol
 from portprotonqt.context_menu_manager import ContextMenuManager
@@ -1195,35 +1195,44 @@ class MainWindow(
         dialog.deleteLater()
 
     def _launch_native_game(self, exec_line: str, button: QPushButton | None = None) -> None:
-        desktop_path = Path(exec_line.removeprefix(NATIVE_URI_PREFIX))
+        target = Path(exec_line.removeprefix(NATIVE_URI_PREFIX))
+        is_shortcut = exec_line.startswith(NATIVE_URI_PREFIX)
         if self.game_processes:
-            if getattr(self, "native_game_running", False) and self.game_start_exe == str(desktop_path):
+            if getattr(self, "native_game_running", False) and self.game_start_exe == str(target):
                 self.stop_running_game(button)
             else:
                 QMessageBox.warning(self, _("Error"), _("Cannot launch game while another game is running"))
             return
         try:
-            if not desktop_path.is_absolute() or desktop_path.suffix != ".desktop":
-                raise ValueError("Invalid native desktop path")
-            command, directory = get_native_launch(str(desktop_path))
+            if not target.is_absolute():
+                raise ValueError("Invalid native launch path")
+            if is_shortcut:
+                if target.suffix != ".desktop":
+                    raise ValueError("Invalid native desktop path")
+                command, directory = get_native_launch(str(target))
+            else:
+                if not is_native_executable(str(target)):
+                    raise PermissionError(str(target))
+                command, directory = [str(target)], str(target.parent)
             process = subprocess.Popen(command, cwd=directory, start_new_session=True, text=True)
         except Exception as error:
-            logger.warning("Failed to launch native game %s: %s", desktop_path, error)
+            logger.warning("Failed to launch native game %s: %s", target, error)
             QMessageBox.warning(self, _("Error"), _("Failed to launch game: {0}").format(error))
             return
         self.native_game_running = True
         self.game_stopped_by_user = False
         self.game_processes = [process]
         self.current_running_button = button
-        self.target_exe = desktop_path.name
-        self.game_start_exe = str(desktop_path)
+        self.target_exe = target.name
+        self.game_start_exe = str(target)
         self.game_start_exact_path = True
         self.game_start_time = datetime.now()
         self.game_launch_monotonic = time.monotonic()
         self.game_launch_started = True
         self.wine_download_seen = False
-        save_last_launch(desktop_path.stem, self.game_start_time)
-        self._update_last_launch_after_start(str(desktop_path), self.game_start_time)
+        if is_shortcut:
+            save_last_launch(target.stem, self.game_start_time)
+            self._update_last_launch_after_start(str(target), self.game_start_time)
         self.launch_output_queue = Queue()
         self.input_manager.suspend_gamepad_polling()
         self._set_running_button_stop()

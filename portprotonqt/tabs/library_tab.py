@@ -596,9 +596,12 @@ class MainWindowLibraryTabMixin(_MainWindowTypingBase):
         self.updateDeleteMissingExeButton()
 
     def quickLaunch(self):
-        """Open file manager to select executable and then open its detail page."""
-        file_explorer = FileExplorer(self, self.theme, file_filter=LAUNCH_FILE_EXTENSIONS)
-        file_explorer.file_signal.file_selected.connect(self.handle_launch_exe)
+        """Open the launch file picker."""
+        def file_filter(path: str) -> bool:
+            return path.lower().endswith(LAUNCH_FILE_EXTENSIONS) or is_native_executable(path)
+
+        file_explorer = FileExplorer(self, self.theme, file_filter=file_filter)
+        file_explorer.file_signal.file_selected.connect(self._quick_launch_selected)
 
         parent_geometry = self.geometry()
         center_point = parent_geometry.center()
@@ -607,6 +610,13 @@ class MainWindowLibraryTabMixin(_MainWindowTypingBase):
         file_explorer.setGeometry(file_explorer_geometry)
 
         file_explorer.show()
+
+    @Slot(str)
+    def _quick_launch_selected(self, path: str) -> None:
+        if path.lower().endswith(LAUNCH_FILE_EXTENSIONS):
+            self.handle_launch_exe(path)
+        else:
+            self._launch_native_game(os.path.abspath(path))
 
     def on_search_text_changed(self, text: str):
         """Search text change handler with debounce."""
