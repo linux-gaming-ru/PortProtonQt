@@ -15,7 +15,6 @@ from PySide6.QtWidgets import (
     QListWidget,
     QMenu,
     QMessageBox,
-    QScrollArea,
     QTableWidget,
     QWidget,
 )
@@ -473,16 +472,12 @@ class KeyboardInputMixin(InputMixin):
     def _focus_first_game_card(self, container: QWidget | None) -> bool:
         if container is None:
             return False
-        for card in container.findChildren(AnimatedCard):
-            if card.isVisible() and card.isEnabled():
-                card.setFocus(Qt.FocusReason.OtherFocusReason)
-                scroll_area = container.parentWidget()
-                while scroll_area and not isinstance(scroll_area, QScrollArea):
-                    scroll_area = scroll_area.parentWidget()
-                if isinstance(scroll_area, QScrollArea):
-                    scroll_area.ensureWidgetVisible(card, 50, 50)
-                return True
-        return False
+        cards = [card for card in container.findChildren(AnimatedCard) if card.isVisible() and card.isEnabled()]
+        if not cards:
+            return False
+        first_card = min(cards, key=lambda card: (card.y(), card.x()))
+        self._focus_grid_card(first_card)
+        return True
 
     def _focus_first_library_card(self) -> bool:
         container = getattr(self._parent, "gamesListWidget", None)
