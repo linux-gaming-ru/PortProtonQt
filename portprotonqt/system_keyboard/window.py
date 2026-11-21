@@ -43,6 +43,7 @@ class SystemKeyboardPanel(VirtualKeyboard):
         self.modifiers: set[int] = set()
         self.layout_name = 'System'
         self.drag_origin: QPoint | None = None
+        self.emoji_open = False
         super().__init__(owner, theme)
         self.set_slide_animation_enabled(False)
         self.setObjectName('systemKeyboard')
@@ -105,7 +106,8 @@ class SystemKeyboardPanel(VirtualKeyboard):
         for row, codes in zip(keyboard_layouts['us']['normal'], KEY_ROWS, strict=True):
             self.keycodes.update(zip(row, codes, strict=True))
         units = self.theme.SYSTEM_KEYBOARD['row_units']
-        for row, keys in enumerate(self.theme.SYSTEM_KEYBOARD['rows']):
+        rows = self.theme.SYSTEM_KEYBOARD['emoji_rows' if self.emoji_open else 'rows']
+        for row, keys in enumerate(rows):
             column = 0
             for key, span in keys:
                 if key == '▲▼':
@@ -115,7 +117,8 @@ class SystemKeyboardPanel(VirtualKeyboard):
                     self._add_key(key, (row * units, column, units, span))
                 column += span
         self.apply_key_state()
-        self._set_selected_button(self.buttons.get(selected or 'Esc', self.buttons['Esc']))
+        default = rows[0][0][0]
+        self._set_selected_button(self.buttons.get(selected or default, self.buttons[default]))
         if self.owner.warning_message:
             warning = QLabel(self.owner.warning_message)
             warning.setStyleSheet(self.theme.SETTINGS_TITLE_STYLE)
@@ -186,7 +189,25 @@ class SystemKeyboardPanel(VirtualKeyboard):
         self.owner.worker.commands.put(('release', ()))
         self.apply_key_state()
 
+    def close_emoji_panel(self) -> None:
+        if self.emoji_open:
+            self.emoji_open = False
+            self.update_keyboard()
+            self._set_selected_button(self.buttons['🙂'])
+
     def on_button_click(self, key: str) -> None:
+        if self.emoji_open:
+            if key != 'ABC':
+                report('emoji', key)
+            self.close_emoji_panel()
+            return
+        if key == '🙂':
+            self.stop_backspace_repeat()
+            self._release_modifiers()
+            self.emoji_open = True
+            self.update_keyboard()
+            self._set_selected_button(self.buttons['😀'])
+            return
         code = ecodes.KEY_SPACE if key == ' ' else self.keycodes.get(key)
         if code is not None:
             self.owner.worker.commands.put(('tap', (code,)))
@@ -323,6 +344,7 @@ class SystemKeyboardWindow(QWidget, MainWindowControlHintsMixin):
         self.worker.cancel_pending()
         self.keyboard.stop_backspace_repeat()
         self.keyboard._release_modifiers()
+        self.keyboard.close_emoji_panel()
         if self.native_layer is not None:
             self.native_layer.hide_layer()
         self.hide()
@@ -380,6 +402,10 @@ class SystemKeyboardWindow(QWidget, MainWindowControlHintsMixin):
             handlers = {'confirm': self.keyboard.activateFocusedKey, 'back': self.hide_keyboard,
                         'language': self.keyboard.on_lang_click, 'backspace': self.keyboard.on_backspace_pressed,
                         'backspace_release': self.keyboard.stop_backspace_repeat}
+            if self.keyboard.emoji_open and value != 'confirm':
+                if value == 'back':
+                    self.keyboard.close_emoji_panel()
+                return
             if value == 'shift':
                 self.keyboard.on_shift_click(not self.keyboard.shift_pressed)
             elif value in handlers:

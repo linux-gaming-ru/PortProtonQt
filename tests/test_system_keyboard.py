@@ -68,6 +68,38 @@ def test_layer_shell_keeps_qt_window_offscreen(
         window.hide()
 
 
+def test_builtin_emoji_panel(keyboard_window: SystemKeyboardWindow) -> None:
+    window = keyboard_window
+    keyboard = window.keyboard
+    window.ready = window.wanted_visible = True
+    keyboard.buttons['🙂'].click()
+    assert keyboard.emoji_open
+    assert keyboard.selected_button is keyboard.buttons['😀']
+    window.command('direction', 'right')
+    assert keyboard.selected_button is keyboard.buttons['😃']
+    window.command('button', 'back')
+    assert window.wanted_visible and not keyboard.emoji_open
+    keyboard.buttons['🙂'].click()
+    keyboard.buttons['❤️'].click()
+    cast(MagicMock, system_window.report).assert_called_once_with('emoji', '❤️')
+    assert not keyboard.emoji_open
+    assert keyboard.selected_button is keyboard.buttons['🙂']
+
+
+def test_emoji_response_copies_to_clipboard(application: QApplication, monkeypatch: pytest.MonkeyPatch) -> None:
+    controller = SystemKeyboard(QWidget())
+    clipboard = MagicMock()
+    monkeypatch.setattr(QApplication, 'clipboard', lambda: clipboard)
+    controller.visible = True
+    response = '{"event":"emoji","value":"❤️"}\n'.encode()
+    monkeypatch.setattr(controller.process, 'readAllStandardOutput', lambda: SimpleNamespace(data=lambda: response))
+    controller._read_state()
+    clipboard.setText.assert_called_once_with('❤️')
+    controller.visible = False
+    controller._read_state()
+    clipboard.setText.assert_called_once()
+
+
 def test_panel_matches_embedded_layout_without_extra_rows(keyboard_window: SystemKeyboardWindow) -> None:
     keyboard = keyboard_window.keyboard
     assert keyboard.current_layout == 'us'
