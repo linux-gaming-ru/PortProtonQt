@@ -461,6 +461,7 @@ def test_system_keyboard_routes_buttons_without_application_focus(application: Q
     keyboard = SimpleNamespace(send=MagicMock(), isVisible=lambda: True)
     manager._parent = SimpleNamespace(system_keyboard=keyboard)
     manager.start_held = False
+    manager.mouse_emulation_enabled = False
     assert manager._handle_system_keyboard_input(PAD_BUTTON_SOUTH, 1, False)
     keyboard.send.assert_called_once_with('button', 'confirm')
 

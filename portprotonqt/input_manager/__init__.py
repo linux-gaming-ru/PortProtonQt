@@ -290,6 +290,7 @@ class InputManager(
             except Exception as e:
                 logger.error("EMUL: Error closing virtual mouse: %s", e)
             self.ui = None
+            self._keyboard_mouse_drag = False
             self.mouse_emulation_thread = None
             self.stick_x_raw = 0
             self.stick_y_raw = 0
@@ -440,6 +441,7 @@ class InputManager(
             except Exception as e:
                 logger.error("EMUL: Error closing virtual mouse: %s", e)
             self.ui = None
+        self._keyboard_mouse_drag = False
         self.mouse_emulation_enabled = False
         self.stick_x_raw = 0
         self.stick_y_raw = 0
@@ -521,6 +523,15 @@ class InputManager(
         if self.ui:
             self.ui.write(ecodes.EV_REL, ecodes.REL_WHEEL, steps)
             self.ui.syn()
+
+    def _set_keyboard_mouse_drag(self, held: bool) -> bool:
+        if held == getattr(self, '_keyboard_mouse_drag', False):
+            return False
+        if self.ui:
+            self.ui.write(ecodes.EV_KEY, ecodes.BTN_LEFT, int(held))
+            self.ui.syn()
+        self._keyboard_mouse_drag = held
+        return True
 
     def click_left(self):
         """Left mouse button click"""

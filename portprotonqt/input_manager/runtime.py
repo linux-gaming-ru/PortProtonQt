@@ -115,6 +115,7 @@ class GamepadRuntimeMixin(InputMixin):
 
     def _reset_input_state(self) -> None:
         """Reset cached joystick state when the active device changes."""
+        self._set_keyboard_mouse_drag(False)
         self._button_states.clear()
         self._hat_states.clear()
         self._axis_states.clear()
@@ -233,6 +234,8 @@ class GamepadRuntimeMixin(InputMixin):
         if self._button_states.get(button_index) == value:
             return
         self._button_states[button_index] = value
+        if not value and button_code in BUTTONS['confirm'] and self._set_keyboard_mouse_drag(False):
+            return
         if getattr(self._parent, "boot_animation", None) is not None:
             self.button_event.emit(button_code, value)
             return
@@ -266,6 +269,7 @@ class GamepadRuntimeMixin(InputMixin):
             (button_code == PAD_BUTTON_START and self.select_held)
         )
         if emulation_combo:
+            self._set_keyboard_mouse_drag(False)
             self.emulation_triggered = not self.emulation_triggered
             self.pending_menu_fullscreen_time = 0.0
         return emulation_combo
@@ -288,6 +292,9 @@ class GamepadRuntimeMixin(InputMixin):
             keyboard.toggle()
             return True
         if keyboard.isVisible():
+            if button_code in BUTTONS['confirm'] and self._is_mouse_emulation_active() and self.ui:
+                self._set_keyboard_mouse_drag(bool(value))
+                return True
             actions = {'confirm': 'confirm', 'back': 'back', 'menu': 'back',
                        'prev_tab': 'language', 'next_tab': 'shift', 'add_game': 'backspace'}
             if button_code == PAD_BUTTON_START and not value:
@@ -330,9 +337,9 @@ class GamepadRuntimeMixin(InputMixin):
                 elif hat_value[0] > 0:
                     self.move_mouse(10, 0)
             if previous_value[1] != hat_value[1]:
-                if hat_value[1] > 0:
+                if hat_value[1] < 0:
                     self.move_mouse(0, -10)
-                elif hat_value[1] < 0:
+                elif hat_value[1] > 0:
                     self.move_mouse(0, 10)
 
         if self._should_skip_regular_events():
@@ -387,16 +394,13 @@ class GamepadRuntimeMixin(InputMixin):
 
     def _is_mouse_emulation_active(self) -> bool:
         """Return True when the gamepad currently drives mouse emulation."""
-        keyboard = getattr(getattr(self, '_parent', None), 'system_keyboard', None)
-        if keyboard is not None and keyboard.isVisible():
-            return False
         return self.mouse_emulation_enabled and self.emulation_active and self.emulation_triggered
 
     def _should_skip_regular_events(self) -> bool:
         """Skip regular UI events while mouse emulation owns the controller."""
         keyboard = getattr(getattr(self, '_parent', None), 'system_keyboard', None)
         if keyboard is not None and keyboard.isVisible():
-            return False
+            return self._is_mouse_emulation_active() and bool(self.ui)
         if getattr(self, '_gamepad_polling_suspended', False):
             return True
         return self._is_mouse_emulation_active() and QApplication.activeWindow() is not None

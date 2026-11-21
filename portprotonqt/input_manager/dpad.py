@@ -313,7 +313,7 @@ class DpadInputMixin(InputMixin):
     def handle_dpad_slot(self, code: int, value: int, current_time: float) -> None:
         keyboard = getattr(self._parent, 'system_keyboard', None)
         if keyboard is not None and keyboard.isVisible():
-            if value == 0:
+            if value == 0 or self._should_skip_regular_events():
                 self._reset_dpad_repeat()
                 return
             directions = {PAD_DPAD_X: ('left', 'right'), PAD_AXIS_LEFT_X: ('left', 'right'),
