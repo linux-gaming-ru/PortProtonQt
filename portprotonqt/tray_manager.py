@@ -83,15 +83,8 @@ class TrayManager:
         self.pause_game_action.setEnabled(False)
         self.pause_game_action.triggered.connect(self.toggle_game_pause)
 
-        self.tray_menu.addAction(self.pause_game_action)
-        self.tray_menu.addAction(self.stop_game_action)
-        self.tray_menu.addSeparator()
-        self.tray_menu.addSeparator()
-
-        exit_action = QAction(_("Exit"), self.main_window)
-        exit_action.triggered.connect(self.force_exit)
-        self.tray_menu.addAction(exit_action)
-
+        # Some D-Bus tray hosts read the menu without opening the local QMenu.
+        self.refresh_tray_menu()
         self.tray_menu.aboutToShow.connect(self.refresh_tray_menu)
         self.tray_icon.setContextMenu(self.tray_menu)
         self.tray_icon.show()

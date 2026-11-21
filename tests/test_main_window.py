@@ -370,6 +370,31 @@ def test_shutdown_waits_for_compatibility_analysis() -> None:
     assert window.compatibility_workers == []
 
 
+def test_tray_exports_complete_menu_before_first_open(monkeypatch: MonkeyPatch) -> None:
+    _application = QApplication.instance() or QApplication([])
+    from portprotonqt import tray_manager as tray_module
+
+    icon = MagicMock()
+    theme = MagicMock()
+    theme.get_icon.return_value = None
+    monkeypatch.setattr(tray_module, "QSystemTrayIcon", lambda _parent: icon)
+    monkeypatch.setattr(tray_module, "ThemeManager", lambda: theme)
+    monkeypatch.setattr(tray_module.ui_config, "get_theme", lambda: "standart")
+    monkeypatch.setattr(tray_module.display_config, "get_tray_menu_mode", lambda: "detailed")
+    window = cast(Any, QWidget())
+    window.games = []
+
+    def check_export(menu: QMenu) -> None:
+        labels = [action.text() for action in menu.actions() if not action.isSeparator()]
+        assert labels == [tray_module._(text) for text in (
+            "Pause Game", "Stop Game", "No recent games", "Exit",
+        )]
+
+    icon.setContextMenu.side_effect = check_export
+    manager = TrayManager(window)
+    icon.setContextMenu.assert_called_once_with(manager.tray_menu)
+
+
 def test_minimal_tray_contains_game_actions() -> None:
     _application = QApplication.instance() or QApplication([])
     manager = TrayManager.__new__(TrayManager)

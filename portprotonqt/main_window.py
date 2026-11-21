@@ -1032,6 +1032,8 @@ class MainWindow(
             self._on_only_installed_changed(current_filter[1])
             return
         self.games = games
+        if self.tray_manager is not None:
+            self.tray_manager.refresh_tray_menu()
         focus_first_card = not self.game_library_manager.games and not getattr(
             self, "_preserve_library_focus_after_load", False
         )
