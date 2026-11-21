@@ -1,0 +1,107 @@
+name: Build native binaries on Debian 12
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'build-aux/src/**'
+      - '.gitea/workflows/build-vk-gpu-info-debian.yml'
+
+jobs:
+  build-debian12:
+    name: Build native binaries on Debian 12
+    runs-on: ubuntu-latest
+    container:
+      image: debian:12
+      options: --privileged
+
+    steps:
+      - name: Install dependencies
+        run: |
+          set -- build-essential ca-certificates cmake pkg-config libvulkan-dev libwayland-dev libx11-dev git curl wget nodejs npm
+          apt-get update -o APT::Update::Error-Mode=any && apt-get install -y "$@"
+
+      - name: Set up Node.js
+        uses: https://git.linux-gaming.ru/actions/setup-node@v2
+        with:
+          node-version: 20
+
+      - name: Checkout code
+        uses: https://git.linux-gaming.ru/actions/checkout@v3
+        with:
+          ref: ${{ gitea.ref }}
+          token: ${{ secrets.GITEA_TOKEN }}
+
+      - name: Build SDL3 for linking
+        run: |
+          # Build pinned SDL3 against the same glibc baseline as the backends.
+          sdl_commit=877399b2b2cf21e67554ed9046410f268ce1d1b2
+          curl --fail --location --max-time 120 \
+              "https://codeload.github.com/libsdl-org/SDL/tar.gz/${sdl_commit}" -o /tmp/sdl3.tar.gz
+          mkdir -p /tmp/sdl3-src
+          tar -xzf /tmp/sdl3.tar.gz -C /tmp/sdl3-src --strip-components=1
+          cmake -S /tmp/sdl3-src -B /tmp/sdl3-build \
+              -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/tmp/sdl3 \
+              -DCMAKE_INSTALL_LIBDIR=lib -DSDL_UNIX_CONSOLE_BUILD=ON \
+              -DSDL_SHARED=ON -DSDL_STATIC=OFF -DSDL_TEST_LIBRARY=OFF
+          cmake --build /tmp/sdl3-build --parallel "$(nproc)"
+          cmake --install /tmp/sdl3-build
+
+      - name: Compile native binaries
+        run: |
+          export PKG_CONFIG_PATH="/tmp/sdl3/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+          mkdir -p build-aux/bin build-aux/lib
+          gcc -std=c99 -o build-aux/bin/vk_gpu_info build-aux/src/vk_gpu_info.c -lvulkan
+          gcc -shared -fPIC -Wl,-z,defs -o build-aux/lib/libportprotonqt_gamepad.so \
+              build-aux/src/gamepad_backend.c $(pkg-config --cflags --libs sdl3)
+          gcc -shared -fPIC -Wl,-z,defs -o build-aux/lib/libportprotonqt_keyboard.so \
+              build-aux/src/keyboard_backend.c $(pkg-config --cflags --libs wayland-client x11)
+
+      - name: Verify glibc compatibility
+        run: |
+          export LC_ALL=C
+          max_glibc=2.36
+          for binary in build-aux/bin/vk_gpu_info \
+              build-aux/lib/libportprotonqt_gamepad.so \
+              build-aux/lib/libportprotonqt_keyboard.so; do
+            versions=$(readelf --version-info --wide "$binary")
+            requirements=$(printf '%s\n' "$versions" | awk '/Name: GLIBC_/ { sub(/^.*Name: GLIBC_/, ""); print $1 }')
+            for version in $requirements; do
+              if ! dpkg --compare-versions "$version" le "$max_glibc"; then
+                echo "$binary requires GLIBC_$version (maximum GLIBC_$max_glibc)" >&2
+                exit 1
+              fi
+            done
+          done
+
+      - name: Test vk_gpu_info execution
+        run: |
+          test -x build-aux/bin/vk_gpu_info
+          timeout 10s build-aux/bin/vk_gpu_info || echo "Vulkan smoke test failed; CI may lack a Vulkan device."
+
+      - name: Upload native binaries
+        uses: https://git.linux-gaming.ru/actions/gitea-upload-artifact@v4
+        with:
+          name: native-binaries-debian12
+          path: |
+            build-aux/bin/vk_gpu_info
+            build-aux/lib/libportprotonqt_gamepad.so
+            build-aux/lib/libportprotonqt_keyboard.so
+          if-no-files-found: error
+
+      - name: Commit and push native binaries
+        if: gitea.ref == 'refs/heads/main'
+        run: |
+          git add -- build-aux/bin/vk_gpu_info \
+              build-aux/lib/libportprotonqt_gamepad.so \
+              build-aux/lib/libportprotonqt_keyboard.so
+          if git diff --cached --quiet; then
+            echo "Native binaries are unchanged."
+            exit 0
+          fi
+          git config --local user.name 'Gitea Actions'
+          git config --local user.email 'gitea-actions@users.noreply.gitea.com'
+          git commit -m 'chore: update native binaries'
+          git push origin HEAD:main
