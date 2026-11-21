@@ -137,16 +137,20 @@ class IBusLayout(X11Layout):
 
 
 class CosmicLayout:
+    use_cosmic_protocol = True
+
     def __init__(self) -> None:
         self.display = self.layout = None
-        self.group = None
+        # Labwc sends the keymap first and may defer the group until a modifier event.
+        self.group = None if self.use_cosmic_protocol else 0
         self.error = None
         self.callbacks, self.proxies = [], []
         self.keyboard = self.manager = self.tracker = None
         self.lib = load_library()
         self._configure_library()
-        self.group_interface = self._interface('zcosmic_keyboard_layout_v1')
-        self.manager_interface = self._interface('zcosmic_keyboard_layout_manager_v1')
+        if self.use_cosmic_protocol:
+            self.group_interface = self._interface('zcosmic_keyboard_layout_v1')
+            self.manager_interface = self._interface('zcosmic_keyboard_layout_manager_v1')
         try:
             self.display = self.lib.portproton_keyboard_wayland_connect(None)
             if not self.display:
@@ -158,7 +162,7 @@ class CosmicLayout:
             for _ in range(4):
                 self._check(self.lib.wl_display_roundtrip(self.display))
             if self.layout is None or self.group is None:
-                raise RuntimeError('COSMIC keyboard layout protocol or keymap unavailable')
+                raise RuntimeError('Wayland keyboard layout or keymap unavailable')
         except Exception:
             self.close()
             raise
@@ -216,7 +220,8 @@ class CosmicLayout:
             self.seat = self._new(self.registry, (0, self._interface('wl_seat')),
                                  C.c_uint32(name), interface, C.c_uint32(1), C.c_void_p())
             self._listen(self.seat, [(self._capabilities, [C.c_uint32])])
-        elif interface == b'zcosmic_keyboard_layout_manager_v1' and self.manager is None:
+        elif (self.use_cosmic_protocol and interface == b'zcosmic_keyboard_layout_manager_v1'
+              and self.manager is None):
             self.manager = self._new(self.registry, (0, self.manager_interface),
                                     C.c_uint32(name), interface, C.c_uint32(1), C.c_void_p())
             self._track()
@@ -225,12 +230,14 @@ class CosmicLayout:
         if capabilities & 2 and self.keyboard is None:
             self.keyboard = self._new(self.seat, (1, self._interface('wl_keyboard')), C.c_void_p())
             u, p = C.c_uint32, C.c_void_p
+            modifiers = (lambda *args: None) if self.use_cosmic_protocol else (
+                lambda serial, depressed, latched, locked, group: self._group(group))
             self._listen(self.keyboard, [
                 (self._keymap, [u, C.c_int, u]),
                 (lambda *args: None, [u, p, p]),
                 (lambda *args: None, [u, p]),
                 (lambda *args: None, [u, u, u, u]),
-                (lambda *args: None, [u, u, u, u, u])])
+                (modifiers, [u, u, u, u, u])])
             self._track()
         elif not capabilities & 2 and self.keyboard is not None:
             self.error = RuntimeError('COSMIC: keyboard disconnected')
@@ -287,6 +294,11 @@ class CosmicLayout:
             self.proxies.clear()
             self.lib.wl_display_disconnect(self.display)
             self.display = None
+
+
+class LabwcLayout(CosmicLayout):
+    # Labwc broadcasts wl_keyboard group changes even without keyboard focus.
+    use_cosmic_protocol = False
 
 
 SOURCE_SCHEMA = 'org.gnome.desktop.input-sources'
@@ -385,6 +397,8 @@ def compositor(environment: Any) -> Any:
                  if name in desktop), None)
     if name is not None:
         return name
+    if environment.get("WAYLAND_DISPLAY") and (environment.get("LABWC_PID") or "labwc" in desktop):
+        return "labwc"
     return 'wayland' if environment.get('WAYLAND_DISPLAY') else None
 
 
@@ -635,7 +649,8 @@ def detect_layout() -> object:
                 logger.warning('IBus layout detection unavailable: %s', error)
         return X11Layout()
     adapter = {'cosmic': CosmicLayout, 'niri': NiriLayout, 'sway': SwayLayout,
-               'hyprland': HyprlandLayout, 'umbriel': UmbrielLayout, 'mango': MangoLayout}.get(name)
+               'hyprland': HyprlandLayout, 'umbriel': UmbrielLayout, 'mango': MangoLayout,
+               'labwc': LabwcLayout}.get(name)
     if adapter is None:
         raise RuntimeError('No keyboard layout adapter for this compositor')
     return adapter()

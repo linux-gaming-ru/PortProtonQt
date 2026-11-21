@@ -14,6 +14,7 @@ from evdev import ecodes
 from PySide6.QtCore import QEvent, QObject, QPoint, QPointF, QSocketNotifier, Qt, QTimer
 from PySide6.QtGui import QCloseEvent, QIcon, QMouseEvent, QImage, QRegion
 from PySide6.QtWidgets import QApplication, QFrame, QLabel, QPushButton, QSizePolicy, QWidget
+from shiboken6 import isValid
 
 from portprotonqt.config import gamepad_config, ui_config
 from portprotonqt.input_manager.constants import GamepadType
@@ -583,6 +584,8 @@ class WaylandWindow(QObject):
         if not width or not height or width * height > MAX_SURFACE_PIXELS:
             raise ValueError('Invalid Wayland layer-surface dimensions')
         self._request(self.layer, (6, None), (C.c_uint32(serial),))
+        if self.configured and (width, height) == (self.window.width(), self.window.height()):
+            return
         self.window.resize(width, height)
         self.window._position_keyboard()
         self.configured = self.dirty = True
@@ -742,6 +745,13 @@ class WaylandWindow(QObject):
         self.window.keyboard.stop_backspace_repeat()
 
     def _mouse_event(self, kind: QEvent.Type) -> None:
+        pressed = self.pressed_widget
+        if pressed is not None and (not isValid(pressed) or not self.window.isAncestorOf(pressed)):
+            self.pressed_widget = None
+            self.window.keyboard.stop_backspace_repeat()
+            self.dirty = True
+        if kind == QEvent.Type.MouseButtonRelease and self.pressed_widget is None:
+            return
         point = self.position.toPoint()
         target = self.pressed_widget or self.window.childAt(point) or self.window.keyboard
         if isinstance(target, QPushButton) and self.window.keyboard.selected_button is not target:

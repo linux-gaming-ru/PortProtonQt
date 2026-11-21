@@ -42,6 +42,7 @@ class SystemInputWorker(QThread):
         self.stopping = Event()
         self.enabled = Event()
         self.modifiers: set[int] = set()
+        self.pending_super = False
         self.caps_lock = False
         self.layout: Any = None
         self.manual_layout = False
@@ -109,9 +110,12 @@ class SystemInputWorker(QThread):
             self.warning.emit(f'{error}. Manual US/RU labels; external layout changes are not tracked.')
 
     def _execute(self, device: UInput, action: str, codes: tuple[int, ...]) -> None:
-        from portprotonqt.system_keyboard.detection import CinnamonLayout, GSettingsLayout, KDELayout, X11Layout, is_x11_session
+        from portprotonqt.system_keyboard.detection import CinnamonLayout, GSettingsLayout, KDELayout, LabwcLayout, X11Layout, is_x11_session
         import os
         if action in {'tap', 'caps', 'language', 'modifiers'} and not self.enabled.is_set():
+            return
+        if isinstance(self.layout, LabwcLayout) and action == 'modifiers':
+            self._set_labwc_modifiers(device, codes)
             return
         if action == 'modifiers':
             modifier_only = ((self.modifiers == {ecodes.KEY_LEFTMETA}
@@ -126,6 +130,7 @@ class SystemInputWorker(QThread):
                 self.send_keys(device, chord)
             self._set_modifiers(device, codes)
         elif action == 'release':
+            self.pending_super = False
             self._set_modifiers(device, ())
         elif action == 'caps':
             if isinstance(self.layout, X11Layout) and is_x11_session(os.environ):
@@ -133,6 +138,7 @@ class SystemInputWorker(QThread):
             else:
                 self.send_keys(device, (ecodes.KEY_CAPSLOCK,))
         elif action == 'language':
+            self.pending_super = False
             self._set_modifiers(device, ())
             if (type(self.layout) is X11Layout
                     and 'gnome' in os.environ.get('XDG_CURRENT_DESKTOP', '').lower().split(':')):
@@ -154,9 +160,31 @@ class SystemInputWorker(QThread):
                 self.send_keys(device, (ecodes.KEY_KBD_LAYOUT_NEXT,))
         elif action == 'tap':
             try:
+                if self.pending_super:
+                    self.pending_super = False
+                    self._set_modifiers(device, (ecodes.KEY_LEFTMETA,))
                 self.send_keys(device, tuple(code for code in codes if code not in self.modifiers))
             finally:
                 self._set_modifiers(device, ())
+
+    def _set_labwc_modifiers(self, device: UInput, codes: tuple[int, ...]) -> None:
+        requested = set(codes)
+        super_key = {ecodes.KEY_LEFTMETA}
+        if self.pending_super and not requested:
+            # Send both edges after the click; labwc cancels release bindings on pointer presses.
+            self.pending_super = False
+            self.send_keys(device, (ecodes.KEY_LEFTMETA,))
+            return
+        self.pending_super = requested == super_key and not self.modifiers
+        if self.pending_super:
+            return
+        shift_keys = {ecodes.KEY_LEFTSHIFT, ecodes.KEY_RIGHTSHIFT}
+        if (len(self.modifiers) == 2 and ecodes.KEY_LEFTALT in self.modifiers
+                and self.modifiers & shift_keys and self.modifiers - requested):
+            # XKB already switched when the chord was pressed; do not replay it.
+            requested.difference_update(self.modifiers)
+            self._set_modifiers(device, (ecodes.KEY_LEFTALT,))
+        self._set_modifiers(device, tuple(requested))
 
     def _set_modifiers(self, device: UInput, codes: tuple[int, ...]) -> None:
         requested = set(codes)
@@ -193,9 +221,10 @@ class SystemInputWorker(QThread):
             name = current[0] if isinstance(current, tuple) else getattr(self.layout, 'language', 'System')
             if hasattr(self.layout, 'layout_identifier'):
                 name = self.layout.layout_identifier()
+            active = self.modifiers | ({ecodes.KEY_LEFTMETA} if self.pending_super else set())
             self.state_changed.emit({'labels': labels, 'caps': caps,
-                                     'shift': bool(self.modifiers & {ecodes.KEY_LEFTSHIFT, ecodes.KEY_RIGHTSHIFT}),
-                                     'modifiers': tuple(sorted(self.modifiers)), 'layout': name})
+                                     'shift': bool(active & {ecodes.KEY_LEFTSHIFT, ecodes.KEY_RIGHTSHIFT}),
+                                     'modifiers': tuple(sorted(active)), 'layout': name})
         except Exception as error:
             logger.warning("Cannot update system keyboard labels: %s", error)
             self.warning.emit(str(error))

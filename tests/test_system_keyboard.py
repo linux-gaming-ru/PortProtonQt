@@ -297,6 +297,41 @@ def test_modifiers_send_real_press_and_release_events(
     assert not worker.modifiers
 
 
+@pytest.mark.parametrize('action, codes, events', [
+    ('modifiers', (), [(ecodes.KEY_LEFTMETA, 1), (ecodes.KEY_LEFTMETA, 0)]),
+    ('tap', (ecodes.KEY_E,), [(ecodes.KEY_LEFTMETA, 1), (ecodes.KEY_E, 1),
+                              (ecodes.KEY_E, 0), (ecodes.KEY_LEFTMETA, 0)]),
+    ('release', (), []),
+])
+def test_labwc_super_sends_one_chord_after_click(action: str, codes: tuple[int, ...], events: list) -> None:
+    worker = SystemInputWorker()
+    worker.layout = detection.LabwcLayout.__new__(detection.LabwcLayout)
+    worker.enabled.set()
+    device = MagicMock()
+    worker._execute(device, 'modifiers', (ecodes.KEY_LEFTMETA,))
+    device.write.assert_not_called()
+    worker._execute(device, action, codes)
+    assert [call.args for call in device.write.call_args_list] == [
+        (ecodes.EV_KEY, key, value) for key, value in events
+    ]
+    assert not worker.modifiers and not worker.pending_super
+
+
+def test_labwc_alt_shift_releases_both_without_replaying() -> None:
+    worker = SystemInputWorker()
+    worker.layout = detection.LabwcLayout.__new__(detection.LabwcLayout)
+    worker.enabled.set()
+    device = MagicMock()
+    worker._execute(device, 'modifiers', (ecodes.KEY_LEFTALT,))
+    worker._execute(device, 'modifiers', (ecodes.KEY_LEFTALT, ecodes.KEY_LEFTSHIFT))
+    worker._execute(device, 'modifiers', (ecodes.KEY_LEFTALT,))
+    assert [call.args for call in device.write.call_args_list] == [
+        (ecodes.EV_KEY, ecodes.KEY_LEFTALT, 1), (ecodes.EV_KEY, ecodes.KEY_LEFTSHIFT, 1),
+        (ecodes.EV_KEY, ecodes.KEY_LEFTSHIFT, 0), (ecodes.EV_KEY, ecodes.KEY_LEFTALT, 0),
+    ]
+    assert not worker.modifiers
+
+
 def test_alt_shift_replay_preserves_remaining_alt(application: QApplication) -> None:
     worker = SystemInputWorker()
     worker.enabled.set()
@@ -727,14 +762,37 @@ def test_wayland_protocol_metadata_is_native(application: QApplication) -> None:
         window._interface('not_a_protocol')
 
 
-@pytest.mark.parametrize('desktop', ['labwc', 'wayfire', 'Qtile', 'river', 'unknown'])
+def test_budgie_wayland_uses_labwc_layout(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv('XDG_CURRENT_DESKTOP', 'Budgie')
+    monkeypatch.setenv('WAYLAND_DISPLAY', 'wayland-test')
+    monkeypatch.setenv('LABWC_PID', '123')
+    adapter = MagicMock()
+    monkeypatch.setattr(detection, 'LabwcLayout', adapter)
+    assert detection.detect_layout() is adapter.return_value
+
+
+def test_labwc_updates_group_from_keyboard_modifiers() -> None:
+    layout = detection.LabwcLayout.__new__(detection.LabwcLayout)
+    fake = cast(Any, layout)
+    fake.keyboard = fake.manager = None
+    fake.seat = 1
+    fake._interface = MagicMock()
+    fake._new = MagicMock(return_value=2)
+    fake._listen = MagicMock()
+    layout._capabilities(2)
+    modifiers, _ = fake._listen.call_args.args[1][-1]
+    modifiers(0, 0, 0, 0, 2)
+    assert layout.group == 2
+
+
+@pytest.mark.parametrize('desktop', ['wayfire', 'Qtile', 'river', 'unknown'])
 def test_generic_wayland_uses_manual_labels_without_xwayland(
     monkeypatch: pytest.MonkeyPatch, desktop: str,
 ) -> None:
     monkeypatch.setenv('XDG_CURRENT_DESKTOP', desktop)
     monkeypatch.setenv('WAYLAND_DISPLAY', 'wayland-test')
     for variable in ('HYPRLAND_INSTANCE_SIGNATURE', 'SWAYSOCK', 'NIRI_SOCKET',
-                     'UMBRIEL_SOCKET', 'MANGO_INSTANCE_SIGNATURE'):
+                     'UMBRIEL_SOCKET', 'MANGO_INSTANCE_SIGNATURE', 'LABWC_PID'):
         monkeypatch.delenv(variable, raising=False)
     x11 = MagicMock()
     monkeypatch.setattr(detection, 'X11Layout', x11)
@@ -984,6 +1042,26 @@ def test_kde_selection_uses_native_backend(monkeypatch: pytest.MonkeyPatch) -> N
     assert detection.detect_layout() is factory.return_value
 
 
+def test_wayland_repeated_configure_does_not_rebuild_keyboard() -> None:
+    native: Any = system_window.WaylandWindow.__new__(system_window.WaylandWindow)
+    native.layer = 1
+    native._request = MagicMock()
+    native.window = MagicMock()
+    native.window.width.return_value = 1280
+    native.window.height.return_value = 720
+    native.configured = False
+    native._configured(1, 1280, 720)
+    native.dirty = False
+    native._configured(2, 1280, 720)
+    native.window._position_keyboard.assert_called_once_with()
+    assert native._request.call_count == 2
+    assert not native.dirty
+    native._configured(3, 1920, 1080)
+    native.window.resize.assert_called_with(1920, 1080)
+    assert native.window._position_keyboard.call_count == 2
+    assert native.dirty
+
+
 def test_wayland_mouse_moves_selection_and_shows_pressed_state(
     keyboard_window: SystemKeyboardWindow, application: QApplication,
 ) -> None:
@@ -1009,6 +1087,41 @@ def test_wayland_mouse_moves_selection_and_shows_pressed_state(
     assert target.isDown()
     native._mouse_event(QEvent.Type.MouseButtonRelease)
     assert not target.isDown()
+    assert keyboard_window.worker.commands.get_nowait() == ('tap', (ecodes.KEY_Q,))
+
+
+@pytest.mark.parametrize('deleted', [False, True])
+def test_wayland_release_after_keyboard_rebuild(
+    keyboard_window: SystemKeyboardWindow, application: QApplication, deleted: bool,
+) -> None:
+    from PySide6.QtCore import QEvent, QPointF
+    from shiboken6 import isValid
+
+    keyboard_window.ready = True
+    keyboard_window.show_keyboard()
+    application.processEvents()
+    keyboard = keyboard_window.keyboard
+    target = keyboard.buttons['q']
+    native: Any = system_window.WaylandWindow.__new__(system_window.WaylandWindow)
+    native.window = keyboard_window
+    native.pressed_widget = None
+    native.position = QPointF(target.mapTo(keyboard_window, target.rect().center()))
+    native._mouse_event(QEvent.Type.MouseButtonPress)
+    keyboard.update_keyboard()
+    if deleted:
+        QApplication.sendPostedEvents(target, QEvent.Type.DeferredDelete)
+    assert isValid(target) is not deleted
+
+    native._mouse_event(QEvent.Type.MouseButtonRelease)
+    assert native.pressed_widget is None
+    assert keyboard_window.worker.commands.empty()
+
+    application.processEvents()
+    replacement = keyboard.buttons['q']
+    native.position = QPointF(replacement.mapTo(keyboard_window, replacement.rect().center()))
+    assert keyboard_window.childAt(native.position.toPoint()) is replacement
+    native._mouse_event(QEvent.Type.MouseButtonPress)
+    native._mouse_event(QEvent.Type.MouseButtonRelease)
     assert keyboard_window.worker.commands.get_nowait() == ('tap', (ecodes.KEY_Q,))
 
 
