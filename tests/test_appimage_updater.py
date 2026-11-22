@@ -235,9 +235,11 @@ def test_appimage_update_worker_uses_github_mirror(
     assert available == [("Repo changelog", appimage_updater.GITHUB_UPDATE_INFO)]
 
 
+@pytest.mark.parametrize("exited_before_read", [False, True])
 def test_appimage_update_worker_emits_pty_progress(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    exited_before_read: bool,
 ) -> None:
     appimage = tmp_path / "PortProtonQt.AppImage"
     appimage.write_text("old version\n", encoding="utf-8")
@@ -267,6 +269,14 @@ def test_appimage_update_worker_emits_pty_progress(
     worker.update_progress.connect(
         lambda percent, message: progress_values.append((percent, message))
     )
+    if exited_before_read:
+        read_pty_output = worker._read_pty_output
+
+        def read_after_exit(master_fd: int, process: subprocess.Popen[bytes]) -> None:
+            assert process.wait(timeout=5) == 0
+            read_pty_output(master_fd, process)
+
+        monkeypatch.setattr(worker, "_read_pty_output", read_after_exit)
     worker.run()
 
     assert progress_values == [(25, "25% \u2193 32.0 MB/128.0 MB")]
