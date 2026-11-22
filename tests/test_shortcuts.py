@@ -2668,6 +2668,7 @@ def test_sgdb_artwork_cache_separates_types(
 ) -> None:
     import portprotonqt.steam_api.api as api
 
+    monkeypatch.setattr("portprotonqt.portproton_api.get_user_conf_setting", lambda _key: None)
     monkeypatch.setattr(api, "CacheManager", lambda: SimpleNamespace(cache_dir=tmp_path))
     downloads = []
 

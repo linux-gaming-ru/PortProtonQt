@@ -970,14 +970,6 @@ class GameLibraryManager:
             child = layout.takeAt(0)
             if child.widget():
                 widget = child.widget()
-                # Clean up cache if widget exists in it
-                for key, card in list(self.game_card_cache.items()):
-                    if card == widget:
-                        del self.game_card_cache[key]
-                        if key in self.pending_images:
-                            del self.pending_images[key]
-                        break
-                # Always schedule widget for deletion regardless of cache state
                 if isinstance(widget, GameCard):
                     widget.cleanup()
                 if widget is self.fullLibraryTile:

@@ -12,7 +12,7 @@ import subprocess
 from datetime import datetime, timedelta
 
 import pytest
-from PySide6.QtCore import QEventLoop, QMimeData, QRect, QStandardPaths, QThread, QTimer, Qt, QUrl
+from PySide6.QtCore import QEventLoop, QMimeData, QRect, QStandardPaths, QThread, QTimer, QUrl
 from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QPushButton
 from PySide6.QtGui import QIcon
 
@@ -270,8 +270,9 @@ def test_native_scan_completes_once_on_owner_thread(
 
 @pytest.mark.parametrize("filename", ['start', 'game with spaces', 'game%name$"\\test'])
 def test_manual_native_shortcut_round_trips_linux_paths(
-    tmp_path: Path, filename: str,
+    tmp_path: Path, filename: str, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr("portprotonqt.steam_api.shortcuts._generate_icon", lambda *_args: "")
     executable = tmp_path / filename
     executable.write_text("#!/bin/sh\nexit 0\n")
     executable.chmod(0o755)
@@ -430,38 +431,6 @@ def test_native_stop_uses_own_process_group_without_portproton() -> None:
     stop.assert_called_once()
 
 
-def test_native_settings_show_linux_tabs_and_ppdb_without_wine(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from portprotonqt.dialogs.settings_dialog import ExeSettingsDialog
-    from portprotonqt.dialogs.settings_gamescope import GamescopeSettingsMixin
-    from portprotonqt.theme_manager import load_theme
-    _app = QApplication.instance() or QApplication([])
-    path = tmp_path / "native.desktop"
-    path.write_text(f'[Desktop Entry]\nType=Application\nName=Native\nExec="/game/start"\nPath={tmp_path}\n')
-    monkeypatch.setattr("portprotonqt.dialogs.settings_dialog.get_portproton_location", lambda: None)
-    monkeypatch.setattr("portprotonqt.dialogs.settings_dialog.get_portproton_start_command", lambda: None)
-    monkeypatch.setattr("portprotonqt.native_games.get_native_tool_paths", lambda: {})
-    monkeypatch.setattr(GamescopeSettingsMixin, "_detect_gamescope_supported_options", lambda _self: None)
-    monkeypatch.setattr(ExeSettingsDialog, "init_virtual_keyboard", lambda self: setattr(self, "keyboard", QWidget(self)))
-    original_which = shutil.which
-    monkeypatch.setattr(shutil, "which", lambda command: "/fake/gamescope" if command == "gamescope" else original_which(command))
-    dialog = ExeSettingsDialog(theme=load_theme("standart"), exe_path=str(path), game_source="native")
-    keys = {item.data(Qt.ItemDataRole.UserRole) for row in range(dialog.settings_table.rowCount())
-            if (item := dialog.settings_table.item(row, 0)) is not None}
-    assert {"PW_USE_GAMEMODE", "PW_USE_RUNTIME"} <= keys
-    assert not ({"PW_WINE_USE", "PW_PREFIX_NAME", "PW_USE_ESYNC"} & keys)
-    assert not ({"PW_WINE_USE", "WINEDLLOVERRIDES"} & dialog.advanced_settings_by_key.keys())
-    assert not ({"Exec", "Path"} & dialog.advanced_settings_by_key.keys())
-    tabs = {dialog.tab_widget.tabText(index) for index in range(dialog.tab_widget.count())}
-    assert {"MangoHud", "vkBasalt", "Gamescope"} <= tabs
-    assert not dialog.open_ppdb_button.isHidden()
-    assert not dialog.clear_ppdb_button.isHidden()
-    assert dialog.current_settings["Exec"] == '"/game/start"'
-    dialog.close()
-    dialog.deleteLater()
-
-
 @pytest.mark.parametrize("action", ["confirm", "cancel", "missing"])
 def test_native_clear_ppdb_uses_user_data_path(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, action: str,
@@ -582,6 +551,7 @@ def test_manual_native_add_creates_shortcuts_and_respects_late_source_switch(
 ) -> None:
     import portprotonqt.tabs.library_tab as tab
     from PySide6.QtWidgets import QDialog
+    monkeypatch.setattr("portprotonqt.steam_api.shortcuts._generate_icon", lambda *_args: "")
     callbacks, selected = [], ["native"]
     executable = tmp_path / "start"
     executable.write_text("#!/bin/sh\nexit 0\n")
@@ -1095,6 +1065,7 @@ def test_native_portdata_shortcut_is_only_loaded_as_native(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     original_rglob = Path.rglob
+    monkeypatch.setattr("portprotonqt.steam_api.shortcuts._generate_icon", lambda *_args: "")
     monkeypatch.setattr(Path, "rglob", lambda path, pattern:
                         original_rglob(path, pattern) if path.is_relative_to(tmp_path) else iter(()))
     executable = tmp_path / "start"

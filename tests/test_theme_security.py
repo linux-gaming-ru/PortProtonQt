@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from portprotonqt.theme_security import (
+    MAX_AST_NODES,
     ThemeSecurityChecker,
     check_theme_directory_safety,
     check_theme_safety,
@@ -324,7 +325,8 @@ class TestAllowedConstructs:
 
 class TestAstSizeLimit:
     def test_huge_file(self, tmp_path: Path) -> None:
-        code = "x = 1\n" * 25000
+        # Each assignment adds four nodes; the module adds one more.
+        code = "x = 1\n" * (MAX_AST_NODES // 4)
         is_safe, errors = _check(code, tmp_path)
         assert not is_safe
         assert any("too many AST nodes" in e for e in errors)
