@@ -6,6 +6,7 @@ import ctypes as C
 import os
 import re
 import select
+import socket
 import subprocess
 import xml.etree.ElementTree as ET
 from collections.abc import Mapping
@@ -28,6 +29,9 @@ from portprotonqt.system_keyboard.native import load_library
 
 logger = get_logger(__name__)
 LAYOUT_NAME_BUFFER_BYTES = 256
+WAYFIRE_IPC_HEADER_BYTES = 4
+WAYFIRE_IPC_MAX_REPLY_BYTES = 64 * 1024
+WAYFIRE_IPC_TIMEOUT = 1.0
 IBUS_SCHEMA = 'org.freedesktop.ibus.general'
 
 
@@ -390,10 +394,11 @@ def compositor(environment: Any) -> Any:
     desktop = environment.get('XDG_CURRENT_DESKTOP', '').lower().split(':')
     for name, variable in [('hyprland', 'HYPRLAND_INSTANCE_SIGNATURE'),
                            ('sway', 'SWAYSOCK'), ('niri', 'NIRI_SOCKET'),
-                           ('umbriel', 'UMBRIEL_SOCKET'), ('mango', 'MANGO_INSTANCE_SIGNATURE')]:
+                           ('umbriel', 'UMBRIEL_SOCKET'), ('mango', 'MANGO_INSTANCE_SIGNATURE'),
+                           ('wayfire', 'WAYFIRE_SOCKET')]:
         if environment.get(variable):
             return name
-    name = next((name for name in ('hyprland', 'sway', 'niri', 'cosmic', 'umbriel', 'mango')
+    name = next((name for name in ('hyprland', 'sway', 'niri', 'cosmic', 'umbriel', 'mango', 'wayfire')
                  if name in desktop), None)
     if name is not None:
         return name
@@ -451,6 +456,57 @@ class NiriLayout:
     def close(self) -> None:
         if self.layout is not None:
             self.layout = None
+
+
+class WayfireLayout(NiriLayout):
+    @staticmethod
+    def _request(method: str, data: dict[str, int] | None = None) -> dict[str, Any]:
+        path = os.environ.get('WAYFIRE_SOCKET')
+        if not path:
+            raise RuntimeError('Wayfire IPC unavailable: enable the ipc and ipc-rules plugins')
+        payload = orjson.dumps({'method': method, 'data': data or {}})
+        try:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+                sock.settimeout(WAYFIRE_IPC_TIMEOUT)
+                sock.connect(path)
+                sock.sendall(len(payload).to_bytes(WAYFIRE_IPC_HEADER_BYTES, 'little') + payload)
+                with sock.makefile('rb') as stream:
+                    header = stream.read(WAYFIRE_IPC_HEADER_BYTES)
+                    if len(header) != WAYFIRE_IPC_HEADER_BYTES:
+                        raise ValueError('incomplete reply header')
+                    size = int.from_bytes(header, 'little')
+                    if not 0 < size <= WAYFIRE_IPC_MAX_REPLY_BYTES:
+                        raise ValueError('invalid reply size')
+                    body = stream.read(size)
+                    if len(body) != size:
+                        raise ValueError('incomplete reply')
+                    reply = orjson.loads(body)
+        except (OSError, ValueError) as exc:
+            raise RuntimeError(f'Wayfire IPC error ({method}): {exc}') from exc
+        if not isinstance(reply, dict):
+            raise ValueError('Invalid Wayfire IPC reply')
+        if 'error' in reply:
+            raise RuntimeError(f"Wayfire IPC error ({method}): {reply['error']}")
+        return reply
+
+    def _keyboard_state(self) -> tuple[list[str], int]:
+        reply = self._request('wayfire/get-keyboard-state')
+        names, index = reply.get('possible-layouts'), reply.get('layout-index')
+        if (not isinstance(names, list) or any(not isinstance(name, str) or not name for name in names)
+                or type(index) is not int or not 0 <= index < len(names)):
+            raise ValueError('Invalid Wayfire keyboard layout state')
+        return names, index
+
+    def _query_name(self) -> str:
+        names, index = self._keyboard_state()
+        return names[index]
+
+    def switch(self) -> None:
+        names, index = self._keyboard_state()
+        if len(names) > 1:
+            reply = self._request('wayfire/set-keyboard-state', {'layout-index': (index + 1) % len(names)})
+            if reply.get('result') != 'ok':
+                raise RuntimeError('Wayfire did not confirm the keyboard layout change')
 
 
 class SwayLayout(NiriLayout):
@@ -650,7 +706,7 @@ def detect_layout() -> object:
         return X11Layout()
     adapter = {'cosmic': CosmicLayout, 'niri': NiriLayout, 'sway': SwayLayout,
                'hyprland': HyprlandLayout, 'umbriel': UmbrielLayout, 'mango': MangoLayout,
-               'labwc': LabwcLayout}.get(name)
+               'labwc': LabwcLayout, 'wayfire': WayfireLayout}.get(name)
     if adapter is None:
         raise RuntimeError('No keyboard layout adapter for this compositor')
     return adapter()

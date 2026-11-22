@@ -762,6 +762,14 @@ def test_wayland_protocol_metadata_is_native(application: QApplication) -> None:
         window._interface('not_a_protocol')
 
 
+@pytest.fixture
+def clean_compositor_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    for variable in ('HYPRLAND_INSTANCE_SIGNATURE', 'SWAYSOCK', 'NIRI_SOCKET',
+                     'UMBRIEL_SOCKET', 'MANGO_INSTANCE_SIGNATURE', 'LABWC_PID', 'WAYFIRE_SOCKET'):
+        monkeypatch.delenv(variable, raising=False)
+
+
+@pytest.mark.usefixtures('clean_compositor_env')
 def test_budgie_wayland_uses_labwc_layout(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv('XDG_CURRENT_DESKTOP', 'Budgie')
     monkeypatch.setenv('WAYLAND_DISPLAY', 'wayland-test')
@@ -785,18 +793,21 @@ def test_labwc_updates_group_from_keyboard_modifiers() -> None:
     assert layout.group == 2
 
 
-@pytest.mark.parametrize('desktop', ['wayfire', 'Qtile', 'river', 'unknown'])
+@pytest.mark.parametrize('desktop, warning', [
+    ('wayfire', 'Wayfire IPC unavailable'),
+    ('Qtile', 'No keyboard layout adapter'),
+    ('river', 'No keyboard layout adapter'),
+    ('unknown', 'No keyboard layout adapter'),
+])
+@pytest.mark.usefixtures('clean_compositor_env')
 def test_generic_wayland_uses_manual_labels_without_xwayland(
-    monkeypatch: pytest.MonkeyPatch, desktop: str,
+    monkeypatch: pytest.MonkeyPatch, desktop: str, warning: str,
 ) -> None:
     monkeypatch.setenv('XDG_CURRENT_DESKTOP', desktop)
     monkeypatch.setenv('WAYLAND_DISPLAY', 'wayland-test')
-    for variable in ('HYPRLAND_INSTANCE_SIGNATURE', 'SWAYSOCK', 'NIRI_SOCKET',
-                     'UMBRIEL_SOCKET', 'MANGO_INSTANCE_SIGNATURE', 'LABWC_PID'):
-        monkeypatch.delenv(variable, raising=False)
     x11 = MagicMock()
     monkeypatch.setattr(detection, 'X11Layout', x11)
-    with pytest.raises(RuntimeError, match='No keyboard layout adapter'):
+    with pytest.raises(RuntimeError, match=warning):
         detection.detect_layout()
     x11.assert_not_called()
 
@@ -865,6 +876,54 @@ def ipc_layout_registry(tmp_path: Any) -> Any:
         <layout><configItem><name>ru</name><description>Russian</description></configItem></layout>
     </layoutList></xkbConfigRegistry>''')
     return registry
+
+
+@pytest.mark.usefixtures('clean_compositor_env')
+def test_wayfire_detects_session_and_tracks_layout(monkeypatch: pytest.MonkeyPatch, ipc_layout_registry: Any) -> None:
+    monkeypatch.setenv('XDG_CURRENT_DESKTOP', 'Wayfire')
+    monkeypatch.setenv('WAYFIRE_SOCKET', '/test/wayfire.sock')
+    assert detection.compositor({'WAYFIRE_SOCKET': '/test/wayfire.sock'}) == 'wayfire'
+    assert detection.compositor({'XDG_CURRENT_DESKTOP': 'Wayfire'}) == 'wayfire'
+    names = ['English (Dvorak)', 'Russian']
+    request = MagicMock(side_effect=[
+        {'possible-layouts': names, 'layout-index': 0},
+        {'possible-layouts': names, 'layout-index': 1},
+        {'possible-layouts': names, 'layout-index': 1},
+        {'result': 'ok'},
+    ])
+    monkeypatch.setattr(detection.WayfireLayout, '_request', request)
+    factory = MagicMock()
+    monkeypatch.setattr(detection, 'Layout', factory)
+    layout = detection.WayfireLayout(ipc_layout_registry)
+    factory.assert_called_once_with('us', 'dvorak')
+    layout.labels()
+    factory.assert_called_with('ru', '')
+    layout.switch()
+    request.assert_called_with('wayfire/set-keyboard-state', {'layout-index': 0})
+    adapter = MagicMock(return_value=layout)
+    monkeypatch.setattr(detection, 'WayfireLayout', adapter)
+    assert detection.detect_layout() is layout
+
+
+@pytest.mark.parametrize('reply, error', [
+    (b'\x01', 'incomplete reply header'),
+    (b'\x05\0\0\0{}', 'incomplete reply'),
+    (b'\x00\x00\x02\x00', 'invalid reply size'),
+    (b'\x10\0\0\0{"error":"oops"}', 'oops'),
+])
+def test_wayfire_ipc_rejects_bad_replies(monkeypatch: pytest.MonkeyPatch, reply: bytes, error: str) -> None:
+    from io import BytesIO
+
+    monkeypatch.setenv('WAYFIRE_SOCKET', '/test/wayfire.sock')
+    socket_factory = MagicMock()
+    monkeypatch.setattr(detection.socket, 'socket', socket_factory)
+    sock = socket_factory.return_value.__enter__.return_value
+    sock.makefile.return_value = BytesIO(reply)
+    with pytest.raises(RuntimeError, match=error):
+        detection.WayfireLayout._request('wayfire/get-keyboard-state')
+    sock.connect.assert_called_once_with('/test/wayfire.sock')
+    payload = b'{"method":"wayfire/get-keyboard-state","data":{}}'
+    sock.sendall.assert_called_once_with(len(payload).to_bytes(4, 'little') + payload)
 
 
 @pytest.mark.parametrize('adapter', [detection.UmbrielLayout, detection.MangoLayout])
@@ -1368,6 +1427,7 @@ def test_ibus_switch_rejects_unusable_sources(
     ('true', 'xkb:de::deu', False),
     ('false', 'pinyin', False),
 ])
+@pytest.mark.usefixtures('clean_compositor_env')
 def test_x11_detects_ibus_managed_layouts(
     monkeypatch: pytest.MonkeyPatch, system_map: str, engine: str, uses_ibus: bool,
 ) -> None:
@@ -1384,6 +1444,7 @@ def test_x11_detects_ibus_managed_layouts(
     assert ibus.call_count == int(uses_ibus)
 
 
+@pytest.mark.usefixtures('clean_compositor_env')
 def test_ibus_detection_failure_keeps_x11_available(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv('XDG_SESSION_TYPE', 'x11')
     monkeypatch.setenv('XDG_CURRENT_DESKTOP', 'XFCE')

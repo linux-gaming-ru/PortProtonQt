@@ -114,10 +114,10 @@ class SystemInputWorker(QThread):
         import os
         if action in {'tap', 'caps', 'language', 'modifiers'} and not self.enabled.is_set():
             return
-        if isinstance(self.layout, LabwcLayout) and action == 'modifiers':
-            self._set_labwc_modifiers(device, codes)
-            return
         if action == 'modifiers':
+            if isinstance(self.layout, LabwcLayout):
+                self._set_labwc_modifiers(device, codes)
+                return
             modifier_only = ((self.modifiers == {ecodes.KEY_LEFTMETA}
                               and not is_x11_session(os.environ))
                              or (len(self.modifiers) == 2 and ecodes.KEY_LEFTALT in self.modifiers
