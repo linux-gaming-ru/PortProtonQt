@@ -9,7 +9,7 @@ msgstr ""
 "Project-Id-Version: PortProtonQt 0.1.1\n"
 "Report-Msgid-Bugs-To: support@linux-gaming.ru\n"
 "POT-Creation-Date: 2026-06-18 23:41+0500\n"
-"PO-Revision-Date: 2026-10-24 09:27+0000\n"
+"PO-Revision-Date: 2026-11-22 12:27+0000\n"
 "Last-Translator: Rubin13 <rubin13@noreply.codeberg.org>\n"
 "Language-Team: German <https://translate.codeberg.org/projects/portprotonqt/"
 "portprotonqt/de/>\n"
@@ -754,13 +754,13 @@ msgstr ""
 msgid "Run After / Wrapper"
 msgstr "Nach Start ausführen / Wrapper"
 
-#, fuzzy, python-format
+#, python-format
 msgid ""
 "Path to a second .exe, script, or wrapper command. Use %command% for the "
 "game command"
 msgstr ""
-"Pfad zu einer zweiten .exe-Datei, einem Skript oder einem Wrapper-Befehl."
-" Beispiel: systemd-run --user --scope --slice=app.slice"
+"Pfad zu einer zweiten .exe-Datei, einem Skript oder einem Wrapper-Befehl. "
+"Verwende %command% für den Spielbefehl"
 
 msgid "CPU Cores Limit"
 msgstr "CPU-Kerne-Limit"
@@ -993,14 +993,13 @@ msgid "Path to Executable:"
 msgstr "Pfad zur ausführbaren Datei:"
 
 msgid "Custom Cover:"
-msgstr "Eigenes Titelbild:"
+msgstr "Individuelles Cover:"
 
 msgid "Enter local path or URL for cover image"
 msgstr "Lokaler Pfad oder die URL für das Titelbild"
 
-#, fuzzy
 msgid "Custom Icon:"
-msgstr "Eigenes Titelbild:"
+msgstr "Individuelles Symgol:"
 
 msgid "Add shortcut to:"
 msgstr "Verknüpfung hinzufügen zu:"
@@ -1278,9 +1277,8 @@ msgstr "Globale Spieleinstellungen"
 msgid "Exe Settings"
 msgstr "Einstellungen für die exe-Datei"
 
-#, fuzzy
 msgid "Native"
-msgstr "Nach Bildausgabe"
+msgstr "Native"
 
 msgid "Edit user.conf"
 msgstr "user.conf bearbeiten"
@@ -2114,9 +2112,8 @@ msgstr "Vollbild"
 msgid "Mouse Emulation"
 msgstr "Mausemulation"
 
-#, fuzzy
 msgid "System Keyboard"
-msgstr "Tastatur-Eingabe abfangen"
+msgstr "Systemtastatur"
 
 msgid "Connect"
 msgstr "Verbinden"
