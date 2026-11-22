@@ -383,8 +383,9 @@ class TrayManager:
             self.main_window._apply_theme_live("standart")
 
     def force_exit(self):
-        self.main_window.close()
-        sys.exit(0)
+        self.main_window._explicit_exit = True
+        if self.main_window.close():
+            QApplication.quit()
 
     def shutdown(self):
         if self.tray_icon:

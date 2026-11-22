@@ -3529,18 +3529,19 @@ class MainWindow(
             self.tray_manager = TrayManager(self, app_name, self.current_theme_name)
 
     def closeEvent(self, event):
-        """Handle window close: check minimize_to_tray setting.
-        If True - minimize to tray. Otherwise - fully close.
-        """
-        minimize_to_tray = display_config.get_minimize_to_tray()
+        """Minimize on ordinary close when configured, or shut down."""
+        if getattr(self, "_shutdown_started", False):
+            event.accept()
+            return
 
-        if minimize_to_tray:
+        if not getattr(self, "_explicit_exit", False) and display_config.get_minimize_to_tray():
             # Just minimize to tray
             event.ignore()
             self.hide()
             return
 
         # Full application close
+        self._shutdown_started = True
         event.accept()
         system_keyboard = getattr(self, 'system_keyboard', None)
         if system_keyboard is not None:
