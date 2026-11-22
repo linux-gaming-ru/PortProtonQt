@@ -699,11 +699,11 @@ class GameLibraryManager:
                 self.gamesListLayout.setEnabled(False)  # Disable layout during batch
 
             try:
-                # Optimized sorting: Partition favorites first, then sort subgroups
+                favorites_set = set(favorites)
+
                 def partition_sort_key(game):
                     name = game[0]
-                    is_fav = name in favorites
-                    fav_order = 0 if is_fav else 1
+                    fav_order = 0 if name in favorites_set else 1
                     if sort_method == "playtime":
                         return (fav_order, -game[11] if game[11] else 0, -game[10] if game[10] else 0)
                     elif sort_method == "alphabetical":
@@ -711,13 +711,7 @@ class GameLibraryManager:
                     else:
                         return (fav_order, -game[10] if game[10] else 0, -game[11] if game[11] else 0)
 
-                # Quick partition: Sort favorites and non-favorites separately, then merge
-                favorites_set = set(favorites)  # Convert to set for O(1) lookup
-                fav_games = [g for g in games_list if g[0] in favorites_set]
-                non_fav_games = [g for g in games_list if g[0] not in favorites_set]
-                sorted_fav = sorted(fav_games, key=partition_sort_key)
-                sorted_non_fav = sorted(non_fav_games, key=partition_sort_key)
-                sorted_games = sorted_fav + sorted_non_fav
+                sorted_games = sorted(games_list, key=partition_sort_key)
                 if self.layout_mode == "horizontal_top":
                     limit = self.theme.horizontalTopGameLimit
                     tile_games = sorted_games[limit:limit + self.theme.fullLibraryTileGameCount]
@@ -970,6 +964,10 @@ class GameLibraryManager:
             child = layout.takeAt(0)
             if child.widget():
                 widget = child.widget()
+                if self.main_window.current_focused_card is widget:
+                    self.main_window.current_focused_card = None
+                if self.main_window.current_hovered_card is widget:
+                    self.main_window.current_hovered_card = None
                 if isinstance(widget, GameCard):
                     widget.cleanup()
                 if widget is self.fullLibraryTile:

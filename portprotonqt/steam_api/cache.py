@@ -103,8 +103,8 @@ def save_app_details(app_id: int, data: dict) -> None:
     cache_manager.save_json(f"steam_app_{app_id}", data)
 
 
-def load_steam_apps_async(callback: Callable[[list], None]) -> None:
-    """Asynchronously load Steam applications, using cache if available."""
+def load_steam_apps(callback: Callable[[list], None]) -> None:
+    """Load Steam applications, using cache if available."""
     cache_manager = CacheManager()
     cache_tar_path = cache_manager.cache_dir / "games_appid.tar.xz"
     cache_json_path = cache_manager.cache_dir / "steam_apps.json"
@@ -160,14 +160,14 @@ def load_steam_apps_async(callback: Callable[[list], None]) -> None:
             )
             delete_cached_app_files(str(cache_manager.cache_dir), "steam_app_*.json")
             delete_cached_app_files(str(cache_manager.cache_dir), "protondb_*.json")
-            downloader.download_async(app_list_url, str(cache_tar_path), timeout=5, callback=process_tar)
+            process_tar(downloader.download(app_list_url, str(cache_tar_path), timeout=5))
     else:
         app_list_url = (
             "https://git.linux-gaming.ru/Linux-Gaming/PortProtonQt/raw/branch/main/data/games_appid.tar.xz"
         )
         delete_cached_app_files(str(cache_manager.cache_dir), "steam_app_*.json")
         delete_cached_app_files(str(cache_manager.cache_dir), "protondb_*.json")
-        downloader.download_async(app_list_url, str(cache_tar_path), timeout=5, callback=process_tar)
+        process_tar(downloader.download(app_list_url, str(cache_tar_path), timeout=5))
 
 
 def build_index(steam_apps: list) -> dict:
@@ -199,8 +199,8 @@ def search_app(candidate: str, steam_apps_index: dict) -> dict | None:
     return None
 
 
-def load_weanticheatyet_data_async(callback: Callable[[list], None]) -> None:
-    """Asynchronously load WeAntiCheatYet data, using cache if available."""
+def load_weanticheatyet_data(callback: Callable[[list], None]) -> None:
+    """Load WeAntiCheatYet data, using cache if available."""
     cache_manager = CacheManager()
     cache_tar_path = cache_manager.cache_dir / "anticheat_games.tar.xz"
     cache_json_path = cache_manager.cache_dir / "anticheat_games.json"
@@ -255,12 +255,12 @@ def load_weanticheatyet_data_async(callback: Callable[[list], None]) -> None:
             app_list_url = (
                 "https://git.linux-gaming.ru/Linux-Gaming/PortProtonQt/raw/branch/main/data/anticheat_games.tar.xz"
             )
-            downloader.download_async(app_list_url, str(cache_tar_path), timeout=5, callback=process_tar)
+            process_tar(downloader.download(app_list_url, str(cache_tar_path), timeout=5))
     else:
         app_list_url = (
             "https://git.linux-gaming.ru/Linux-Gaming/PortProtonQt/raw/branch/main/data/anticheat_games.tar.xz"
         )
-        downloader.download_async(app_list_url, str(cache_tar_path), timeout=5, callback=process_tar)
+        process_tar(downloader.download(app_list_url, str(cache_tar_path), timeout=5))
 
 
 def _extract_ppdb_archive(
@@ -293,8 +293,8 @@ def _extract_ppdb_archive(
         return []
 
 
-def load_ppdb_data_async(callback: Callable[[list], None]) -> None:
-    """Asynchronously load PPDB data, using cache if available."""
+def load_ppdb_data(callback: Callable[[list], None]) -> None:
+    """Load PPDB data, using cache if available."""
     cache_manager = CacheManager()
     cache_tar_path = cache_manager.cache_dir / "ppdb_games.tar.xz"
     cache_json_path = cache_manager.cache_dir / "ppdb_games.json"
@@ -319,9 +319,9 @@ def load_ppdb_data_async(callback: Callable[[list], None]) -> None:
             callback(data)
         except Exception as e:
             logger.error("Failed to read or validate cached PPDB JSON %s: %s", cache_json_path, e)
-            downloader.download_async(PPDB_DATA_URL, str(cache_tar_path), timeout=5, callback=process_tar)
+            process_tar(downloader.download(PPDB_DATA_URL, str(cache_tar_path), timeout=5))
     else:
-        downloader.download_async(PPDB_DATA_URL, str(cache_tar_path), timeout=5, callback=process_tar)
+        process_tar(downloader.download(PPDB_DATA_URL, str(cache_tar_path), timeout=5))
 
 
 def build_weanticheatyet_index(anti_cheat_data: list) -> dict:

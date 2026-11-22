@@ -1,6 +1,9 @@
 """Tests for steam_api/cache.py — exiftool skip and search functions."""
 import time
+from functools import partial
 from pathlib import Path
+from threading import Event
+from typing import Any
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -19,6 +22,67 @@ def clear_exiftool_cache():
     _EXIFTOOL_CACHE.clear()
     yield
     _EXIFTOOL_CACHE.clear()
+
+
+@pytest.mark.parametrize("kind", ["app", "protondb", "steam", "anticheat", "ppdb"])
+def test_slow_metadata_cache_keeps_qt_responsive(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, kind: str,
+) -> None:
+    import orjson
+    from PySide6.QtCore import QThread, QTimer
+    from PySide6.QtWidgets import QApplication
+    from portprotonqt.steam_api import api, cache
+
+    app = QApplication.instance() or QApplication([])
+    manager = cache.CacheManager(tmp_path)
+    monkeypatch.setattr(cache, "CacheManager", lambda: manager)
+    monkeypatch.setattr(api, "CacheManager", lambda: manager)
+    entry = {"normalized_name": "game", "appid": 1, "id": 1, "status": "works", "slug": "game"}
+    catalogs = {
+        "steam": ("_STEAM_APPS_CACHE", "steam_apps", api.get_steam_apps_and_index_async),
+        "anticheat": ("_ANTICHEAT_CACHE", "anticheat_games", api.get_anticheat_data_and_index_async),
+        "ppdb": ("_PPDB_CACHE", "ppdb_games", api.get_ppdb_data_and_index_async),
+    }
+    if kind in catalogs:
+        name, filename, request = catalogs[kind]
+        monkeypatch.setattr(api, name, manager)
+        payload: Any = [entry]
+        expected: Any = ([entry], {"game": entry})
+    elif kind == "app":
+        filename, payload = "steam_app_1", {"name": "Game"}
+        request = partial(api.fetch_app_info_async, 1)
+        expected = payload
+    else:
+        filename, payload = "protondb_1", {"tier": "gold"}
+        request = partial(api.get_protondb_tier_async, 1)
+        expected = "gold"
+    target = tmp_path / f"{filename}.json"
+    target.write_bytes(orjson.dumps(payload))
+    original_stat = Path.stat
+    entered, release = Event(), Event()
+
+    def slow_stat(path: Path, **kwargs: Any) -> Any:
+        if path == target:
+            assert QThread.currentThread() != app.thread()
+            entered.set()
+            assert release.wait(5)
+        return original_stat(path, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", slow_stat)
+    results: list[tuple[Any, QThread]] = []
+    tick = MagicMock()
+    try:
+        request(lambda result: results.append((result, QThread.currentThread())))
+        assert entered.wait(5)
+        QTimer.singleShot(0, tick)
+        app.processEvents()
+        tick.assert_called_once_with()
+        assert not results
+    finally:
+        release.set()
+        assert api._METADATA_LOOKUPS.waitForDone(5000)
+    app.processEvents()
+    assert results == [(expected, app.thread())]
 
 
 class TestGetExiftoolData:

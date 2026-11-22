@@ -115,6 +115,8 @@ def test_library_clear_releases_full_library_tile(
     key = ("Game", "1")
     card = manager._create_game_card((key[0], "", "", "", "", key[1], "", "", "", "", 0, 0, "steam"))
     manager.game_card_cache[key] = card
+    manager.main_window.current_focused_card = card
+    manager.main_window.current_hovered_card = card
     manager.pending_images[key] = ("cover.png", 1, 1, MagicMock())
     manager.gamesListLayout.addWidget(card)
     while callbacks:
@@ -122,6 +124,8 @@ def test_library_clear_releases_full_library_tile(
 
     manager.clear_layout(manager.gamesListLayout)
     assert manager.gamesListLayout.count() == 0
+    assert manager.main_window.current_focused_card is None
+    assert manager.main_window.current_hovered_card is None
     assert not manager.game_card_cache
     assert not manager.pending_images
     QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
@@ -345,9 +349,8 @@ def test_failed_protondb_completion_preserves_library_scroll(
     monkeypatch.setattr(portproton_api, "get_user_conf_setting", lambda _key: None)
     monkeypatch.setattr(api, "load_protondb_status", lambda _appid: None)
     monkeypatch.setattr(api, "CacheManager", lambda: SimpleNamespace(cache_dir=tmp_path))
-    responses: list[Callable[[str | None], None]] = []
-    monkeypatch.setattr(api.downloader, "download_async",
-                        lambda *_args, **kwargs: responses.append(kwargs["callback"]))
+    download = MagicMock(return_value=None)
+    monkeypatch.setattr(api.downloader, "download", download)
     games = [(f"Game {i}", "", "", "", "", str(i), "", "", "", "", 0, 0, "steam") for i in range(12)]
     manager.set_games(games)
     QApplication.processEvents()
@@ -364,7 +367,8 @@ def test_failed_protondb_completion_preserves_library_scroll(
     assert previous_value > 0
     main.stackedWidget.currentIndex = lambda: scenario[1]
 
-    responses[0](None)
+    assert api._METADATA_LOOKUPS.waitForDone(5000)
+    download.assert_called_once()
     QApplication.processEvents()
     QApplication.processEvents()
 

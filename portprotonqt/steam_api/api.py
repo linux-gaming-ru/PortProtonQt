@@ -8,9 +8,11 @@ import time
 import urllib.parse
 from collections.abc import Callable
 from functools import lru_cache
+from typing import TypeVar
 
 import orjson
 from PIL import Image, UnidentifiedImageError
+from PySide6.QtCore import QThread, QThreadPool
 
 from portprotonqt.logger import get_logger
 from portprotonqt.downloader import Downloader
@@ -23,11 +25,11 @@ from portprotonqt.steam_api.cache import (
     CACHE_DURATION,
     load_app_details,
     save_app_details,
-    load_steam_apps_async,
+    load_steam_apps,
     build_index,
     search_app,
-    load_weanticheatyet_data_async,
-    load_ppdb_data_async,
+    load_weanticheatyet_data,
+    load_ppdb_data,
     build_weanticheatyet_index,
     build_ppdb_index,
     search_anticheat_entry,
@@ -48,89 +50,98 @@ SGDB_CACHE_DURATION = 24 * 60 * 60
 STEAM_CLIENT_ICON_SIZES = (16, 32, 64, 128, 256)
 
 
-def fetch_sgdb_cover_async(
-    game_name: str, callback: Callable[[str], None], image_type: str = "grids"
-) -> None:
-    """Asynchronously fetch cover image URL from steamgrid.usebottles.com."""
-    encoded = urllib.parse.quote(game_name, safe="")
-    url = f"https://steamgrid.usebottles.com/api/search/{encoded}/{image_type}"
+_METADATA_LOOKUPS = QThreadPool(downloader)
+_METADATA_LOOKUPS.setMaxThreadCount(min(downloader.max_workers, max(1, QThread.idealThreadCount())))
 
-    def process_response(result: str | None) -> None:
-        if not result or not os.path.exists(result):
-            logger.warning("Failed to download SGDB data for %s", game_name)
-            try:
-                cache_file.write_text('""', encoding="utf-8")
-            except OSError as e:
-                logger.warning("Failed to save SGDB miss cache for %s: %s", game_name, e)
-            callback("")
-            return
-        try:
-            with open(result, encoding="utf-8") as f:
-                text = f.read().strip()
-            if text.startswith('"') and text.endswith('"'):
-                text = text[1:-1]
-            if text:
-                from portprotonqt.portproton_api import get_user_conf_setting
 
-                if get_user_conf_setting("MIRROR") == "CLOUD":
-                    text = text.replace(
-                        "https://cdn2.steamgriddb.com/",
-                        "https://deckyloader.ru/sgdb-cdn/",
-                        1,
-                    )
-                logger.debug("Got SGDB cover URL for %s: %s", game_name, text)
-            callback(text)
-        except Exception as e:
-            logger.warning("Failed to process SGDB data for %s: %s", game_name, e)
-            callback("")
+def stop_metadata_lookups() -> None:
+    """Discard queued metadata lookups and join the workers during shutdown."""
+    _METADATA_LOOKUPS.clear()
+    _METADATA_LOOKUPS.waitForDone()
+
+
+def _read_sgdb_cover(game_name: str, image_type: str) -> str:
+    from portprotonqt.portproton_api import get_user_conf_setting
 
     cache_manager = CacheManager()
     safe_name = "".join(c for c in game_name if c.isalnum() or c in " -_")[:50]
     cache_file = cache_manager.cache_dir / f"sgdb_{safe_name}_{image_type}.json"
-    if cache_file.exists() and time.time() - cache_file.stat().st_mtime < SGDB_CACHE_DURATION:
-        process_response(str(cache_file))
-        return
-    downloader.download_async(url, str(cache_file), timeout=3, callback=process_response)
+    try:
+        cached_mtime = cache_file.stat().st_mtime
+    except OSError:
+        cached_mtime = None
+    result = str(cache_file)
+    if cached_mtime is None or time.time() - cached_mtime >= SGDB_CACHE_DURATION:
+        encoded = urllib.parse.quote(game_name, safe="")
+        url = f"https://steamgrid.usebottles.com/api/search/{encoded}/{image_type}"
+        result = downloader.download(url, result, timeout=3)
+        if not result:
+            logger.warning("Failed to download SGDB data for %s", game_name)
+            return ""
+    with open(result, encoding="utf-8") as stream:
+        text = stream.read().strip()
+    if text.startswith('"') and text.endswith('"'):
+        text = text[1:-1]
+    if text and get_user_conf_setting("MIRROR") == "CLOUD":
+        text = text.replace("https://cdn2.steamgriddb.com/", "https://deckyloader.ru/sgdb-cdn/", 1)
+    return text
+
+
+_LookupResult = TypeVar("_LookupResult")
+
+
+def _queue_metadata_lookup(
+    lookup: Callable[[], _LookupResult], callback: Callable[[_LookupResult], None], fallback: _LookupResult,
+) -> None:
+    def run() -> None:
+        try:
+            result = lookup()
+        except Exception:
+            logger.exception("Failed to load Steam metadata")
+            result = fallback
+        downloader.callback_requested.emit(callback, result)
+
+    _METADATA_LOOKUPS.start(run)
+
+
+def fetch_sgdb_cover_async(
+    game_name: str, callback: Callable[[str], None], image_type: str = "grids"
+) -> None:
+    """Look up artwork off the GUI thread, even when its cache is warm."""
+    _queue_metadata_lookup(lambda: _read_sgdb_cover(game_name, image_type), callback, "")
+
+
+def _read_app_info(app_id: int) -> dict | None:
+    cached = load_app_details(app_id)
+    if cached is not None:
+        return cached
+
+    lang = get_steam_language()
+    url = f"https://store.steampowered.com/api/appdetails?appids={app_id}&l={lang}"
+    cache_file = CacheManager().cache_dir / f"steam_app_{app_id}.json"
+    result = downloader.download(url, str(cache_file), timeout=5)
+    if not result:
+        logger.error("Failed to download Steam app info for appid %s", app_id)
+        return None
+    with open(result, "rb") as stream:
+        data = orjson.loads(stream.read())
+    details = data.get(str(app_id), {})
+    if not details.get("success"):
+        return None
+    app_data_full = details.get("data", {})
+    app_data = {
+        "steam_appid": app_data_full.get("steam_appid", app_id),
+        "name": app_data_full.get("name", ""),
+        "short_description": app_data_full.get("short_description", ""),
+        "controller_support": app_data_full.get("controller_support", ""),
+    }
+    save_app_details(app_id, app_data)
+    return app_data
 
 
 def fetch_app_info_async(app_id: int, callback: Callable[[dict | None], None]) -> None:
     """Asynchronously fetch detailed app info from Steam API."""
-    cached = load_app_details(app_id)
-    if cached is not None:
-        callback(cached)
-        return
-
-    lang = get_steam_language()
-    url = f"https://store.steampowered.com/api/appdetails?appids={app_id}&l={lang}"
-
-    def process_response(result: str | None) -> None:
-        if not result or not os.path.exists(result):
-            logger.error("Failed to download Steam app info for appid %s", app_id)
-            callback(None)
-            return
-        try:
-            with open(result, "rb") as f:
-                data = orjson.loads(f.read())
-            details = data.get(str(app_id), {})
-            if not details.get("success"):
-                callback(None)
-                return
-            app_data_full = details.get("data", {})
-            app_data = {
-                "steam_appid": app_data_full.get("steam_appid", app_id),
-                "name": app_data_full.get("name", ""),
-                "short_description": app_data_full.get("short_description", ""),
-                "controller_support": app_data_full.get("controller_support", "")
-            }
-            save_app_details(app_id, app_data)
-            callback(app_data)
-        except Exception as e:
-            logger.error("Failed to process Steam app info for appid %s: %s", app_id, e)
-            callback(None)
-
-    cache_manager = CacheManager()
-    cache_file = cache_manager.cache_dir / f"steam_app_{app_id}.json"
-    downloader.download_async(url, str(cache_file), timeout=5, callback=process_response)
+    _queue_metadata_lookup(lambda: _read_app_info(app_id), callback, None)
 
 
 def _get_icon_theme_dir() -> str:
@@ -234,12 +245,10 @@ def fetch_client_icon_async(appid: int | str, callback: Callable[[str], None]) -
     downloader.download_async(url, str(info_path), timeout=5, callback=process_info)
 
 
-def get_protondb_tier_async(appid: int, callback: Callable[[str], None]) -> None:
-    """Asynchronously fetch ProtonDB tier for an app."""
+def _read_protondb_tier(appid: int) -> str:
     cached = load_protondb_status(appid)
     if cached is not None:
-        callback(cached.get("tier", ""))
-        return
+        return cached.get("tier", "")
 
     from portprotonqt.portproton_api import get_user_conf_setting
 
@@ -248,60 +257,59 @@ def get_protondb_tier_async(appid: int, callback: Callable[[str], None]) -> None
     else:
         url = f"https://www.protondb.com/api/v1/reports/summaries/{appid}.json"
 
-    def process_response(result: str | None) -> None:
-        if not result or not os.path.exists(result):
-            logger.info("Failed to download ProtonDB data for appid %s", appid)
-            callback("")
-            return
-        try:
-            with open(result, "rb") as f:
-                data = orjson.loads(f.read())
-            filtered_data = {"tier": data.get("tier", "")}
-            save_protondb_status(appid, filtered_data)
-            callback(filtered_data["tier"])
-        except Exception as e:
-            logger.info("Failed to process ProtonDB data for appid %s: %s", appid, e)
-            callback("")
+    cache_file = CacheManager().cache_dir / f"protondb_{appid}.json"
+    result = downloader.download(url, str(cache_file), timeout=5)
+    if not result:
+        logger.info("Failed to download ProtonDB data for appid %s", appid)
+        return ""
+    with open(result, "rb") as stream:
+        data = orjson.loads(stream.read())
+    tier = data.get("tier", "")
+    save_protondb_status(appid, {"tier": tier})
+    return tier
 
-    cache_manager = CacheManager()
-    cache_file = cache_manager.cache_dir / f"protondb_{appid}.json"
-    downloader.download_async(url, str(cache_file), timeout=5, callback=process_response)
+
+def get_protondb_tier_async(appid: int, callback: Callable[[str], None]) -> None:
+    """Asynchronously fetch ProtonDB tier for an app."""
+    _queue_metadata_lookup(lambda: _read_protondb_tier(appid), callback, "")
+
+
+def _queue_catalog_lookup(
+    cache: CacheManager, load: Callable[[Callable[[list], None]], None],
+    build: Callable[[list], dict], callback: Callable[[tuple[list | None, dict | None]], None],
+) -> None:
+    def load_catalog(on_data: Callable[[list], None]) -> None:
+        try:
+            load(on_data)
+        except Exception:
+            logger.exception("Failed to load metadata catalog")
+            on_data([])
+
+    def deliver(data: tuple[list | None, dict | None]) -> None:
+        downloader.callback_requested.emit(callback, data)
+
+    _METADATA_LOOKUPS.start(lambda: cache.get_data_and_index_async(load_catalog, build, deliver, CACHE_DURATION))
 
 
 def get_steam_apps_and_index_async(
     callback: Callable[[tuple[list | None, dict | None]], None]
 ) -> None:
-    """Asynchronously load and cache Steam apps and their index."""
-    _STEAM_APPS_CACHE.get_data_and_index_async(
-        load_steam_apps_async,
-        build_index,
-        callback,
-        CACHE_DURATION
-    )
+    """Load or reuse the Steam catalog and its index off the GUI thread."""
+    _queue_catalog_lookup(_STEAM_APPS_CACHE, load_steam_apps, build_index, callback)
 
 
 def get_anticheat_data_and_index_async(
     callback: Callable[[tuple[list | None, dict | None]], None]
 ) -> None:
-    """Asynchronously load and cache anti-cheat data and their index."""
-    _ANTICHEAT_CACHE.get_data_and_index_async(
-        load_weanticheatyet_data_async,
-        build_weanticheatyet_index,
-        callback,
-        CACHE_DURATION
-    )
+    """Load or reuse the anti-cheat catalog and its index off the GUI thread."""
+    _queue_catalog_lookup(_ANTICHEAT_CACHE, load_weanticheatyet_data, build_weanticheatyet_index, callback)
 
 
 def get_ppdb_data_and_index_async(
     callback: Callable[[tuple[list | None, dict | None]], None]
 ) -> None:
-    """Asynchronously load and cache PPDB data and their index."""
-    _PPDB_CACHE.get_data_and_index_async(
-        load_ppdb_data_async,
-        build_ppdb_index,
-        callback,
-        CACHE_DURATION
-    )
+    """Load or reuse the PPDB catalog and its index off the GUI thread."""
+    _queue_catalog_lookup(_PPDB_CACHE, load_ppdb_data, build_ppdb_index, callback)
 
 
 def get_weanticheatyet_status_async(game_name: str, callback: Callable[[str], None]) -> None:
@@ -436,7 +444,7 @@ def get_full_steam_game_info_async(
 ) -> None:
     """Asynchronously retrieve full Steam game info, including WeAntiCheatYet status."""
     if ui_config.get_economy_mode():
-        callback(get_cached_full_steam_game_info(appid, fallback_name))
+        _queue_metadata_lookup(lambda: get_cached_full_steam_game_info(appid, fallback_name), callback, {})
         return
 
     def on_app_info(app_info: dict | None) -> None:

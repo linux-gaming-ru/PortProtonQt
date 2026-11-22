@@ -5,6 +5,9 @@ logger = get_logger(__name__)
 
 class MainWindowWorkersMixin:
     def _stopBackgroundWorkers(self) -> None:
+        from portprotonqt.steam_api.api import stop_metadata_lookups
+
+        stop_metadata_lookups()
         context_menu_manager = getattr(self, "context_menu_manager", None)
         if context_menu_manager is not None:
             context_menu_manager.stop_card_actions()
@@ -28,6 +31,7 @@ class MainWindowWorkersMixin:
             "appImageIntegrationWorker": None,
             "gogdlUpdateWorker": None,
             "initialCommandWorker": None,
+            "_gpu_settings_worker": None,
             "egs_library_worker": None,
             "egs_auth_worker": None,
             "gog_library_worker": None,
