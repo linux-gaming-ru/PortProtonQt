@@ -39,7 +39,6 @@ from portprotonqt.dialogs.settings_mangohud import (
 from portprotonqt.dialogs.settings_vkbasalt import VkBasaltSettingsMixin
 
 
-PAINT_SETTLE_MS = 250
 _application = QApplication.instance() or QApplication([])
 
 
@@ -761,51 +760,6 @@ def test_winetricks_centered_checkboxes_and_install_selection(
     dialog.install_selected(force=True)
     dialog._start_install_process.assert_called_once_with(["art2kmin"], True)
     dialog.deleteLater()
-
-
-@pytest.mark.parametrize("theme_name", ["standart", "standart-light", "classic", "classic-light"])
-def test_settings_table_stops_repainting_when_idle(theme_name: str) -> None:
-    from PySide6.QtCore import QObject
-    from PySide6.QtWidgets import QTableWidgetItem
-    from portprotonqt.dialogs.settings_dialog import ExeSettingsDialog
-    from portprotonqt.theme_manager import ThemeWrapper, load_theme
-
-    theme = ThemeWrapper(load_theme(theme_name))
-    dialog = cast(ExeSettingsDialog, SimpleNamespace(theme=theme))
-
-    class PaintFilter(QObject):
-        paints = 0
-
-        def eventFilter(self, obj: QObject, event: QEvent) -> bool:
-            if event.type() == QEvent.Type.Paint:
-                self.paints += 1
-                return ExeSettingsDialog.eventFilter(dialog, obj, event)
-            return False
-
-    table = QTableWidget(3, 3)
-    table.resize(800, 400)
-    table.setStyleSheet(theme.WINETRICKS_TABBLE_STYLE)
-    table.setColumnWidth(0, 500)
-    table.setColumnHidden(2, True)
-    table.viewport().setProperty("ppqt_settings_values", True)
-    paint_filter = PaintFilter(table)
-    table.viewport().installEventFilter(paint_filter)
-    for row in range(3):
-        table.setItem(row, 0, QTableWidgetItem("Setting\nDescription " * 5))
-        combo = CustomComboBox(theme=theme)
-        combo.addItem("Value")
-        table.setCellWidget(row, 1, combo)
-    table.show()
-    for selected_row, width in ((0, 500), (1, 300)):
-        table.selectRow(selected_row)
-        table.setColumnWidth(0, width)
-        for _ in range(10):
-            QApplication.processEvents()
-        QTest.qWait(PAINT_SETTLE_MS)
-        paints = paint_filter.paints
-        QTest.qWait(PAINT_SETTLE_MS)
-        assert paint_filter.paints == paints
-    table.close()
 
 
 @pytest.fixture

@@ -13,7 +13,7 @@ from unittest.mock import MagicMock
 import psutil
 from pytest import MonkeyPatch, fixture, mark, raises
 from PySide6.QtCore import QEvent, QEventLoop, QObject, QPoint, QPointF, Qt, QTimer
-from PySide6.QtGui import QAction, QMouseEvent, QPixmap, QWheelEvent
+from PySide6.QtGui import QAction, QCloseEvent, QMouseEvent, QPixmap, QWheelEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import (
     QApplication,
@@ -368,6 +368,76 @@ def test_shutdown_waits_for_compatibility_analysis() -> None:
 
     worker.join.assert_called_once_with()
     assert window.compatibility_workers == []
+
+
+def test_tray_exit_shuts_down_after_minimizing(monkeypatch: MonkeyPatch) -> None:
+    from portprotonqt import main_window as window_module
+
+    monkeypatch.setattr(window_module.display_config, "get_minimize_to_tray", lambda: True)
+    monkeypatch.setattr(window_module.display_config, "get_fullscreen", lambda: True)
+    watcher = MagicMock()
+    window = SimpleNamespace(
+        hide=MagicMock(), system_theme_watcher=watcher,
+        theme=SimpleNamespace(), game_library_manager=SimpleNamespace(sizeSlider=object()),
+        game_processes={}, install_process=None, disc_image_manager=MagicMock(),
+        _stopBackgroundWorkers=MagicMock(),
+    )
+    monkeypatch.setattr(window_module.ui_config, "get_library_layout_mode", lambda _: "list")
+    manager = TrayManager.__new__(TrayManager)
+    manager.main_window = cast(Any, window)
+    tray_icon = MagicMock()
+    manager.tray_icon = tray_icon
+    window.tray_manager = manager
+
+    def close() -> bool:
+        event = QCloseEvent()
+        MainWindow.closeEvent(cast(Any, window), event)
+        return event.isAccepted()
+
+    def quit_application() -> None:
+        watcher.wait.assert_called_once_with()
+        window._stopBackgroundWorkers.assert_called_once_with()
+        assert close()  # aboutToQuit closes the window again.
+
+    window.close = close
+    quit_mock = MagicMock(side_effect=quit_application)
+    monkeypatch.setattr(QApplication, "quit", quit_mock)
+
+    assert not close()
+    window.hide.assert_called_once_with()
+    watcher.wait.assert_not_called()
+    manager.force_exit()
+    watcher.requestInterruption.assert_called_once_with()
+    watcher.wait.assert_called_once_with()
+    window._stopBackgroundWorkers.assert_called_once_with()
+    tray_icon.hide.assert_called_once_with()
+    tray_icon.deleteLater.assert_called_once_with()
+    quit_mock.assert_called_once_with()
+
+
+def test_tray_exports_complete_menu_before_first_open(monkeypatch: MonkeyPatch) -> None:
+    _application = QApplication.instance() or QApplication([])
+    from portprotonqt import tray_manager as tray_module
+
+    icon = MagicMock()
+    theme = MagicMock()
+    theme.get_icon.return_value = None
+    monkeypatch.setattr(tray_module, "QSystemTrayIcon", lambda _parent: icon)
+    monkeypatch.setattr(tray_module, "ThemeManager", lambda: theme)
+    monkeypatch.setattr(tray_module.ui_config, "get_theme", lambda: "standart")
+    monkeypatch.setattr(tray_module.display_config, "get_tray_menu_mode", lambda: "detailed")
+    window = cast(Any, QWidget())
+    window.games = []
+
+    def check_export(menu: QMenu) -> None:
+        labels = [action.text() for action in menu.actions() if not action.isSeparator()]
+        assert labels == [tray_module._(text) for text in (
+            "Pause Game", "Stop Game", "No recent games", "Exit",
+        )]
+
+    icon.setContextMenu.side_effect = check_export
+    manager = TrayManager(window)
+    icon.setContextMenu.assert_called_once_with(manager.tray_menu)
 
 
 def test_minimal_tray_contains_game_actions() -> None:

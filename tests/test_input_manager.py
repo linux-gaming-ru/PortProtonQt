@@ -269,6 +269,49 @@ def test_sdl_dpad_vertical_directions() -> None:
     assert emitted == [(PAD_DPAD_Y, -1, 1.0), (PAD_DPAD_Y, 1, 2.0)]
 
 
+@mark.parametrize('emulation', [False, True])
+@mark.parametrize(('button', 'direction'), [
+    (SDL_GAMEPAD_BUTTON_DPAD_UP, -1),
+    (SDL_GAMEPAD_BUTTON_DPAD_DOWN, 1),
+])
+def test_system_keyboard_gamepad_drag(emulation: bool, button: int, direction: int) -> None:
+    manager: Any = InputManager.__new__(InputManager)
+    QObject.__init__(manager)
+    keyboard = MagicMock()
+    keyboard.isVisible.return_value = True
+    manager._parent = SimpleNamespace(system_keyboard=keyboard)
+    manager._button_states = {}
+    manager._hat_states = {}
+    manager.mouse_emulation_enabled = manager.emulation_active = True
+    manager.emulation_triggered = emulation
+    manager.ui = MagicMock()
+    gamepad = cast(SDLGamepad, SimpleNamespace(
+        get_button=lambda code: int(code == button),
+    ))
+    dpad = MagicMock()
+    manager.dpad_moved.connect(dpad)
+    codes = input_manager.ecodes
+
+    manager._handle_button_value(0, PAD_BUTTON_SOUTH, 1, 1.0)
+    manager._poll_hat_events(gamepad, 2.0)
+    keyboard.isVisible.return_value = False
+    manager._handle_button_value(0, PAD_BUTTON_SOUTH, 0, 3.0)
+
+    if emulation:
+        keyboard.send.assert_not_called()
+        dpad.assert_not_called()
+        assert [call.args for call in manager.ui.write.call_args_list] == [
+            (codes.EV_KEY, codes.BTN_LEFT, 1),
+            (codes.EV_REL, codes.REL_X, 0),
+            (codes.EV_REL, codes.REL_Y, 10 * direction),
+            (codes.EV_KEY, codes.BTN_LEFT, 0),
+        ]
+    else:
+        keyboard.send.assert_called_once_with('button', 'confirm')
+        dpad.assert_called_once_with(PAD_DPAD_Y, direction, 2.0)
+        manager.ui.write.assert_not_called()
+
+
 def test_disabling_mouse_emulation_keeps_gamepad_events_working() -> None:
     emitted: list[tuple[int, int]] = []
     manager = InputManager.__new__(InputManager)

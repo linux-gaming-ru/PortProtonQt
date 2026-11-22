@@ -68,6 +68,38 @@ def test_layer_shell_keeps_qt_window_offscreen(
         window.hide()
 
 
+def test_builtin_emoji_panel(keyboard_window: SystemKeyboardWindow) -> None:
+    window = keyboard_window
+    keyboard = window.keyboard
+    window.ready = window.wanted_visible = True
+    keyboard.buttons['🙂'].click()
+    assert keyboard.emoji_open
+    assert keyboard.selected_button is keyboard.buttons['😀']
+    window.command('direction', 'right')
+    assert keyboard.selected_button is keyboard.buttons['😃']
+    window.command('button', 'back')
+    assert window.wanted_visible and not keyboard.emoji_open
+    keyboard.buttons['🙂'].click()
+    keyboard.buttons['❤️'].click()
+    cast(MagicMock, system_window.report).assert_called_once_with('emoji', '❤️')
+    assert not keyboard.emoji_open
+    assert keyboard.selected_button is keyboard.buttons['🙂']
+
+
+def test_emoji_response_copies_to_clipboard(application: QApplication, monkeypatch: pytest.MonkeyPatch) -> None:
+    controller = SystemKeyboard(QWidget())
+    clipboard = MagicMock()
+    monkeypatch.setattr(QApplication, 'clipboard', lambda: clipboard)
+    controller.visible = True
+    response = '{"event":"emoji","value":"❤️"}\n'.encode()
+    monkeypatch.setattr(controller.process, 'readAllStandardOutput', lambda: SimpleNamespace(data=lambda: response))
+    controller._read_state()
+    clipboard.setText.assert_called_once_with('❤️')
+    controller.visible = False
+    controller._read_state()
+    clipboard.setText.assert_called_once()
+
+
 def test_panel_matches_embedded_layout_without_extra_rows(keyboard_window: SystemKeyboardWindow) -> None:
     keyboard = keyboard_window.keyboard
     assert keyboard.current_layout == 'us'
@@ -262,6 +294,41 @@ def test_modifiers_send_real_press_and_release_events(
     expected += [*((ecodes.EV_KEY, code, 1) for code in replay),
                  *((ecodes.EV_KEY, code, 0) for code in reversed(replay))]
     assert [call.args for call in device.write.call_args_list] == expected
+    assert not worker.modifiers
+
+
+@pytest.mark.parametrize('action, codes, events', [
+    ('modifiers', (), [(ecodes.KEY_LEFTMETA, 1), (ecodes.KEY_LEFTMETA, 0)]),
+    ('tap', (ecodes.KEY_E,), [(ecodes.KEY_LEFTMETA, 1), (ecodes.KEY_E, 1),
+                              (ecodes.KEY_E, 0), (ecodes.KEY_LEFTMETA, 0)]),
+    ('release', (), []),
+])
+def test_labwc_super_sends_one_chord_after_click(action: str, codes: tuple[int, ...], events: list) -> None:
+    worker = SystemInputWorker()
+    worker.layout = detection.LabwcLayout.__new__(detection.LabwcLayout)
+    worker.enabled.set()
+    device = MagicMock()
+    worker._execute(device, 'modifiers', (ecodes.KEY_LEFTMETA,))
+    device.write.assert_not_called()
+    worker._execute(device, action, codes)
+    assert [call.args for call in device.write.call_args_list] == [
+        (ecodes.EV_KEY, key, value) for key, value in events
+    ]
+    assert not worker.modifiers and not worker.pending_super
+
+
+def test_labwc_alt_shift_releases_both_without_replaying() -> None:
+    worker = SystemInputWorker()
+    worker.layout = detection.LabwcLayout.__new__(detection.LabwcLayout)
+    worker.enabled.set()
+    device = MagicMock()
+    worker._execute(device, 'modifiers', (ecodes.KEY_LEFTALT,))
+    worker._execute(device, 'modifiers', (ecodes.KEY_LEFTALT, ecodes.KEY_LEFTSHIFT))
+    worker._execute(device, 'modifiers', (ecodes.KEY_LEFTALT,))
+    assert [call.args for call in device.write.call_args_list] == [
+        (ecodes.EV_KEY, ecodes.KEY_LEFTALT, 1), (ecodes.EV_KEY, ecodes.KEY_LEFTSHIFT, 1),
+        (ecodes.EV_KEY, ecodes.KEY_LEFTSHIFT, 0), (ecodes.EV_KEY, ecodes.KEY_LEFTALT, 0),
+    ]
     assert not worker.modifiers
 
 
@@ -461,6 +528,7 @@ def test_system_keyboard_routes_buttons_without_application_focus(application: Q
     keyboard = SimpleNamespace(send=MagicMock(), isVisible=lambda: True)
     manager._parent = SimpleNamespace(system_keyboard=keyboard)
     manager.start_held = False
+    manager.mouse_emulation_enabled = False
     assert manager._handle_system_keyboard_input(PAD_BUTTON_SOUTH, 1, False)
     keyboard.send.assert_called_once_with('button', 'confirm')
 
@@ -694,18 +762,52 @@ def test_wayland_protocol_metadata_is_native(application: QApplication) -> None:
         window._interface('not_a_protocol')
 
 
-@pytest.mark.parametrize('desktop', ['labwc', 'wayfire', 'Qtile', 'river', 'unknown'])
+@pytest.fixture
+def clean_compositor_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    for variable in ('HYPRLAND_INSTANCE_SIGNATURE', 'SWAYSOCK', 'NIRI_SOCKET',
+                     'UMBRIEL_SOCKET', 'MANGO_INSTANCE_SIGNATURE', 'LABWC_PID', 'WAYFIRE_SOCKET'):
+        monkeypatch.delenv(variable, raising=False)
+
+
+@pytest.mark.usefixtures('clean_compositor_env')
+def test_budgie_wayland_uses_labwc_layout(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv('XDG_CURRENT_DESKTOP', 'Budgie')
+    monkeypatch.setenv('WAYLAND_DISPLAY', 'wayland-test')
+    monkeypatch.setenv('LABWC_PID', '123')
+    adapter = MagicMock()
+    monkeypatch.setattr(detection, 'LabwcLayout', adapter)
+    assert detection.detect_layout() is adapter.return_value
+
+
+def test_labwc_updates_group_from_keyboard_modifiers() -> None:
+    layout = detection.LabwcLayout.__new__(detection.LabwcLayout)
+    fake = cast(Any, layout)
+    fake.keyboard = fake.manager = None
+    fake.seat = 1
+    fake._interface = MagicMock()
+    fake._new = MagicMock(return_value=2)
+    fake._listen = MagicMock()
+    layout._capabilities(2)
+    modifiers, _ = fake._listen.call_args.args[1][-1]
+    modifiers(0, 0, 0, 0, 2)
+    assert layout.group == 2
+
+
+@pytest.mark.parametrize('desktop, warning', [
+    ('wayfire', 'Wayfire IPC unavailable'),
+    ('Qtile', 'No keyboard layout adapter'),
+    ('river', 'No keyboard layout adapter'),
+    ('unknown', 'No keyboard layout adapter'),
+])
+@pytest.mark.usefixtures('clean_compositor_env')
 def test_generic_wayland_uses_manual_labels_without_xwayland(
-    monkeypatch: pytest.MonkeyPatch, desktop: str,
+    monkeypatch: pytest.MonkeyPatch, desktop: str, warning: str,
 ) -> None:
     monkeypatch.setenv('XDG_CURRENT_DESKTOP', desktop)
     monkeypatch.setenv('WAYLAND_DISPLAY', 'wayland-test')
-    for variable in ('HYPRLAND_INSTANCE_SIGNATURE', 'SWAYSOCK', 'NIRI_SOCKET',
-                     'UMBRIEL_SOCKET', 'MANGO_INSTANCE_SIGNATURE'):
-        monkeypatch.delenv(variable, raising=False)
     x11 = MagicMock()
     monkeypatch.setattr(detection, 'X11Layout', x11)
-    with pytest.raises(RuntimeError, match='No keyboard layout adapter'):
+    with pytest.raises(RuntimeError, match=warning):
         detection.detect_layout()
     x11.assert_not_called()
 
@@ -774,6 +876,54 @@ def ipc_layout_registry(tmp_path: Any) -> Any:
         <layout><configItem><name>ru</name><description>Russian</description></configItem></layout>
     </layoutList></xkbConfigRegistry>''')
     return registry
+
+
+@pytest.mark.usefixtures('clean_compositor_env')
+def test_wayfire_detects_session_and_tracks_layout(monkeypatch: pytest.MonkeyPatch, ipc_layout_registry: Any) -> None:
+    monkeypatch.setenv('XDG_CURRENT_DESKTOP', 'Wayfire')
+    monkeypatch.setenv('WAYFIRE_SOCKET', '/test/wayfire.sock')
+    assert detection.compositor({'WAYFIRE_SOCKET': '/test/wayfire.sock'}) == 'wayfire'
+    assert detection.compositor({'XDG_CURRENT_DESKTOP': 'Wayfire'}) == 'wayfire'
+    names = ['English (Dvorak)', 'Russian']
+    request = MagicMock(side_effect=[
+        {'possible-layouts': names, 'layout-index': 0},
+        {'possible-layouts': names, 'layout-index': 1},
+        {'possible-layouts': names, 'layout-index': 1},
+        {'result': 'ok'},
+    ])
+    monkeypatch.setattr(detection.WayfireLayout, '_request', request)
+    factory = MagicMock()
+    monkeypatch.setattr(detection, 'Layout', factory)
+    layout = detection.WayfireLayout(ipc_layout_registry)
+    factory.assert_called_once_with('us', 'dvorak')
+    layout.labels()
+    factory.assert_called_with('ru', '')
+    layout.switch()
+    request.assert_called_with('wayfire/set-keyboard-state', {'layout-index': 0})
+    adapter = MagicMock(return_value=layout)
+    monkeypatch.setattr(detection, 'WayfireLayout', adapter)
+    assert detection.detect_layout() is layout
+
+
+@pytest.mark.parametrize('reply, error', [
+    (b'\x01', 'incomplete reply header'),
+    (b'\x05\0\0\0{}', 'incomplete reply'),
+    (b'\x00\x00\x02\x00', 'invalid reply size'),
+    (b'\x10\0\0\0{"error":"oops"}', 'oops'),
+])
+def test_wayfire_ipc_rejects_bad_replies(monkeypatch: pytest.MonkeyPatch, reply: bytes, error: str) -> None:
+    from io import BytesIO
+
+    monkeypatch.setenv('WAYFIRE_SOCKET', '/test/wayfire.sock')
+    socket_factory = MagicMock()
+    monkeypatch.setattr(detection.socket, 'socket', socket_factory)
+    sock = socket_factory.return_value.__enter__.return_value
+    sock.makefile.return_value = BytesIO(reply)
+    with pytest.raises(RuntimeError, match=error):
+        detection.WayfireLayout._request('wayfire/get-keyboard-state')
+    sock.connect.assert_called_once_with('/test/wayfire.sock')
+    payload = b'{"method":"wayfire/get-keyboard-state","data":{}}'
+    sock.sendall.assert_called_once_with(len(payload).to_bytes(4, 'little') + payload)
 
 
 @pytest.mark.parametrize('adapter', [detection.UmbrielLayout, detection.MangoLayout])
@@ -951,6 +1101,26 @@ def test_kde_selection_uses_native_backend(monkeypatch: pytest.MonkeyPatch) -> N
     assert detection.detect_layout() is factory.return_value
 
 
+def test_wayland_repeated_configure_does_not_rebuild_keyboard() -> None:
+    native: Any = system_window.WaylandWindow.__new__(system_window.WaylandWindow)
+    native.layer = 1
+    native._request = MagicMock()
+    native.window = MagicMock()
+    native.window.width.return_value = 1280
+    native.window.height.return_value = 720
+    native.configured = False
+    native._configured(1, 1280, 720)
+    native.dirty = False
+    native._configured(2, 1280, 720)
+    native.window._position_keyboard.assert_called_once_with()
+    assert native._request.call_count == 2
+    assert not native.dirty
+    native._configured(3, 1920, 1080)
+    native.window.resize.assert_called_with(1920, 1080)
+    assert native.window._position_keyboard.call_count == 2
+    assert native.dirty
+
+
 def test_wayland_mouse_moves_selection_and_shows_pressed_state(
     keyboard_window: SystemKeyboardWindow, application: QApplication,
 ) -> None:
@@ -976,6 +1146,41 @@ def test_wayland_mouse_moves_selection_and_shows_pressed_state(
     assert target.isDown()
     native._mouse_event(QEvent.Type.MouseButtonRelease)
     assert not target.isDown()
+    assert keyboard_window.worker.commands.get_nowait() == ('tap', (ecodes.KEY_Q,))
+
+
+@pytest.mark.parametrize('deleted', [False, True])
+def test_wayland_release_after_keyboard_rebuild(
+    keyboard_window: SystemKeyboardWindow, application: QApplication, deleted: bool,
+) -> None:
+    from PySide6.QtCore import QEvent, QPointF
+    from shiboken6 import isValid
+
+    keyboard_window.ready = True
+    keyboard_window.show_keyboard()
+    application.processEvents()
+    keyboard = keyboard_window.keyboard
+    target = keyboard.buttons['q']
+    native: Any = system_window.WaylandWindow.__new__(system_window.WaylandWindow)
+    native.window = keyboard_window
+    native.pressed_widget = None
+    native.position = QPointF(target.mapTo(keyboard_window, target.rect().center()))
+    native._mouse_event(QEvent.Type.MouseButtonPress)
+    keyboard.update_keyboard()
+    if deleted:
+        QApplication.sendPostedEvents(target, QEvent.Type.DeferredDelete)
+    assert isValid(target) is not deleted
+
+    native._mouse_event(QEvent.Type.MouseButtonRelease)
+    assert native.pressed_widget is None
+    assert keyboard_window.worker.commands.empty()
+
+    application.processEvents()
+    replacement = keyboard.buttons['q']
+    native.position = QPointF(replacement.mapTo(keyboard_window, replacement.rect().center()))
+    assert keyboard_window.childAt(native.position.toPoint()) is replacement
+    native._mouse_event(QEvent.Type.MouseButtonPress)
+    native._mouse_event(QEvent.Type.MouseButtonRelease)
     assert keyboard_window.worker.commands.get_nowait() == ('tap', (ecodes.KEY_Q,))
 
 
@@ -1222,6 +1427,7 @@ def test_ibus_switch_rejects_unusable_sources(
     ('true', 'xkb:de::deu', False),
     ('false', 'pinyin', False),
 ])
+@pytest.mark.usefixtures('clean_compositor_env')
 def test_x11_detects_ibus_managed_layouts(
     monkeypatch: pytest.MonkeyPatch, system_map: str, engine: str, uses_ibus: bool,
 ) -> None:
@@ -1238,6 +1444,7 @@ def test_x11_detects_ibus_managed_layouts(
     assert ibus.call_count == int(uses_ibus)
 
 
+@pytest.mark.usefixtures('clean_compositor_env')
 def test_ibus_detection_failure_keeps_x11_available(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv('XDG_SESSION_TYPE', 'x11')
     monkeypatch.setenv('XDG_CURRENT_DESKTOP', 'XFCE')

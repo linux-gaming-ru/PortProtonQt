@@ -11,6 +11,7 @@ from portprotonqt.logger import get_logger
 
 logger = get_logger(__name__)
 SHUTDOWN_TIMEOUT_MS = 3000
+MAX_EMOJI_LENGTH = 16
 
 
 class SystemKeyboard(QObject):
@@ -77,6 +78,11 @@ class SystemKeyboard(QObject):
                 self.shift_pressed = False
             elif isinstance(data, dict) and data.get('event') == 'shift':
                 self.shift_pressed = bool(data.get('value'))
+            elif isinstance(data, dict) and data.get('event') == 'emoji' and self.visible:
+                value = data.get('value')
+                if (isinstance(value, str) and 0 < len(value) <= MAX_EMOJI_LENGTH
+                        and value.isprintable() and not value.isascii()):
+                    QApplication.clipboard().setText(value)
 
     def _process_error(self, error: QProcess.ProcessError) -> None:
         if error == QProcess.ProcessError.FailedToStart:
