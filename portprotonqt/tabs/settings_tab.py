@@ -1,7 +1,7 @@
 import os
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QObject, QRect, QSize, Qt, QTimer
+from PySide6.QtCore import QObject, QRect, QSize, Qt, QThread, QTimer, Signal, Slot
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QAbstractButton,
@@ -102,6 +102,20 @@ class SettingsButtonsLayout(QBoxLayout):
             rect = QRect(rect.x() + (rect.width() - row_width) // 2,
                          rect.y(), row_width, rect.height())
         super().setGeometry(rect)
+
+
+class _GPUSettingsWorker(QThread):
+    loaded = Signal(list, object)
+
+    def run(self) -> None:
+        try:
+            names = get_selectable_gpu_list()
+            current = get_user_conf_setting("PW_GPU_USE") if len(names) > 1 else None
+        except Exception:
+            logger.exception("Failed to load GPU settings")
+            return
+        if not self.isInterruptionRequested():
+            self.loaded.emit(names, current)
 
 
 class MainWindowSettingsTabMixin(_MainWindowTypingBase):
@@ -769,34 +783,12 @@ class MainWindowSettingsTabMixin(_MainWindowTypingBase):
         hwForm.setRowWrapPolicy(QFormLayout.RowWrapPolicy.DontWrapRows)
         scrollLayout.addWidget(hwFrame)
 
-        filtered_gpu_list = get_selectable_gpu_list()
-        hwFrame.setVisible(len(filtered_gpu_list) > 1)
-        if len(filtered_gpu_list) > 1:
-            self.gpuCombo = CustomComboBox(theme=self.theme)
-            self.gpuCombo.view().window().setWindowFlags(
-                Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint
-            )
-            self.gpuCombo.view().window().setAttribute(
-                Qt.WidgetAttribute.WA_TranslucentBackground
-            )
-            self.gpuCombo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-            self.gpuCombo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-            self.gpuCombo.setStyleSheet(self.theme.COMBOBOX_STYLE + self.theme.SCROLL_STYLE)
-            self.gpuCombo.addItems(filtered_gpu_list)
-            current_gpu = get_user_conf_setting('PW_GPU_USE')
-            if current_gpu and current_gpu != "disabled" and current_gpu in filtered_gpu_list:
-                self.gpuCombo.setCurrentText(current_gpu)
-            elif current_gpu and current_gpu != "disabled" and "Info:" not in current_gpu:
-                if current_gpu not in filtered_gpu_list:
-                    self.gpuCombo.addItem(current_gpu)
-                self.gpuCombo.setCurrentText(current_gpu)
-            else:
-                self.gpuCombo.setCurrentIndex(0)
-            self.gpuTitle = QLabel(_("GPU to use:"))
-            self.gpuTitle.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-            self.gpuTitle.setStyleSheet(self.theme.SETTINGS_TITLE_STYLE)
-            self.gpuTitle.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-            hwForm.addRow(self.gpuTitle, self.gpuCombo)
+        hwFrame.hide()
+        self._gpu_settings_frame = hwFrame
+        self._gpu_settings_form = hwForm
+        self._gpu_settings_worker = _GPUSettingsWorker(self)
+        self._gpu_settings_worker.loaded.connect(self._populate_gpu_settings, Qt.ConnectionType.QueuedConnection)
+        self._gpu_settings_worker.start()
 
         # 5. Proxy Settings Section
         proxyFrame, proxyForm = create_section(_("Proxy Settings"), self.theme)
@@ -906,6 +898,36 @@ class MainWindowSettingsTabMixin(_MainWindowTypingBase):
         actionsLayout.addLayout(maintenanceButtonsLayout)
         layout.addLayout(actionsLayout)
         self.stackedWidget.addWidget(self.portProtonWidget)
+
+    @Slot(list, object)
+    def _populate_gpu_settings(self, filtered_gpu_list: list[str], current_gpu: str | None) -> None:
+        if self._gpu_settings_worker is None or len(filtered_gpu_list) <= 1:
+            return
+        self.gpuCombo = CustomComboBox(theme=self.theme)
+        self.gpuCombo.view().window().setWindowFlags(
+            Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint
+        )
+        self.gpuCombo.view().window().setAttribute(
+            Qt.WidgetAttribute.WA_TranslucentBackground
+        )
+        self.gpuCombo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.gpuCombo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.gpuCombo.setStyleSheet(self.theme.COMBOBOX_STYLE + self.theme.SCROLL_STYLE)
+        self.gpuCombo.addItems(filtered_gpu_list)
+        if current_gpu and current_gpu != "disabled" and current_gpu in filtered_gpu_list:
+            self.gpuCombo.setCurrentText(current_gpu)
+        elif current_gpu and current_gpu != "disabled" and "Info:" not in current_gpu:
+            if current_gpu not in filtered_gpu_list:
+                self.gpuCombo.addItem(current_gpu)
+            self.gpuCombo.setCurrentText(current_gpu)
+        else:
+            self.gpuCombo.setCurrentIndex(0)
+        self.gpuTitle = QLabel(_("GPU to use:"))
+        self.gpuTitle.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.gpuTitle.setStyleSheet(self.theme.SETTINGS_TITLE_STYLE)
+        self.gpuTitle.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._gpu_settings_form.addRow(self.gpuTitle, self.gpuCombo)
+        self._gpu_settings_frame.show()
 
     def openGlobalGameSettings(self) -> None:
         from portprotonqt.dialogs.settings_dialog import ExeSettingsDialog

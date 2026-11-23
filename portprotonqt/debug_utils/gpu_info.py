@@ -3,12 +3,14 @@
 import os
 import re
 import subprocess
+from threading import Lock
 
 from portprotonqt.logger import get_logger
 
 logger = get_logger(__name__)
 
 _vk_gpu_info_output: str | None = None
+_vk_gpu_info_lock = Lock()
 _ANSI_RE = re.compile(r'\x1b\[[0-9;]*m|\[[0-9;]{1,8}m')
 _LOG_PREFIXES = ("Info:", "Warning:", "Error:")
 
@@ -17,7 +19,9 @@ def get_cached_vk_gpu_info() -> str:
     """Get cached vk_gpu_info output, running it only once."""
     global _vk_gpu_info_output
 
-    if _vk_gpu_info_output is None:
+    with _vk_gpu_info_lock:
+        if _vk_gpu_info_output is not None:
+            return _vk_gpu_info_output
         try:
             vk_gpu_info_path = os.path.join(
                 os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
@@ -57,7 +61,7 @@ def get_cached_vk_gpu_info() -> str:
             logger.error("Error running vk_gpu_info: %s", e)
             _vk_gpu_info_output = ""
 
-    return _vk_gpu_info_output
+        return _vk_gpu_info_output
 
 
 def _clean_vk_gpu_value(value: str) -> str:

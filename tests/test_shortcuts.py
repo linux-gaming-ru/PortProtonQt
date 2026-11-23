@@ -2669,22 +2669,102 @@ def test_sgdb_artwork_cache_separates_types(
     import portprotonqt.steam_api.api as api
 
     monkeypatch.setattr("portprotonqt.portproton_api.get_user_conf_setting", lambda _key: None)
+    app = QApplication.instance() or QApplication([])
     monkeypatch.setattr(api, "CacheManager", lambda: SimpleNamespace(cache_dir=tmp_path))
     downloads = []
 
-    def download(url: str, path: str, timeout: int, callback: Any) -> None:
+    def download(url: str, path: str, timeout: int) -> str | None:
         downloads.append(url)
         Path(path).write_text(f'"{url}"', encoding="utf-8")
-        callback(path)
+        return path
 
-    monkeypatch.setattr(api.downloader, "download_async", download)
+    monkeypatch.setattr(api.downloader, "download", download)
     completed = []
     for image_type in ("grids", "heroes", "grids", "heroes"):
         api.fetch_sgdb_cover_async("Portal/2", completed.append, image_type)
+        assert api._METADATA_LOOKUPS.waitForDone(5000)
+        app.processEvents()
     assert len(downloads) == 2
     assert downloads[0].endswith("Portal%2F2/grids")
     assert downloads[1].endswith("Portal%2F2/heroes")
     assert completed == downloads + downloads
+
+
+@pytest.mark.parametrize("body", ['""', '"https://cdn2.steamgriddb.com/cover.png"'])
+def test_sgdb_retries_failed_lookup_but_caches_success(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, body: str,
+) -> None:
+    from portprotonqt.steam_api import api
+
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setattr(api, "CacheManager", lambda: SimpleNamespace(cache_dir=tmp_path))
+    monkeypatch.setattr("portprotonqt.portproton_api.get_user_conf_setting", lambda _key: None)
+    request_count = 0
+
+    def download(_url: str, path: str, timeout: int) -> str | None:
+        nonlocal request_count
+        request_count += 1
+        if request_count == 1:
+            return None
+        Path(path).write_text(body, encoding="utf-8")
+        return path
+
+    monkeypatch.setattr(api.downloader, "download", download)
+    completed: list[str] = []
+    api.fetch_sgdb_cover_async("Test Game", completed.append)
+    assert api._METADATA_LOOKUPS.waitForDone(5000)
+    app.processEvents()
+    assert not list(tmp_path.iterdir())
+    api.fetch_sgdb_cover_async("Test Game", completed.append)
+    assert api._METADATA_LOOKUPS.waitForDone(5000)
+    app.processEvents()
+    api.fetch_sgdb_cover_async("Test Game", completed.append)
+    assert api._METADATA_LOOKUPS.waitForDone(5000)
+    app.processEvents()
+    assert request_count == 2
+    assert completed == ["", body.strip('"'), body.strip('"')]
+
+
+def test_sgdb_slow_cache_does_not_block_gui(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    from threading import Event
+    from portprotonqt.steam_api import api
+
+    app = QApplication.instance() or QApplication([])
+    cache_file = tmp_path / "sgdb_Test Game_grids.json"
+    cache_file.write_text('""', encoding="utf-8")
+    monkeypatch.setattr(api, "CacheManager", lambda: SimpleNamespace(cache_dir=tmp_path))
+    original_stat = Path.stat
+    entered, release = Event(), Event()
+    expired: list[bool] = []
+
+    def slow_stat(path: Path, *args: Any, **kwargs: Any) -> Any:
+        if path == cache_file:
+            entered.set()
+            if not release.wait(5):
+                expired.append(True)
+        return original_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", slow_stat)
+    download = MagicMock()
+    monkeypatch.setattr(api.downloader, "download", download)
+    completed: list[tuple[str, QThread]] = []
+    try:
+        api.fetch_sgdb_cover_async("Test Game", lambda cover: completed.append((cover, QThread.currentThread())))
+        assert entered.wait(5)
+        tick = MagicMock()
+        QTimer.singleShot(0, tick)
+        app.processEvents()
+        tick.assert_called_once_with()
+        assert completed == []
+    finally:
+        release.set()
+        assert api._METADATA_LOOKUPS.waitForDone(5000)
+    app.processEvents()
+    assert not expired
+    assert completed == [("", QThread.currentThread())]
+    download.assert_not_called()
 
 
 @pytest.mark.parametrize("image_type", ["grids", "heroes", "logos", "hgrids"])
@@ -2694,17 +2774,20 @@ def test_sgdb_cloud_urls_use_proxy(
     import portprotonqt.steam_api.api as api
     import portprotonqt.portproton_api as portproton_api
 
+    app = QApplication.instance() or QApplication([])
     monkeypatch.setattr(api, "CacheManager", lambda: SimpleNamespace(cache_dir=tmp_path))
     monkeypatch.setattr(portproton_api, "get_user_conf_setting", lambda name: "CLOUD")
     url = f"https://cdn2.steamgriddb.com/{image_type}/asset.png"
 
-    def download(_url: str, path: str, timeout: int, callback: Any) -> None:
+    def download(_url: str, path: str, timeout: int) -> str | None:
         Path(path).write_text(f'"{url}"', encoding="utf-8")
-        callback(path)
+        return path
 
-    monkeypatch.setattr(api.downloader, "download_async", download)
+    monkeypatch.setattr(api.downloader, "download", download)
     completed = []
     api.fetch_sgdb_cover_async("Portal 2", completed.append, image_type)
+    assert api._METADATA_LOOKUPS.waitForDone(5000)
+    app.processEvents()
 
     assert completed == [f"https://deckyloader.ru/sgdb-cdn/{image_type}/asset.png"]
 

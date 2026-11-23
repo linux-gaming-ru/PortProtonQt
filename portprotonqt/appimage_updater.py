@@ -237,13 +237,17 @@ class AppImageUpdateWorker(QThread):
     def _read_pty_output(self, master_fd: int, process: subprocess.Popen[bytes]) -> None:
         buffer = ""
         start_time = time.monotonic()
-        while process.poll() is None:
+        while True:
+            exited = process.poll() is not None
             if time.monotonic() - start_time > APPIMAGE_UPDATE_TIMEOUT:
                 process.kill()
                 logger.warning("AppImage update timed out")
                 return
-            ready, _, _ = select.select([master_fd], [], [], 0.2)
+            # The PTY can still contain output after the process exits.
+            ready, _, _ = select.select([master_fd], [], [], 0 if exited else 0.2)
             if not ready:
+                if exited:
+                    break
                 continue
             try:
                 data = os.read(master_fd, TOOL_OUTPUT_CHUNK_SIZE)

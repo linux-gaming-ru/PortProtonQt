@@ -9,6 +9,7 @@ from unittest.mock import MagicMock
 
 from PIL import Image
 import pytest
+from requests.exceptions import ConnectionError, ReadTimeout
 from PySide6.QtCore import QCoreApplication, QThread
 from PySide6.QtWidgets import QApplication
 
@@ -62,6 +63,50 @@ def test_truncated_cached_cover_is_redownloaded(
     assert list(tmp_path.iterdir()) == [target]
 
 
+@pytest.mark.parametrize("error", [ConnectionError, ReadTimeout, PermissionError])
+def test_failed_download_can_recover(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, error: type[Exception],
+) -> None:
+    from portprotonqt import downloader as module
+
+    now = 100.0
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(module, "time", SimpleNamespace(monotonic=lambda: now))
+    session = MagicMock()
+    response = session.get.return_value.__enter__.return_value
+    response.headers = {}
+    monkeypatch.setattr(module, "get_requests_session", lambda: session)
+
+    def interrupted() -> Iterator[bytes]:
+        yield b"partial"
+        if error is not PermissionError:
+            raise error("simulated connection failure")
+
+    if error is PermissionError:
+        replace = Path.replace
+
+        def replace_after_recovery(path: Path, destination: Path) -> Path:
+            if now == 100.0:
+                raise PermissionError("simulated write failure")
+            return replace(path, destination)
+
+        monkeypatch.setattr(Path, "replace", replace_after_recovery)
+    response.iter_content.side_effect = [interrupted(), iter([b"complete"])]
+    downloader = Downloader()
+    url = "https://example.com/data.json"
+    target = tmp_path / "data.json"
+    assert downloader.download(url, str(target)) is None
+    assert not list(tmp_path.iterdir())
+    assert downloader.download(url, str(target)) is None
+    assert session.get.call_count == 1
+
+    now += module.FAILURE_RETRY_SECONDS
+    assert downloader.download(url, str(target)) == str(target)
+    assert target.read_bytes() == b"complete"
+    assert session.get.call_count == 2
+
+
 @pytest.mark.parametrize("parallel", [False, True])
 @pytest.mark.parametrize("failed", [False, True])
 def test_resolved_download_completes_without_a_worker(
@@ -71,7 +116,7 @@ def test_resolved_download_completes_without_a_worker(
     url = "https://example.com/data.json"
     path = str(tmp_path / "data.json")
     if failed:
-        downloader._last_error[url] = True
+        downloader._record_failure(url)
     else:
         Path(path).write_text("{}")
     start = MagicMock()
@@ -137,7 +182,7 @@ def test_parallel_known_failure_does_not_create_an_executor(
     downloader = Downloader()
     url = "https://example.com/data.json"
     path = str(tmp_path / "data.json")
-    downloader._last_error[url] = True
+    downloader._record_failure(url)
     downloader._cache[url] = path
     download = MagicMock()
     monkeypatch.setattr(downloader, "_download_with_parallel", download)
@@ -216,3 +261,29 @@ def test_shutdown_waits_for_an_active_download(
         release.set()
         release_timer.join()
         worker.wait(THREAD_TIMEOUT_MS)
+
+
+def test_shutdown_waits_for_active_artwork_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
+    from portprotonqt.steam_api import api
+
+    entered, release, finished = threading.Event(), threading.Event(), threading.Event()
+
+    def lookup(_game_name: str, _image_type: str) -> str:
+        entered.set()
+        assert release.wait(SYNC_TIMEOUT_SECONDS)
+        finished.set()
+        return ""
+
+    monkeypatch.setattr(api, "_read_sgdb_cover", lookup)
+    api.fetch_sgdb_cover_async("Game", lambda _cover: None)
+    release_timer = threading.Timer(0.05, release.set)
+    try:
+        assert entered.wait(SYNC_TIMEOUT_SECONDS)
+        release_timer.start()
+        MainWindowWorkersMixin()._stopBackgroundWorkers()
+        assert finished.is_set()
+    finally:
+        release.set()
+        if release_timer.ident is not None:
+            release_timer.join()
+        assert api._METADATA_LOOKUPS.waitForDone(THREAD_TIMEOUT_MS)

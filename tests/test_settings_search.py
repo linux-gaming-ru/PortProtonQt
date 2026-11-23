@@ -678,6 +678,50 @@ def test_settings_selected_row_keeps_text_readable(theme_name: str) -> None:
     table.close()
 
 
+@pytest.mark.parametrize("closing", [False, True])
+def test_gpu_settings_probe_runs_in_background(monkeypatch: pytest.MonkeyPatch, closing: bool) -> None:
+    from threading import Event, Timer
+    from portprotonqt.tabs import settings_tab
+    from portprotonqt.tabs.workers import MainWindowWorkersMixin
+
+    app = QApplication.instance() or QApplication([])
+    entered, release = Event(), Event()
+
+    def probe() -> list[str]:
+        entered.set()
+        assert release.wait(5)
+        return ["Integrated", "Discrete"]
+
+    monkeypatch.setattr(settings_tab, "get_selectable_gpu_list", probe)
+    monkeypatch.setattr(settings_tab, "get_user_conf_setting", lambda _key: "Discrete")
+    worker = settings_tab._GPUSettingsWorker()
+    results: list[tuple[list[str], str]] = []
+    worker.loaded.connect(lambda names, current: results.append((names, current)), Qt.ConnectionType.QueuedConnection)
+    worker.start()
+    try:
+        assert entered.wait(5)
+        ticks: list[bool] = []
+        QTimer.singleShot(0, lambda: ticks.append(True))
+        app.processEvents()
+        assert ticks == [True]
+        assert results == []
+        if closing:
+            owner = cast(Any, MainWindowWorkersMixin())
+            owner._gpu_settings_worker = worker
+            timer = Timer(0.05, release.set)
+            timer.start()
+            try:
+                owner._stopBackgroundWorkers()
+                assert not worker.isRunning()
+            finally:
+                timer.join()
+    finally:
+        release.set()
+        assert worker.wait(5000)
+    app.processEvents()
+    assert results == ([] if closing else [(["Integrated", "Discrete"], "Discrete")])
+
+
 def test_settings_buttons_switch_between_one_and_two_rows() -> None:
     app = QApplication.instance() or QApplication([])
     parent = QWidget()

@@ -12,6 +12,9 @@ from portprotonqt.logger import get_logger
 
 logger = get_logger(__name__)
 
+FAILURE_RETRY_SECONDS = 30
+MAX_CACHED_FAILURES = 1024
+
 
 def get_default_user_agent() -> str:
     from portprotonqt.app import __app_version__
@@ -33,8 +36,9 @@ def is_complete_download(path: str | Path) -> bool:
     jpeg_end = b"\xff\xd9"
     try:
         with open(path, "rb") as stream:
-            if stream.read(len(jpeg_start)) != jpeg_start:
-                return True
+            header = stream.read(len(jpeg_start))
+            if header != jpeg_start:
+                return bool(header)
             stream.seek(-len(jpeg_end), os.SEEK_END)
             return stream.read() == jpeg_end
     except OSError:
@@ -76,8 +80,8 @@ def download_with_cache(url, local_path, timeout=5, downloader_instance=None):
         return local_path
     except Exception as e:
         logger.error(f"Download error {url}: {e}")
-        if downloader_instance and hasattr(downloader_instance, '_last_error'):
-            downloader_instance._last_error[url] = True
+        if downloader_instance is not None:
+            downloader_instance._record_failure(url)
         return None
 
 class Downloader(QObject):
@@ -88,7 +92,7 @@ class Downloader(QObject):
         super().__init__()
         self.max_workers = max_workers
         self._cache = {}
-        self._last_error = {}
+        self._last_error: dict[str, float] = {}
         self._locks = {}
         self._active_threads: list[QThread] = []
         self._global_lock = threading.Lock()
@@ -97,6 +101,23 @@ class Downloader(QObject):
     def _run_callback(self, callback, result):
         if callback:
             callback(result)
+
+    def _record_failure(self, url: str) -> None:
+        with self._global_lock:
+            self._last_error.pop(url, None)
+            self._last_error[url] = time.monotonic() + FAILURE_RETRY_SECONDS
+            if len(self._last_error) > MAX_CACHED_FAILURES:
+                del self._last_error[next(iter(self._last_error))]
+
+    def _has_recent_failure(self, url: str) -> bool:
+        # Call with the global lock held.
+        expires = self._last_error.get(url)
+        if expires is None:
+            return False
+        if time.monotonic() < expires:
+            return True
+        del self._last_error[url]
+        return False
 
     def _get_url_lock(self, url):
         with self._global_lock:
@@ -147,18 +168,15 @@ class Downloader(QObject):
                         return local_path
                     except Exception as retry_e:
                         logger.error(f"Retry download error {url}: {retry_e}")
-                        with self._global_lock:
-                            self._last_error[url] = True
+                        self._record_failure(url)
                         return None
                 else:
                     logger.error(f"Download error {url}: {e}")
-                    with self._global_lock:
-                        self._last_error[url] = True
+                    self._record_failure(url)
                     return None
             except Exception as e:
                 logger.error(f"Download error {url}: {e}")
-                with self._global_lock:
-                    self._last_error[url] = True
+                self._record_failure(url)
                 return None
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -179,7 +197,7 @@ class Downloader(QObject):
 
     def download(self, url, local_path, timeout=5):
         with self._global_lock:
-            if url in self._last_error:
+            if self._has_recent_failure(url):
                 logger.warning(f"Previous download error for {url}, skipping")
                 return None
             if url in self._cache:
@@ -192,7 +210,7 @@ class Downloader(QObject):
         url_lock = self._get_url_lock(url)
         with url_lock:
             with self._global_lock:
-                if url in self._last_error:
+                if self._has_recent_failure(url):
                     return None
                 if url in self._cache:
                     cached_path = self._cache[url]
@@ -220,7 +238,7 @@ class Downloader(QObject):
         emitted_urls = set()
         with self._global_lock:
             for url, path in zip(urls, local_paths, strict=False):
-                if url in self._last_error:
+                if self._has_recent_failure(url):
                     logger.warning(f"Previous download error for {url}, skipping")
                     if on_result and url not in emitted_urls:
                         on_result(url, None)
@@ -259,7 +277,7 @@ class Downloader(QObject):
         final_results = {}
         with self._global_lock:
             for url in urls:
-                if url in self._last_error:
+                if self._has_recent_failure(url):
                     final_results[url] = None
                 elif url in self._cache:
                     final_results[url] = self._cache[url]
@@ -274,9 +292,10 @@ class Downloader(QObject):
 
     def download_async(self, url: str, local_path: str, timeout: int = 5, callback: Callable[[str | None], None] | None = None, parallel: bool = False) -> QThread | None:
         with self._global_lock:
-            previous_error = url in self._last_error
-            cached = not previous_error and is_complete_download(local_path)
-            if cached:
+            previous_error = self._has_recent_failure(url)
+        cached = not previous_error and is_complete_download(local_path)
+        if cached:
+            with self._global_lock:
                 self._cache[url] = local_path
         if previous_error or cached:
             result = local_path if cached else None
