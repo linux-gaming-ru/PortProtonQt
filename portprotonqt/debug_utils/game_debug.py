@@ -12,6 +12,7 @@ logger = get_logger(__name__)
 _DUPLICATE_LOG_VARS = {
     "PW_SCREEN_PRIMARY",
     "PW_SCREEN_RESOLUTION",
+    "PW_SCREEN_REFRESH_RATE",
     "PW_WINE_USE",
 }
 

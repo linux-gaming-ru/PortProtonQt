@@ -414,12 +414,9 @@ def generate_system_info(
     lines.append("\n".join(graphics_lines).strip())
     lines.append("-" * 61)
 
-    screen_resolution, screen_primary = get_screen_info()
-    if screen_resolution:
-        lines.append(screen_resolution)
-
-    if screen_primary:
-        lines.append(screen_primary)
+    screen_resolution, screen_primary, refresh_rate = get_screen_info()
+    if screen_primary.partition('=')[2]:
+        lines.extend((screen_resolution, screen_primary, refresh_rate))
     lines.append("-" * 61)
 
     lines.append("locale:")

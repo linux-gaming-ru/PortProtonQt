@@ -678,10 +678,13 @@ def test_native_folder_without_path_uses_game_file(tmp_path: Path, monkeypatch: 
 
 
 @pytest.mark.parametrize("native", [True, False])
+@pytest.mark.parametrize("screen_info", [("DP-1", 59.94), ("DP-1", 0.0), ("", 60.0)])
 def test_debug_report_keeps_system_sections_and_filters_wine(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, native: bool,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, native: bool, screen_info: tuple[str, float],
 ) -> None:
     from portprotonqt.debug_utils import system_info, env_utils
+
+    screen_name, refresh_rate = screen_info
 
     executable = tmp_path / "game"
     executable.write_text("#!/bin/sh\nexit 0\n")
@@ -696,7 +699,12 @@ def test_debug_report_keeps_system_sections_and_filters_wine(
     for name in ("get_libc_version", "get_os_info", "get_ram_info_detailed", "get_graphics_info_detailed",
                  "get_locale_info", "get_locale_available"):
         monkeypatch.setattr(system_info, name, lambda: "system detail")
-    monkeypatch.setattr(system_info, "get_screen_info", lambda: ("screen detail", "primary screen"))
+    app = MagicMock(spec=QApplication)
+    screen = app.primaryScreen.return_value
+    screen.geometry.return_value = QRect(0, 0, 1920, 1080)
+    screen.name.return_value = screen_name
+    screen.refreshRate.return_value = refresh_rate
+    monkeypatch.setattr(QApplication, "instance", lambda: app)
     monkeypatch.setattr(system_info, "get_cpu_info", lambda: {"model": "CPU detail", "physical_cores": "2", "logical_cores": "4"})
     monkeypatch.setattr(system_info, "get_filesystem_info", lambda *_args: "filesystem detail")
     for name in ("get_vulkan_use_info", "get_wine_version", "get_d3d_extras_status"):
@@ -709,7 +717,14 @@ def test_debug_report_keeps_system_sections_and_filters_wine(
     report = system_info.generate_system_info("native://" + str(entry) if native else str(executable))
     for heading in ("Operating system:", "CPU:", "RAM:", "Kernel:", "Graphic cards and drivers:", "locale:"):
         assert heading in report
-    assert "screen detail" in report and "filesystem detail" in report
+    assert "filesystem detail" in report
+    if screen_name:
+        assert "PW_SCREEN_RESOLUTION=1920x1080" in report
+        assert f"PW_SCREEN_PRIMARY={screen_name}\nPW_SCREEN_REFRESH_RATE={refresh_rate:.2f}" in report
+    else:
+        assert "PW_SCREEN_RESOLUTION=" not in report
+        assert "PW_SCREEN_PRIMARY=" not in report
+        assert "PW_SCREEN_REFRESH_RATE=" not in report
     assert ("Version WINE in use:" in report) is not native
     assert ("winetricks.log:" in report) is not native
     assert ("Program bit depth:" in report) is not native

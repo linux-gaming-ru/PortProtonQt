@@ -810,10 +810,11 @@ class ExeSettingsDialog(
             logger.warning("Failed to remove user.conf: %s", exc)
             QMessageBox.warning(self, _("Error"), _("Failed to apply changes. Check logs."))
             return
-        screen_resolution, screen_primary = get_screen_info()
+        screen_resolution, screen_primary, refresh_rate = get_screen_info()
         self.user_conf_changes = [
             screen_resolution,
             screen_primary,
+            refresh_rate,
             f"PW_WINE_DPI_VALUE={get_system_dpi_for_wine()}",
         ]
         self.user_conf_changes = [

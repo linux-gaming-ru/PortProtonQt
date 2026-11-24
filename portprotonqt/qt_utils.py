@@ -26,15 +26,17 @@ def get_system_dpi_for_wine() -> str:
     return "96"
 
 
-def get_screen_info() -> tuple[str, str]:
-    """Get screen resolution and primary info using PySide6."""
+def get_screen_info() -> tuple[str, str, str]:
+    """Get screen resolution, output name and refresh rate in Hz."""
     app_instance = QApplication.instance()
     default_resolution = "1920x1080"
     default_primary = ""
+    default_refresh_rate = 60.0
     if not isinstance(app_instance, QGuiApplication):
         return (
             f"PW_SCREEN_RESOLUTION={default_resolution}",
             f"PW_SCREEN_PRIMARY={default_primary}",
+            f"PW_SCREEN_REFRESH_RATE={default_refresh_rate:.2f}",
         )
 
     screen = app_instance.primaryScreen()
@@ -47,6 +49,7 @@ def get_screen_info() -> tuple[str, str]:
         return (
             f"PW_SCREEN_RESOLUTION={default_resolution}",
             f"PW_SCREEN_PRIMARY={default_primary}",
+            f"PW_SCREEN_REFRESH_RATE={default_refresh_rate:.2f}",
         )
 
     geometry = screen.geometry()
@@ -56,4 +59,8 @@ def get_screen_info() -> tuple[str, str]:
         resolution = default_resolution
 
     primary = screen.name() or default_primary
-    return f"PW_SCREEN_RESOLUTION={resolution}", f"PW_SCREEN_PRIMARY={primary}"
+    return (
+        f"PW_SCREEN_RESOLUTION={resolution}",
+        f"PW_SCREEN_PRIMARY={primary}",
+        f"PW_SCREEN_REFRESH_RATE={screen.refreshRate():.2f}",
+    )
