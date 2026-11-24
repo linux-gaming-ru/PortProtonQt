@@ -1584,7 +1584,7 @@ stop_portproton () {
     if ! check_wayland_session \
     && [[ "$(xrandr | sed -rn 's/^.*primary.* ([0-9]+x[0-9]+).*$/\1/p')" != "$PW_SCREEN_RESOLUTION" ]]
     then
-        xrandr --output "$PW_SCREEN_PRIMARY" --mode "$PW_SCREEN_RESOLUTION"
+        xrandr --output "$PW_SCREEN_PRIMARY" --mode "$PW_SCREEN_RESOLUTION" --rate "$PW_SCREEN_REFRESH_RATE"
     fi
 
     if [[ "${PW_DISABLE_COMPOSITING}" == "1" ]] \

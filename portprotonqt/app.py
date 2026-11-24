@@ -841,18 +841,14 @@ def main():
                 portproton_path = get_portproton_location()
 
                 if portproton_path:
-                    screen_resolution, screen_primary = get_screen_info()
-
-                    if screen_resolution and '=' in screen_resolution:
-                        var_name, var_value = screen_resolution.split('=', 1)
+                    screen_resolution, screen_primary, refresh_rate = get_screen_info()
+                    for setting in (screen_resolution, screen_primary, refresh_rate):
+                        var_name, var_value = setting.split('=', 1)
                         if var_value:
                             set_user_conf_setting(var_name, var_value)
-                            wine_dpi_value = get_system_dpi_for_wine()
 
-                    if screen_primary and '=' in screen_primary:
-                        var_name, var_value = screen_primary.split('=', 1)
-                        if var_value:
-                            set_user_conf_setting(var_name, var_value)
+                    if screen_resolution.partition('=')[2]:
+                        wine_dpi_value = get_system_dpi_for_wine()
 
                 set_user_conf_setting("PW_WINE_DPI_VALUE", wine_dpi_value)
 
