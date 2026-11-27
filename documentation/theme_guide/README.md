@@ -2,6 +2,8 @@
 
 ---
 
+For AI-assisted theme creation, see the [PortProtonQt Theme Creator skill](SKILL.md).
+
 ## Contents
 - [Overview](#overview)
 - [Creating the Theme Folder](#creating-the-theme-folder)
