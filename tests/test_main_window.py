@@ -1728,7 +1728,7 @@ def test_custom_theme_file_change_reloads_active_theme() -> None:
         _watch_active_theme_files=MagicMock(),
     )
 
-    ThemeMixin._reload_active_custom_theme(cast(Any, window))
+    ThemeMixin._reload_active_theme(cast(Any, window))
 
     manager.invalidate_theme.assert_called_once_with("console")
     window._apply_theme_live.assert_called_once_with("console")

@@ -24,7 +24,7 @@ from portprotonqt.image_utils import ImageCarousel
 from portprotonqt.localization import _
 from portprotonqt.logger import get_logger
 from portprotonqt.tabs.theme_store import THEME_STORE_ITEM, ThemeStoreMixin
-from portprotonqt.theme_manager import _find_theme_folder, load_theme_screenshots
+from portprotonqt.theme_manager import _find_theme_folder, _get_theme_resource_chain, load_theme_screenshots
 from portprotonqt.tray_manager import restart_application_process
 
 logger = get_logger(__name__)
@@ -230,41 +230,41 @@ class MainWindowThemeTabMixin(ThemeStoreMixin, _MainWindowTypingBase):
         self.themeReloadTimer = QTimer(self)
         self.themeReloadTimer.setSingleShot(True)
         self.themeReloadTimer.setInterval(250)
-        self.themeReloadTimer.timeout.connect(self._reload_active_custom_theme)
+        self.themeReloadTimer.timeout.connect(self._reload_active_theme)
         self._watch_active_theme_files()
 
     def _watch_active_theme_files(self) -> None:
         watcher = self.themeFileWatcher
-        watched_paths = [*watcher.files(), *watcher.directories()]
-        if watched_paths:
-            watcher.removePaths(watched_paths)
-        theme_name = self.current_theme_name
-        if not self.theme_manager.is_custom_theme(theme_name):
-            return
-        theme_folder = _find_theme_folder(theme_name)
-        if theme_folder is None:
-            return
-        paths = [theme_folder]
-        for root, dirs, files in os.walk(theme_folder):
-            dirs[:] = [name for name in dirs if name != "__pycache__"]
-            paths.extend(os.path.join(root, name) for name in dirs)
-            paths.extend(os.path.join(root, name) for name in files)
-        watcher.addPaths(paths)
+        watched_paths = set(watcher.files()) | set(watcher.directories())
+        paths = set()
+        for theme_name in _get_theme_resource_chain(self.current_theme_name):
+            theme_folder = _find_theme_folder(theme_name)
+            if theme_folder is None:
+                continue
+            for root, dirs, files in os.walk(theme_folder):
+                dirs[:] = [name for name in dirs if name != "__pycache__"]
+                paths.add(root)
+                paths.update(os.path.join(root, name) for name in files)
+        removed = watched_paths - paths
+        added = paths - watched_paths
+        if removed:
+            watcher.removePaths(sorted(removed))
+        if added:
+            watcher.addPaths(sorted(added))
 
     def _schedule_theme_reload(self, _path: str) -> None:
-        self._watch_active_theme_files()
         self.themeReloadTimer.start()
 
-    def _reload_active_custom_theme(self) -> None:
+    def _reload_active_theme(self) -> None:
         theme_name = self.current_theme_name
-        if not self.theme_manager.is_custom_theme(theme_name):
-            return
-        self.theme_manager.invalidate_theme(theme_name)
         try:
+            self.theme_manager.invalidate_theme(theme_name)
+            self._theme_replacement_cache = {}
             self._apply_theme_live(theme_name)
         except Exception as e:
             logger.warning("Failed to reload theme '%s': %s", theme_name, e)
-        self._watch_active_theme_files()
+        finally:
+            self._watch_active_theme_files()
 
     def _get_selected_custom_themes(self) -> list[str]:
         base_theme = self.themesCombo.currentText()

@@ -1284,3 +1284,54 @@ class TestRecursiveThemeLoading:
 
         assert getattr(child, "ICON_COLORS", {}) == {}
         assert getattr(child, "PARENT_VAL", None) == "from_parent"
+
+
+def test_bundled_theme_reload_updates_open_widget(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import sys
+
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QApplication, QLabel
+
+    from portprotonqt import theme_manager
+    from portprotonqt.tabs.theme_tab import MainWindowThemeTabMixin
+
+    app = QApplication.instance() or QApplication([])
+    bundled = tmp_path / "bundled"
+    theme = bundled / "test-live-bundled"
+    theme.mkdir(parents=True)
+    styles = theme / "styles.py"
+    styles.write_text('CONTENT_STYLE = "color: red;"\n', encoding="utf-8")
+    monkeypatch.setattr(theme_manager, "THEMES_DIRS", [str(tmp_path / "user"), str(bundled)])
+    monkeypatch.setattr(theme_manager.ui_config, "set_theme", lambda _name: None)
+    monkeypatch.setattr(theme_manager, "load_theme_fonts", lambda _name: None)
+    monkeypatch.setitem(sys.modules, "portprotonqt.themes.test-live-bundled", None)
+    del sys.modules["portprotonqt.themes.test-live-bundled"]
+
+    class Window(MainWindowThemeTabMixin, QLabel):
+        theme_manager: ThemeManager
+
+        def _apply_theme_live(self, theme_name: str) -> None:
+            self.setStyleSheet(self.theme_manager.apply_theme(theme_name).CONTENT_STYLE)
+
+    window = Window()
+    window.theme_manager = ThemeManager()
+    monkeypatch.setattr(window.theme_manager, "_theme_module_cache", {})
+    monkeypatch.setattr(window.theme_manager, "current_theme_name", None)
+    monkeypatch.setattr(window.theme_manager, "current_theme_module", None)
+    window.current_theme_name = theme.name
+    window._apply_theme_live(theme.name)
+    window._setup_theme_file_watcher()
+    window.show()
+    assert window.styleSheet() == "color: red;"
+    for color in ("tan", "navy"):
+        replacement = theme / "styles.tmp"
+        replacement.write_text(f'CONTENT_STYLE = "color: {color};"\n', encoding="utf-8")
+        replacement.replace(styles)
+        for _ in range(30):
+            QTest.qWait(50)
+            if window.styleSheet() == f"color: {color};":
+                break
+        assert window.styleSheet() == f"color: {color};"
+        assert str(styles) in window.themeFileWatcher.files()
+    window.close()
+    app.processEvents()

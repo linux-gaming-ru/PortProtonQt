@@ -7,7 +7,7 @@ on:
       - main
     paths:
       - 'build-aux/src/**'
-      - '.gitea/workflows/build-vk-gpu-info-debian.yml'
+      - '.gitea/workflows/build-wrappers-debian.yml'
 
 jobs:
   build-debian12:

@@ -920,7 +920,9 @@ def load_theme(theme_name, inherit_chain=None):
             _inject_parent_theme_constants(custom_theme, styles_file)
 
             try:
-                spec.loader.exec_module(custom_theme)
+                with open(styles_file, encoding="utf-8") as source_file:
+                    source = source_file.read()
+                exec(compile(source, styles_file, "exec"), custom_theme.__dict__)
             finally:
                 # Remove the theme directory from sys.path if we added it
                 if path_added:
